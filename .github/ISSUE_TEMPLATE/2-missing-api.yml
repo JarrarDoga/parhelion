@@ -1,0 +1,27 @@
+name: Missing SwiftUI API
+description: A SwiftUI view, modifier, or type that Parhelion does not support yet.
+labels: ["api-coverage"]
+body:
+  - type: input
+    id: api
+    attributes:
+      label: API
+      description: The SwiftUI declaration you need.
+      placeholder: e.g. View.frame(width:height:alignment:)
+    validations:
+      required: true
+  - type: input
+    id: documentation
+    attributes:
+      label: Apple documentation
+      description: A link to the API on developer.apple.com.
+    validations:
+      required: true
+  - type: textarea
+    id: usage
+    attributes:
+      label: Example
+      description: Code you want to compile under Parhelion.
+      render: swift
+    validations:
+      required: true
