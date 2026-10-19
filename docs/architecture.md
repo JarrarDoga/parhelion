@@ -9,8 +9,11 @@ drive on Linux. It covers the parts that exist today and marks the planned parts
    changes. The same package builds for iOS with Apple's SDK and for Linux with Parhelion.
 2. **Behavioral fidelity.** Where Parhelion implements an API, the API behaves the way SwiftUI
    does, including identity, state lifetime, and update rules.
-3. **Programmable by default.** Everything a person can see or do in a Parhelion app is available
-   to code as data and function calls: the tree, the state, input, and (planned) time.
+3. **Interactive.** A person uses the app in a live preview window with a mouse and keyboard, and
+   the window reloads when the source changes.
+4. **Programmable.** Everything a person can see or do in the preview is also available to code as
+   data and function calls: the tree, the state, input, and (planned) time. The window is one
+   client of the runtime; tests and agents are others, and they can run without a display.
 
 Pixel-perfect rendering is not a goal. Parhelion aims to look close enough to judge a layout, and
 to behave exactly enough to test against.
@@ -110,10 +113,17 @@ tree. With a renderer, it will open a window.
 - **Layout.** A layout pass that assigns a frame to every node, following SwiftUI's
   propose-and-respond model: the parent proposes a size, the child chooses its size, and the
   parent places it.
-- **Rendering.** A backend that draws the laid-out tree into a phone-sized window. The choice of
+- **Rendering.** A backend that draws the laid-out tree. It must draw both into a native window
+  and into off-screen frames, so that other tools can embed or stream the preview. The choice of
   backend is open; see [ADR 0002](adr/0002-defer-renderer-backend.md).
+- **Input.** The preview translates mouse and keyboard input into the touch model that SwiftUI
+  apps expect: a click is a tap, a drag is a touch drag, the mouse wheel and trackpad scroll, and
+  the keyboard types into the focused field. Hit testing uses the frames from layout.
+- **Hot reload.** A `parhelion` command builds the app package, opens it in the preview, and
+  rebuilds when a source file changes. State is kept for views whose structural position did not
+  change.
 - **Agent server.** A process that exposes `ViewHost` over the Model Context Protocol (MCP), so
   agents can read the tree, tap, type, scroll, take screenshots, and advance a deterministic
-  clock.
+  clock, either alongside a person in the same preview or without a window.
 - **Fidelity checks.** A macOS CI job that renders the same views with Apple's SwiftUI and
   compares the resolved trees and layouts with Parhelion's.

@@ -6,14 +6,16 @@
 SwiftUI for Linux, built for coding agents.
 
 Parhelion is an open-source implementation of the SwiftUI API that runs natively on Linux. Your
-app's source, `import SwiftUI` included, compiles against Parhelion without changes. You can then
-inspect and drive its interface on a Linux machine. Parhelion exposes the live view tree, the state,
-and the input as a programming interface. A coding agent can check what is on screen and what
-happens when it taps, instead of guessing from a screenshot.
+app's source, `import SwiftUI` included, compiles against Parhelion without changes. Parhelion runs
+it in a live preview window that reloads when you save, and you use the app with your mouse and
+keyboard. The same runtime exposes the view tree, the state, and the input as a programming
+interface, so a coding agent can check what is on screen and what happens when it taps, instead
+of guessing from a screenshot.
 
 > [!NOTE]
-> Parhelion is pre-alpha. It resolves views, state, and taps headlessly. It does not lay out or draw
-> pixels yet. See [Status](#status) and the [roadmap](docs/roadmap.md).
+> Parhelion is pre-alpha. Today it resolves views, state, and taps without a window. Layout, the
+> preview window, and hot reload are the next milestones. See [Status](#status) and the
+> [roadmap](docs/roadmap.md).
 
 ## Why Parhelion
 
@@ -25,10 +27,12 @@ changed after an action.
 
 - **One codebase.** On Linux, `import SwiftUI` resolves to Parhelion. On iOS, it resolves to Apple's
   framework. The same package builds for both.
-- **Headless first.** The resolved view tree is plain `Codable` data with stable structural
-  identifiers. Renderers, tests, and agents all use the same `ViewHost` API.
-- **Made for automation.** Find elements by text or identifier, tap them, and assert on the
-  result in ordinary unit tests.
+- **A live preview.** Your app runs in a phone-sized window on your Linux desktop. Click to tap,
+  scroll with the mouse wheel or by dragging, and type with the keyboard. Saving a file reloads
+  the app. *(Planned: see the roadmap.)*
+- **Made for agents.** The resolved view tree is plain `Codable` data with stable structural
+  identifiers. The preview window, unit tests, and agents all drive the app through the same
+  `ViewHost` API, with or without a window.
 
 ## Example
 
