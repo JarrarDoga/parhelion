@@ -18,5 +18,8 @@
 Choose one. See [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md#use-of-ai-tools).
 
 - [ ] **None.** No AI tool wrote code in this change.
-- [ ] **Assisted.** An AI tool helped, and I reviewed every line.
-- [ ] **Generated.** An AI tool wrote most of the change, and I reviewed every line.
+- [ ] **Assisted.** An AI tool helped, and a person reviewed every line.
+- [ ] **Generated, reviewed.** An AI tool wrote most of the change, and a person reviewed every line.
+- [ ] **Generated, not reviewed.** An AI tool wrote the change, and no person has reviewed it line by line.
+
+<!-- If an AI agent is filling this in: choose the level that is true. Do not choose a reviewed level unless a person has reviewed the change. -->
