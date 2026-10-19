@@ -96,10 +96,35 @@ The tree is the contract between the runtime and everything that consumes it. Te
 it, agents read it, and the planned renderer will draw it. A renderer will consume the tree
 after layout adds frames, and it will never read view values directly.
 
+### Layout
+
+After evaluation, `LayoutEngine` assigns a frame to every node, in screen points. It follows
+SwiftUI's model: a parent proposes a size, the child chooses its own size, and the parent places
+the child. A `nil` dimension in a proposal asks for the child's ideal size.
+
+- **Stacks** use SwiftUI's algorithm. The stack subtracts its spacing from the proposal and offers
+  the remaining length to its children one at a time, least flexible first. Each child gets an
+  equal share of what is left, and space a child does not use passes to the children after it.
+- **Layout modifiers** (`padding`, `frame`) are stored on each node in order, innermost first,
+  because the order changes the result. A node's `frame` is its own bounds, without its outer
+  padding or frames, which is also the area that receives taps.
+- **Text** is measured with the advance widths of the bundled Inter typeface and wraps at spaces.
+  The widths are generated into source from `Fonts/Inter-Regular.ttf`, because Parhelion cannot
+  ship SwiftPM resources ([ADR 0003](adr/0003-no-swiftpm-resources.md)).
+  There is no kerning or shaping yet, and all text uses the body size until the environment and
+  `font` exist. The renderer must draw with the same font file so that layout and pixels agree.
+- **The root** covers the device screen. Root content is proposed the safe area and centered in
+  it. `Device.iPhone16` is the default.
+
+Every number in which Parhelion assumes SwiftUI's behavior, such as the default padding of 16
+points, is in `LayoutDefaults.swift`. These are assumptions until the planned macOS fidelity job
+verifies them.
+
 ### Interaction
 
-`ViewHost` delivers input by node identifier. Today it supports taps on buttons
-(`tap(_:)` and `tapButton(labeled:)`). Every failure is a typed `InteractionError` that names the
+`ViewHost` delivers taps by node identifier (`tap(_:)`), by button label
+(`tapButton(labeled:)`), or by screen position (`tap(at:)`). A tap at a position goes to the
+frontmost button whose frame contains the point. Every failure is a typed `InteractionError` that names the
 problem, so an agent can recover without parsing messages.
 
 ### Apps
@@ -110,9 +135,6 @@ tree. With a renderer, it will open a window.
 
 ## Planned layers
 
-- **Layout.** A layout pass that assigns a frame to every node, following SwiftUI's
-  propose-and-respond model: the parent proposes a size, the child chooses its size, and the
-  parent places it.
 - **Rendering.** A backend that draws the laid-out tree. It must draw both into a native window
   and into off-screen frames, so that other tools can embed or stream the preview. The choice of
   backend is open; see [ADR 0002](adr/0002-defer-renderer-backend.md).

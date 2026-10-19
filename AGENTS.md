@@ -9,7 +9,7 @@ changing anything under `Sources/`.
 - `swift build` and `swift test` work from the repository root. Swift 6.3 or later is required.
 - `swift run HelloParhelion` prints the resolved tree of the example app. Add `--ids` or `--json`.
 - Before you finish, run the same checks as CI:
-  - `swift format lint --strict --recursive Package.swift Sources Tests Examples`
+  - `swift format lint --strict --recursive Package.swift Sources Tests Examples Scripts`
   - `swift build --build-tests -Xswiftc -warnings-as-errors`
   - `swift test`
 
@@ -25,5 +25,11 @@ changing anything under `Sources/`.
   `Tests/ParhelionUITests/ReadmeExampleTests.swift` together.
 - Record user-visible changes under `Unreleased` in `CHANGELOG.md`.
 - Record design decisions that are hard to reverse as a new file in `docs/adr/`.
+- Never add SwiftPM `resources:` to a target. They break iOS builds of apps that depend on
+  Parhelion; see `docs/adr/0003-no-swiftpm-resources.md`.
+- `Sources/ParhelionUI/InterRegularMetrics.swift` is generated. To change it, edit
+  `Scripts/generate-font-metrics.swift`, then run
+  `swift Scripts/generate-font-metrics.swift Fonts/Inter-Regular.ttf > Sources/ParhelionUI/InterRegularMetrics.swift`
+  and `swift format --in-place` on the output.
 - When you open a pull request, fill in the template's AI assistance section truthfully. Unless a
   person has told you they reviewed the change, choose *Generated, not reviewed*.

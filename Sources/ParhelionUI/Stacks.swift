@@ -3,17 +3,17 @@ import Foundation
 #endif
 
 /// The horizontal alignment of children in a vertical stack.
-public enum HorizontalAlignment: String, Sendable {
+public enum HorizontalAlignment: String, Hashable, Sendable, Codable {
     case leading, center, trailing
 }
 
 /// The vertical alignment of children in a horizontal stack.
-public enum VerticalAlignment: String, Sendable {
+public enum VerticalAlignment: String, Hashable, Sendable, Codable {
     case top, center, bottom
 }
 
 /// The alignment of children in an overlapping stack.
-public struct Alignment: Equatable, Sendable {
+public struct Alignment: Hashable, Sendable, Codable {
     public var horizontal: HorizontalAlignment
     public var vertical: VerticalAlignment
 
@@ -27,6 +27,10 @@ public struct Alignment: Equatable, Sendable {
     public static let bottom = Alignment(horizontal: .center, vertical: .bottom)
     public static let leading = Alignment(horizontal: .leading, vertical: .center)
     public static let trailing = Alignment(horizontal: .trailing, vertical: .center)
+    public static let topLeading = Alignment(horizontal: .leading, vertical: .top)
+    public static let topTrailing = Alignment(horizontal: .trailing, vertical: .top)
+    public static let bottomLeading = Alignment(horizontal: .leading, vertical: .bottom)
+    public static let bottomTrailing = Alignment(horizontal: .trailing, vertical: .bottom)
 
     var name: String {
         switch (horizontal, vertical) {
@@ -107,7 +111,7 @@ extension VStack: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         var attributes: [String: String] = [:]
         if alignment != .center { attributes["alignment"] = alignment.rawValue }
-        if let spacing { attributes["spacing"] = formatLength(spacing) }
+        if let spacing { attributes["spacing"] = formatPoints(spacing) }
         return [makeStackNode("VStack", attributes, content, evaluator, path)]
     }
 }
@@ -116,7 +120,7 @@ extension HStack: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         var attributes: [String: String] = [:]
         if alignment != .center { attributes["alignment"] = alignment.rawValue }
-        if let spacing { attributes["spacing"] = formatLength(spacing) }
+        if let spacing { attributes["spacing"] = formatPoints(spacing) }
         return [makeStackNode("HStack", attributes, content, evaluator, path)]
     }
 }

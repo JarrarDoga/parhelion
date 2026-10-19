@@ -13,8 +13,8 @@ interface, so a coding agent can check what is on screen and what happens when i
 of guessing from a screenshot.
 
 > [!NOTE]
-> Parhelion is pre-alpha. Today it resolves views, state, and taps without a window. Layout, the
-> preview window, and hot reload are the next milestones. See [Status](#status) and the
+> Parhelion is pre-alpha. Today it resolves and lays out views, keeps state, and handles taps
+> without a window. The preview window and hot reload are the next milestones. See [Status](#status) and the
 > [roadmap](docs/roadmap.md).
 
 ## Why Parhelion
@@ -72,12 +72,21 @@ The bundled example is the app that `xtool new` generates, copied without change
 ```console
 $ swift run HelloParhelion
 Root
-└─ VStack padding=all
+└─ VStack padding(16)
    ├─ Image foregroundStyle=tint imageScale=large systemName=globe
    └─ Text "Hello, world!"
 ```
 
-Pass `--json` for the tree as JSON, or `--ids` to show node identifiers.
+Pass `--frames` to show each node's frame in points, `--ids` to show node identifiers, or `--json`
+for the tree as JSON:
+
+```console
+$ swift run HelloParhelion --frames
+Root  [0, 0, 393 × 852]
+└─ VStack padding(16)  [146.21, 413.25, 100.57 × 50.5]
+   ├─ Image foregroundStyle=tint imageScale=large systemName=globe  [185.54, 413.25, 21.93 × 21.93]
+   └─ Text "Hello, world!"  [146.21, 443.18, 100.57 × 20.57]
+```
 
 ## Status
 
@@ -86,11 +95,15 @@ Pass `--json` for the tree as JSON, or `--ids` to show node identifiers.
 | Views | `Text`, `Image`, `Button`, `VStack`, `HStack`, `ZStack`, `Spacer`, `Color`, `EmptyView` |
 | Builders | Multiple children, `if`/`else`, optional content |
 | State | `@State` and `@Binding`, with SwiftUI's structural identity and lifetime rules |
-| Modifiers | `padding`, `foregroundStyle`, `imageScale` (recorded, not yet laid out) |
+| Modifiers | `padding`, `frame` (fixed and flexible), `foregroundStyle`, `imageScale` |
+| Layout | SwiftUI's propose-and-respond stack algorithm, text wrapping with the bundled Inter font, iPhone 16 screen and safe area |
+| Input | Tap by node, by button label, or by screen position |
 | App | `App`, `Scene`, `WindowGroup`, with a headless runner |
 
-Not yet available: layout, rendering, text measurement, lists and scrolling, navigation, the
-environment, animation, and gestures other than tap. The [roadmap](docs/roadmap.md) lists the
+Not yet available: rendering, fonts other than body text, lists and scrolling, navigation, the
+environment, animation, and gestures other than tap. Layout constants that Parhelion assumes about
+SwiftUI, such as the default padding, are listed in `LayoutDefaults.swift` until a macOS CI job
+verifies them. The [roadmap](docs/roadmap.md) lists the
 order of work.
 
 ## Requirements
@@ -126,9 +139,11 @@ Parhelion has no tagged release yet. Pin a version once `0.1.0` is out.
 ## How it works
 
 `ViewHost` evaluates a view's `body` recursively until it reaches primitive views, and records
-each one as a `ViewNode`. `@State` storage belongs to the host and is keyed by a view's
-structural position, so state survives updates and is discarded when the view leaves the tree.
-Taps run the button's action, and the host evaluates the tree again.
+each one as a `ViewNode`. A layout pass then assigns every node a frame, using SwiftUI's model:
+the parent proposes a size, the child picks its size, and the parent places it. `@State` storage
+belongs to the host and is keyed by a view's structural position, so state survives updates and
+is discarded when the view leaves the tree. Taps run the button's action, and the host evaluates
+and lays out the tree again.
 
 The [architecture overview](docs/architecture.md) covers the design. The
 [decision records](docs/adr/) explain the choices behind it.

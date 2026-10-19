@@ -7,6 +7,10 @@ var products: [Product] = [
 ]
 
 var targets: [Target] = [
+    // ParhelionUI must not declare SwiftPM resources: xtool packages the resource
+    // bundles of every target in an app's graph, including targets that are
+    // excluded on iOS, and fails when they were not built. Font metrics are
+    // generated into source instead; see Scripts/generate-font-metrics.swift.
     .target(name: "ParhelionUI"),
     .testTarget(name: "ParhelionUITests", dependencies: ["ParhelionUI"]),
 ]
