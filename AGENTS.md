@@ -25,3 +25,5 @@ changing anything under `Sources/`.
   `Tests/ParhelionUITests/ReadmeExampleTests.swift` together.
 - Record user-visible changes under `Unreleased` in `CHANGELOG.md`.
 - Record design decisions that are hard to reverse as a new file in `docs/adr/`.
+- When you open a pull request, fill in the template's AI assistance section truthfully. Unless a
+  person has told you they reviewed the change, choose *Generated, not reviewed*.
