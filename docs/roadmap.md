@@ -15,31 +15,37 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [ ] `font`, `bold`, `frame`, and `background` modifiers
 - [ ] API documentation with DocC
 
-## 0.2: Layout
+## 0.2: Preview window
 
 - [ ] A layout pass that assigns a frame to every node
 - [ ] Text measurement with a bundled open-source font
 - [ ] Stack layout, spacing, alignment, `Spacer`, `padding`, and `frame`
+- [ ] A renderer backend (see [ADR 0002](adr/0002-defer-renderer-backend.md))
+- [ ] A phone-sized window on Linux
+- [ ] Mouse input: click to tap, with hit testing
 - [ ] Frames in the `ViewNode` tree and in the JSON output
 
-## 0.3: Window and input
+## 0.3: Hot reload
 
-- [ ] A phone-sized window on Linux
-- [ ] A renderer backend (see [ADR 0002](adr/0002-defer-renderer-backend.md))
-- [ ] Tap by pointer position, and hit testing
-- [ ] `ScrollView` with momentum scrolling
-- [ ] `TextField` with keyboard input
+- [ ] A `parhelion` command that builds an app package and opens it in the preview window
+- [ ] Rebuild and reload on save, keeping state where the structure allows
 
-## 0.4: Agent server
+## 0.4: Scrolling and text input
 
-- [ ] A `parhelion` command-line tool that hosts an app
+- [ ] `ScrollView` with momentum, driven by the mouse wheel, trackpad, or drag
+- [ ] `TextField` with keyboard input, focus, and selection
+- [ ] Keyboard navigation between controls
+
+## 0.5: Agent server
+
 - [ ] An MCP server: read the tree, tap, type, scroll, take a screenshot
+- [ ] Off-screen rendering, so another app can embed or stream the preview
 - [ ] A deterministic clock for animations and timers
 
-## 0.5: Fast iteration
+## 0.6: More of SwiftUI
 
-- [ ] Rebuild and reload on save, keeping state where the structure allows
 - [ ] `List`, `NavigationStack`, `sheet`, and `alert`
+- [ ] Animations
 
 ## Continuous: Fidelity
 
