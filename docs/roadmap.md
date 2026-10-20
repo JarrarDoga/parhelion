@@ -22,6 +22,8 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [x] Stack layout, spacing, alignment, `Spacer`, `padding`, and `frame`
 - [x] Frames in the `ViewNode` tree and in the JSON output
 - [x] Hit testing: tap by screen position
+- [ ] Cache `sizeThatFits` results by node, modifier depth, and proposal, so that layout on every
+      state change stays fast
 - [ ] A renderer backend (see [ADR 0002](adr/0002-defer-renderer-backend.md))
 - [ ] A phone-sized window on Linux
 - [ ] Mouse input: click to tap

@@ -28,9 +28,4 @@ may contain breaking changes.
 - `ViewNode.frame` and `ViewNode.modifiers`, which list layout modifiers in the order they apply.
 - `--frames` for the headless app runner.
 
-### Changed
-
-- `padding` is recorded as a layout modifier, such as `padding(16)`, instead of the
-  `padding=all` attribute.
-
 [Unreleased]: https://github.com/JarrarDoga/parhelion/commits/main

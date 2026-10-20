@@ -234,7 +234,11 @@ struct LayoutEngine {
         }
 
         var sizes = [CGSize](repeating: .zero, count: children.count)
-        if let along {
+        if let along, along.isInfinite {
+            // A parent measuring this stack's maximum size. There is nothing
+            // to share out, and subtracting infinite sizes would produce NaN.
+            sizes = children.map { sizeThatFits($0, propose(.infinity), parentAxis: axis) }
+        } else if let along {
             let flexibility = children.map { child in
                 length(sizeThatFits(child, propose(.infinity), parentAxis: axis))
                     - length(sizeThatFits(child, propose(0), parentAxis: axis))

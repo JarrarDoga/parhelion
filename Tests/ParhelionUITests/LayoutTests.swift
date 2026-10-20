@@ -99,6 +99,31 @@ struct LayoutTests {
         #expect(stack.children[1].frame?.width == 120)
     }
 
+    @Test("Nested stacks of flexible views get finite frames")
+    func nestedFlexibleStacks() {
+        // The outer stack measures the inner one with an infinite proposal.
+        // Two fill-everything children must not turn that into NaN.
+        let host = ViewHost(
+            HStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    Color.red
+                    Color.blue
+                }
+                Color.green.frame(width: 100)
+            }
+            .frame(width: 300, height: 50),
+            device: square
+        )
+        for node in host.root.allNodes {
+            let frame = node.frame ?? .null
+            let values = [frame.minX, frame.minY, frame.width, frame.height]
+            #expect(values.allSatisfy { $0.isFinite }, "\(node.id) has frame \(frame)")
+        }
+        let inner = host.root.children[0].children[0]
+        #expect(inner.frame?.width == 200)
+        #expect(inner.children.map { $0.frame?.width } == [100, 100])
+    }
+
     @Test("Padding insets the view's frame")
     func padding() {
         let host = ViewHost(Color.red.frame(width: 100, height: 100).padding(20), device: square)
