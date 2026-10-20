@@ -64,12 +64,24 @@ final class PreviewSession {
                 return true
             }
         case .close:
+            saveState()
             return false
         }
         if host.pressedNodeID != pressedBefore {
             try sendFrame()
         }
         return true
+    }
+
+    /// Where the session saves state when the host closes it, so that the
+    /// next run of the app can restore it. Set by `parhelion run`.
+    static var stateFilePath: String? {
+        ProcessInfo.processInfo.environment[previewStateEnvironmentKey]
+    }
+
+    private func saveState() {
+        guard let path = Self.stateFilePath else { return }
+        try? host.stateSnapshot().write(to: URL(fileURLWithPath: path))
     }
 
     private func sendFrame() throws {
@@ -102,8 +114,11 @@ extension PreviewSession {
         let scale = environment["PARHELION_PREVIEW_SCALE"].flatMap(Double.init) ?? 2
         do {
             let channel = try PreviewChannel.connect(to: socketPath)
+            let savedState = stateFilePath.flatMap {
+                FileManager.default.contents(atPath: $0)
+            }
             let session = PreviewSession(
-                host: ViewHost(anyRootView: content),
+                host: ViewHost(anyRootView: content, restoring: savedState),
                 channel: channel,
                 scale: scale,
                 appName: appName

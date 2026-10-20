@@ -1,21 +1,10 @@
 import ArgumentParser
+import CSDL3
 import Foundation
 import ParhelionPreview
 
-struct Preview: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        abstract: "Run a built Parhelion app in a preview window.",
-        discussion: """
-            Starts the app, connects to it over a local socket, and shows its \
-            frames in a window. Click to tap. Close the window to quit.
-
-            Options for parhelion go before the executable. Everything after \
-            the executable is passed to the app.
-
-            Example: parhelion preview --zoom 0.8 .build/debug/Counter
-            """
-    )
-
+/// Options shared by the commands that open a preview window.
+struct WindowOptions: ParsableArguments {
     @Option(help: "Pixels per point in the frames the app renders.")
     var scale: Double = 2
 
@@ -25,44 +14,110 @@ struct Preview: ParsableCommand {
     @Flag(help: "Exit after showing the first frame. For automated checks.")
     var exitAfterFirstFrame = false
 
-    @Argument(help: "The app executable to run.")
-    var executable: String
-
-    @Argument(parsing: .captureForPassthrough, help: "Arguments for the app.")
-    var arguments: [String] = []
-
     func validate() throws {
         guard scale > 0, zoom > 0 else {
             throw ValidationError("--scale and --zoom must be greater than zero.")
         }
     }
 
-    func run() throws {
-        let socketPath = FileManager.default.temporaryDirectory
-            .appendingPathComponent("parhelion-\(ProcessInfo.processInfo.processIdentifier).sock")
-            .path
-        let listener = try PreviewListener(path: socketPath)
-        let app = try AppProcess(
-            executable: executable,
-            arguments: arguments,
-            environment: [
-                previewSocketEnvironmentKey: socketPath,
-                "PARHELION_PREVIEW_SCALE": String(scale),
-            ]
-        )
-        defer { app.stop() }
+    /// The environment that tells an app to connect to `socketPath`.
+    func environment(socketPath: String) -> [String: String] {
+        [previewSocketEnvironmentKey: socketPath, "PARHELION_PREVIEW_SCALE": String(scale)]
+    }
 
-        let channel = try app.waitForConnection(on: listener)
-        guard case .hello(let hello) = try channel.receiveAppMessage(timeout: 10) else {
-            throw CleanExit.message("error: the app did not introduce itself.")
-        }
-
-        let window = try WindowHost(
+    func openWindow(for hello: PreviewHello) throws -> WindowHost {
+        try WindowHost(
             title: "\(hello.appName) — Parhelion",
             width: Int((hello.screenWidth * zoom).rounded()),
-            height: Int((hello.screenHeight * zoom).rounded())
+            height: Int((hello.screenHeight * zoom).rounded()),
+            zoom: zoom
         )
-        print("Previewing \(hello.appName). Close the window to quit.")
-        try window.run(channel: channel, zoom: zoom, exitAfterFirstFrame: exitAfterFirstFrame)
+    }
+}
+
+/// A socket path unique to this process.
+func makeSocketPath() -> String {
+    FileManager.default.temporaryDirectory
+        .appendingPathComponent("parhelion-\(ProcessInfo.processInfo.processIdentifier).sock")
+        .path
+}
+
+struct Preview: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "Run a built Parhelion app in a preview window.",
+        discussion: """
+            Starts the app, connects to it over a local socket, and shows its \
+            frames in a window. Click to tap. Close the window to quit.
+
+            Options for parhelion go before the executable. Everything after \
+            the executable is passed to the app. To rebuild and reload the app \
+            when its sources change, use `parhelion run` instead.
+
+            Example: parhelion preview --zoom 0.8 .build/debug/Counter
+            """
+    )
+
+    @OptionGroup var window: WindowOptions
+
+    @Argument(help: "The app executable to run.")
+    var executable: String
+
+    @Argument(parsing: .captureForPassthrough, help: "Arguments for the app.")
+    var arguments: [String] = []
+
+    func run() throws {
+        parhelion_line_buffer_standard_output()
+        let socketPath = makeSocketPath()
+        let listener = try PreviewListener(path: socketPath)
+        // Frames that arrive before the window exists are kept until it does.
+        let wakeBox = WakeBox()
+        let app = try AppConnection(
+            executable: URL(fileURLWithPath: executable).path,
+            arguments: arguments,
+            environment: window.environment(socketPath: socketPath),
+            listener: listener,
+            wake: { wakeBox.wake() }
+        )
+        let host = try window.openWindow(for: app.hello)
+        wakeBox.set(host.waker)
+        print("Previewing \(app.hello.appName). Close the window to quit.")
+
+        while true {
+            switch host.nextEvent(timeout: 0.25) {
+            case .close?:
+                app.close()
+                return
+            case .input(let message)?:
+                app.send(message)
+            case nil:
+                break
+            }
+            if let frame = app.takeFrame() {
+                try host.present(frame)
+                if window.exitAfterFirstFrame {
+                    app.close()
+                    return
+                }
+            }
+            if app.isDisconnected {
+                print("The app exited.")
+                return
+            }
+        }
+    }
+}
+
+/// Holds the window's wake function once the window exists, so that threads
+/// started earlier can call it.
+final class WakeBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var waker: (@Sendable () -> Void)?
+
+    func set(_ waker: @escaping @Sendable () -> Void) {
+        lock.withLock { self.waker = waker }
+    }
+
+    func wake() {
+        lock.withLock { waker }?()
     }
 }

@@ -10,4 +10,12 @@ static const SDL_WindowFlags parhelion_window_high_pixel_density = SDL_WINDOW_HI
 static const Uint8 parhelion_button_left = SDL_BUTTON_LEFT;
 static const SDL_MouseButtonFlags parhelion_button_left_mask = SDL_BUTTON_LMASK;
 
+// Line-buffers standard output, so progress shows up immediately even when
+// output goes to a pipe or a file. C's `stdout` is a global variable, which
+// Swift 6 does not allow code to touch directly.
+#include <stdio.h>
+static inline void parhelion_line_buffer_standard_output(void) {
+    setvbuf(stdout, NULL, _IOLBF, 0);
+}
+
 #endif

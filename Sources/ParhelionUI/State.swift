@@ -1,3 +1,7 @@
+#if canImport(Foundation)
+import Foundation
+#endif
+
 /// A property of a view that the host updates before evaluating `body`.
 public protocol DynamicProperty {}
 
@@ -9,6 +13,24 @@ final class StateBox<Value> {
     init(_ value: Value) {
         self.value = value
     }
+}
+
+/// State storage that can save its value in a snapshot.
+protocol SnapshotEncodable: AnyObject {
+    /// The value as JSON, or `nil` if the value is not `Encodable`.
+    func encodedValue() -> Data?
+}
+
+extension StateBox: SnapshotEncodable {
+    func encodedValue() -> Data? {
+        guard let value = value as? any Encodable else { return nil }
+        return try? JSONEncoder().encode(value)
+    }
+}
+
+/// Decodes a value of a type known only at run time.
+func decode<T: Decodable>(_ type: T.Type, from data: Data) -> T? {
+    try? JSONDecoder().decode(type, from: data)
 }
 
 /// The per-instance handle a ``State`` uses to reach its storage.

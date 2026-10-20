@@ -26,6 +26,7 @@ jobs:
           swift format lint --strict --recursive
           Package.swift Sources Tests Examples
           Tools/parhelion-cli/Package.swift Tools/parhelion-cli/Sources
+          Tools/parhelion-cli/Tests Tools/parhelion-cli/Fixtures
       - name: Check the embedded font
         run: Scripts/embed-font.sh Fonts/Inter-Regular.ttf | diff -q - Sources/ParhelionRender/InterRegularFontData.swift
       - name: Check that no target declares resources
@@ -70,7 +71,9 @@ jobs:
       - name: Install SDL3
         run: apt-get update && apt-get install -y --no-install-recommends libsdl3-dev
       - name: Build the parhelion tool
-        run: swift build --package-path Tools/parhelion-cli -Xswiftc -warnings-as-errors
+        run: swift build --package-path Tools/parhelion-cli --build-tests -Xswiftc -warnings-as-errors
+      - name: Test the parhelion tool
+        run: swift test --package-path Tools/parhelion-cli --skip-build
       - name: Build the example app
         run: swift build --product Counter
       - name: Preview the example without a display
@@ -79,3 +82,15 @@ jobs:
         run: >-
           Tools/parhelion-cli/.build/debug/parhelion preview --exit-after-first-frame
           .build/debug/Counter
+      - name: Run an executable app without a display
+        env:
+          SDL_VIDEODRIVER: offscreen
+        run: >-
+          Tools/parhelion-cli/.build/debug/parhelion run --exit-after-first-frame
+          --product Counter
+      - name: Run an xtool-shaped app without a display
+        env:
+          SDL_VIDEODRIVER: offscreen
+        run: >-
+          Tools/parhelion-cli/.build/debug/parhelion run --exit-after-first-frame
+          --package-path Tools/parhelion-cli/Fixtures/LibraryApp

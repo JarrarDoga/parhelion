@@ -14,8 +14,8 @@ of guessing from a screenshot.
 
 > [!NOTE]
 > Parhelion is pre-alpha. Today it resolves, lays out, and draws views, keeps state, and runs apps
-> in a preview window where you click to tap. Hot reload, scrolling, and keyboard input are the
-> next milestones. See [Status](#status) and the
+> in a preview window that reloads when you save and where you click to tap. Scrolling and
+> keyboard input are the next milestones. See [Status](#status) and the
 > [roadmap](docs/roadmap.md).
 
 ## Why Parhelion
@@ -108,15 +108,26 @@ $ swift build -c release --package-path Tools/parhelion-cli
 $ cp Tools/parhelion-cli/.build/release/parhelion ~/.local/bin/
 ```
 
-Then build an app and open it:
+Then run your app's package:
 
 ```console
-$ swift build --product Counter
-$ parhelion preview .build/debug/Counter
+$ parhelion run --package-path ~/Code/MyApp
+Building MyApp...
+Running MyApp. Save a file to reload. Close the window to quit.
+Change detected. Rebuilding...
+Reloaded in 1.6 s.
 ```
 
+`parhelion run` builds the app, opens it, and watches the package's Swift files. When you save,
+it rebuilds in the background and restarts the app in the same window. `@State` values whose type
+is `Codable` keep their values across the reload. If the build fails, the errors appear in the
+terminal with paths to your own files, and the last working version keeps running.
+
+It runs a package's executable product, or, for apps created with `xtool new`, the library's
+`@main` type, through a small generated runner package. To open an already-built executable
+without watching, use `parhelion preview .build/debug/Counter`.
+
 `--zoom` changes the window size, and `--scale` changes the pixels per point the app renders at.
-Options for `parhelion` go before the executable; anything after it is passed to the app.
 
 The app draws its own frames and sends them to the window over a local socket, so the same app
 can also run with no window at all, for tests and agents.
@@ -131,11 +142,11 @@ can also run with no window at all, for tests and agents.
 | Modifiers | `padding`, `frame` (fixed and flexible), `background`, `foregroundStyle`, `imageScale` |
 | Layout | SwiftUI's propose-and-respond stack algorithm, text wrapping with the bundled Inter font, iPhone 16 screen and safe area |
 | Input | Tap by node, by button label, or by screen position; press, drag away to cancel, and release with the mouse in the preview window |
-| Window | `parhelion preview`, an SDL3 window host for Wayland and X11 |
+| Window | `parhelion run` with hot reload that keeps `Codable` state, and `parhelion preview`; an SDL3 window host for Wayland and X11 |
 | Rendering | Anti-aliased shapes and Inter text drawn in pure Swift at any scale, with PNG output; SF Symbols draw as placeholder rings |
 | App | `App`, `Scene`, `WindowGroup`, with a headless runner |
 
-Not yet available: hot reload, keyboard input, fonts other than body text, lists and scrolling, navigation, the
+Not yet available: scrolling, keyboard input, fonts other than body text, lists and scrolling, navigation, the
 environment, animation, and gestures other than tap. Layout constants that Parhelion assumes about
 SwiftUI, such as the default padding, are listed in `LayoutDefaults.swift` until a macOS CI job
 verifies them. The [roadmap](docs/roadmap.md) lists the

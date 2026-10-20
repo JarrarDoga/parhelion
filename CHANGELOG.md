@@ -41,5 +41,8 @@ may contain breaking changes.
   session automatically when the window host starts them.
 - `ViewHost.pointerDown(at:)`, `pointerMoved(to:)`, `pointerUp(at:)`, and `pressedNodeID`, with
   iOS's press, cancel, and release behavior. Pressed buttons draw dimmed.
+- `parhelion run`, with hot reload: it rebuilds on save, restarts the app in the same window, and
+  keeps `Codable` `@State` values. It runs executable products and `xtool`-shaped library apps.
+- `ViewHost.stateSnapshot()` and `ViewHost(_:device:restoring:)`.
 
 [Unreleased]: https://github.com/JarrarDoga/parhelion/commits/main
