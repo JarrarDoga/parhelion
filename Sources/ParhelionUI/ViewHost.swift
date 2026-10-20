@@ -86,6 +86,48 @@ public final class ViewHost {
         try tap(target.id)
     }
 
+    // MARK: - Pointer input
+
+    /// The button under the pointer while it is down, if any.
+    ///
+    /// A press that starts on a button taps it only if the pointer is
+    /// released over the same button, as on iOS. The renderer draws the
+    /// pressed button dimmed.
+    public private(set) var pressedNodeID: NodeID?
+    private var pressStartedOn: NodeID?
+
+    /// Starts a press at a point on the screen.
+    public func pointerDown(at point: CGPoint) {
+        pressStartedOn = frontmostTappableNode(at: point, in: root)?.id
+        pressedNodeID = pressStartedOn
+    }
+
+    /// Moves a press. The button stays pressed only while the pointer is
+    /// over it.
+    public func pointerMoved(to point: CGPoint) {
+        guard let pressStartedOn else { return }
+        let current = frontmostTappableNode(at: point, in: root)?.id
+        pressedNodeID = current == pressStartedOn ? pressStartedOn : nil
+    }
+
+    /// Ends a press. If the pointer is over the button the press started on,
+    /// the button is tapped and the tree updates.
+    ///
+    /// - Returns: The identifier of the tapped button, or `nil` if the press
+    ///   did not tap anything.
+    @discardableResult
+    public func pointerUp(at point: CGPoint) -> NodeID? {
+        defer {
+            pressStartedOn = nil
+            pressedNodeID = nil
+        }
+        guard let pressStartedOn,
+            frontmostTappableNode(at: point, in: root)?.id == pressStartedOn
+        else { return nil }
+        try? tap(pressStartedOn)
+        return pressStartedOn
+    }
+
     /// Taps the one button whose label is exactly `label`.
     public func tapButton(labeled label: String) throws(InteractionError) {
         let matches = root.allNodes.filter { $0.kind == "Button" && $0.label == label }

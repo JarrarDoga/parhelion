@@ -34,7 +34,8 @@ public struct RenderedFrame: Sendable {
 extension ViewHost {
     /// Draws the current tree at the given number of pixels per point.
     public func render(scale: Double = 2) -> RenderedFrame {
-        RenderedFrame(canvas: TreeRenderer().render(root, device: device, scale: scale))
+        let renderer = TreeRenderer(pressedNodeID: pressedNodeID)
+        return RenderedFrame(canvas: renderer.render(root, device: device, scale: scale))
     }
 }
 
@@ -42,6 +43,8 @@ extension ViewHost {
 struct TreeRenderer {
     let font = TrueTypeFont.interRegular
     let measurer = FontTextMeasurer(font: .interRegular)
+    /// The button being pressed, which draws dimmed.
+    var pressedNodeID: NodeID?
 
     func render(_ root: ViewNode, device: Device, scale: Double) -> Canvas {
         var canvas = Canvas(
@@ -50,35 +53,52 @@ struct TreeRenderer {
             scale: scale,
             background: ColorPalette.background
         )
-        draw(root, foreground: nil, into: &canvas)
+        draw(root, foreground: nil, opacity: 1, into: &canvas)
         return canvas
     }
 
     /// Draws a node and its children. `foreground` is the style inherited
-    /// from ancestors, which a node's own `foregroundStyle` overrides.
-    private func draw(_ node: ViewNode, foreground: String?, into canvas: inout Canvas) {
+    /// from ancestors, which a node's own `foregroundStyle` overrides, and
+    /// `opacity` multiplies every color in the subtree.
+    private func draw(
+        _ node: ViewNode,
+        foreground: String?,
+        opacity: Double,
+        into canvas: inout Canvas
+    ) {
         var foreground = node.attributes["foregroundStyle"] ?? foreground
+        var opacity = opacity
         guard let frame = node.frame else { return }
+
+        if node.kind == "Button", node.id == pressedNodeID {
+            opacity *= ColorPalette.pressedOpacity
+        }
+        func paint(_ style: String) -> RGBA {
+            var color = ColorPalette.color(named: style)
+            color.alpha = UInt8((Double(color.alpha) * opacity).rounded())
+            return color
+        }
 
         // Backgrounds sit behind the view, the outermost one at the back.
         for index in node.modifiers.indices.reversed() {
             guard case .background(let style) = node.modifiers[index],
                 index < node.modifierFrames.count
             else { continue }
-            canvas.fill(node.modifierFrames[index], color: ColorPalette.color(named: style))
+            canvas.fill(node.modifierFrames[index], color: paint(style))
         }
 
         switch node.kind {
         case "Color":
-            canvas.fill(
-                frame, color: ColorPalette.color(named: node.attributes["color"] ?? "clear"))
+            canvas.fill(frame, color: paint(node.attributes["color"] ?? "clear"))
 
         case "Text":
-            drawText(node.text ?? "", in: frame, style: foreground ?? "primary", into: &canvas)
+            drawText(
+                node.text ?? "", in: frame, color: paint(foreground ?? "primary"), into: &canvas)
 
         case "Image":
             if node.attributes["systemName"] != nil {
-                drawSymbolPlaceholder(in: frame, style: foreground ?? "primary", into: &canvas)
+                drawSymbolPlaceholder(
+                    in: frame, color: paint(foreground ?? "primary"), into: &canvas)
             }
 
         case "Button":
@@ -91,7 +111,7 @@ struct TreeRenderer {
         }
 
         for child in node.children {
-            draw(child, foreground: foreground, into: &canvas)
+            draw(child, foreground: foreground, opacity: opacity, into: &canvas)
         }
     }
 
@@ -100,14 +120,13 @@ struct TreeRenderer {
     private func drawText(
         _ text: String,
         in frame: CGRect,
-        style: String,
+        color: RGBA,
         into canvas: inout Canvas
     ) {
         let size = Double(LayoutDefaults.bodyFontSize)
         let lines = measurer.lines(of: text, fontSize: CGFloat(size), width: frame.width)
         let ascent = Double(font.ascender) * size / Double(font.unitsPerEm)
         let lineHeight = font.lineHeight(size: size)
-        let color = ColorPalette.color(named: style)
         for (index, line) in lines.enumerated() {
             canvas.drawText(
                 line.text,
@@ -123,7 +142,7 @@ struct TreeRenderer {
     }
 
     /// Parhelion has no SF Symbols yet, so every symbol is drawn as a ring.
-    private func drawSymbolPlaceholder(in frame: CGRect, style: String, into canvas: inout Canvas) {
+    private func drawSymbolPlaceholder(in frame: CGRect, color: RGBA, into canvas: inout Canvas) {
         let side = min(frame.width, frame.height)
         let stroke = max(side * 0.09, 1)
         let outer = CGRect(
@@ -134,6 +153,6 @@ struct TreeRenderer {
         )
         var ring = Path(ellipseIn: outer)
         ring.addPath(Path(ellipseIn: outer.insetBy(dx: stroke, dy: stroke), reversed: true))
-        canvas.fill(ring, color: ColorPalette.color(named: style))
+        canvas.fill(ring, color: color)
     }
 }

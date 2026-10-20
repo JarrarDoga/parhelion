@@ -24,10 +24,11 @@ to behave exactly enough to test against.
 | --- | --- | --- |
 | `ParhelionUI` | Linux (macOS planned) | The SwiftUI-compatible API, layout, and the runtime. |
 | `ParhelionRender` | Linux (macOS planned) | Font parsing, anti-aliased rasterization, and PNG encoding, in pure Swift. |
+| `ParhelionPreview` | Linux | The protocol and socket channel between an app and the window host. |
+| `parhelion` (in `Tools/parhelion-cli`) | Linux | The command-line tool and SDL3 window host. A separate package, because it depends on SDL3. |
 | `SwiftUI` | Linux only | Re-exports `ParhelionUI` so that `import SwiftUI` compiles. See [ADR 0001](adr/0001-swiftui-module-shim.md). |
 
-Planned modules: a renderer, a windowing and input layer, and an agent server. See the
-[roadmap](roadmap.md).
+Planned: hot reload and an agent server. See the [roadmap](roadmap.md).
 
 ## The pipeline
 
@@ -146,11 +147,42 @@ given number of pixels per point. Like layout, the renderer reads only the tree.
 frontmost button whose frame contains the point. Every failure is a typed `InteractionError` that names the
 problem, so an agent can recover without parsing messages.
 
+### The preview window
+
+The window is a separate process ([ADR 0004](adr/0004-pure-swift-renderer.md)):
+
+```text
+ parhelion preview (SDL3)                    the app (ParhelionUI)
+ ┌───────────────────────┐   hello, frames   ┌─────────────────────────┐
+ │ window, texture,      │ ◄──────────────── │ ViewHost: evaluate,     │
+ │ mouse events          │ ────────────────► │ layout, render to RGBA  │
+ └───────────────────────┘   pointer input   └─────────────────────────┘
+          Unix domain socket, path in PARHELION_PREVIEW_SOCKET
+```
+
+1. `parhelion preview` listens on a socket and starts the app with the socket's path in
+   `PARHELION_PREVIEW_SOCKET`.
+2. `App.main()` sees the variable, connects, and runs a `PreviewSession` instead of the headless
+   runner. It sends a hello message with the screen size, then a frame.
+3. The host opens a window of the screen's size in points, shows each frame as a texture, and
+   sends mouse presses, moves, and releases back in points.
+4. The session applies the input to `ViewHost` and sends a new frame whenever the screen
+   changes. Closing the window sends `close`, and the app exits.
+
+Messages are length-prefixed: a 4-byte length, a 1-byte kind, and a payload. Control messages are
+JSON; frames are binary RGBA. Set `PARHELION_DEBUG=1` to trace events and messages in both
+processes.
+
+Pointer input follows iOS: a press on a button highlights it, moving off the button cancels the
+highlight, and releasing over the same button taps it. `ViewHost.pointerDown(at:)`,
+`pointerMoved(to:)`, and `pointerUp(at:)` implement this for every client, not only the window.
+
 ### Apps
 
 `App`, `Scene`, and `WindowGroup` mirror SwiftUI so an app's `@main` type compiles. Under
-Parhelion, `App.main()` currently runs headlessly: it resolves the first window and prints the
-tree. With a renderer, it will open a window.
+Parhelion, `App.main()` runs a preview session when a window host started the app. Otherwise it
+runs headlessly: it resolves the first window and prints the tree, or writes it to a PNG file
+with `--png`.
 
 ## Planned layers
 

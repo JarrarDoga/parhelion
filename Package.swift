@@ -5,6 +5,7 @@ import PackageDescription
 var products: [Product] = [
     .library(name: "ParhelionUI", targets: ["ParhelionUI"]),
     .library(name: "ParhelionRender", targets: ["ParhelionRender"]),
+    .library(name: "ParhelionPreview", targets: ["ParhelionPreview"]),
 ]
 
 var targets: [Target] = [
@@ -13,9 +14,14 @@ var targets: [Target] = [
     // excluded on iOS, and fails when they were not built. Font metrics are
     // embedded as generated source instead; see Scripts/embed-font.sh.
     .target(name: "ParhelionRender"),
-    .target(name: "ParhelionUI", dependencies: ["ParhelionRender"]),
+    .target(name: "ParhelionPreview"),
+    .target(name: "ParhelionUI", dependencies: ["ParhelionRender", "ParhelionPreview"]),
     .testTarget(name: "ParhelionRenderTests", dependencies: ["ParhelionRender"]),
-    .testTarget(name: "ParhelionUITests", dependencies: ["ParhelionUI", "ParhelionRender"]),
+    .testTarget(name: "ParhelionPreviewTests", dependencies: ["ParhelionPreview"]),
+    .testTarget(
+        name: "ParhelionUITests",
+        dependencies: ["ParhelionUI", "ParhelionRender", "ParhelionPreview"]
+    ),
 ]
 
 // Apple's SwiftUI does not exist on Linux, so Parhelion ships a module with that

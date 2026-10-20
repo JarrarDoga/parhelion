@@ -26,6 +26,9 @@ $ swift test
 $ swift run HelloParhelion
 ```
 
+To work on the preview window, install SDL3 (`SDL3-devel` on Fedora, `libsdl3-dev` on Ubuntu 25.04
+or later) and build the tool with `swift build --package-path Tools/parhelion-cli`.
+
 The `SwiftUI` shim module, the source compatibility tests, and the examples exist only on Linux.
 `ParhelionUI` is intended to build on macOS as well, but CI does not test macOS yet.
 
@@ -37,8 +40,10 @@ The `SwiftUI` shim module, the source compatibility tests, and the examples exis
 3. Format and lint:
 
    ```console
-   $ swift format --in-place --recursive Package.swift Sources Tests Examples
-   $ swift format lint --strict --recursive Package.swift Sources Tests Examples
+   $ swift format --in-place --recursive Package.swift Sources Tests Examples \
+       Tools/parhelion-cli/Package.swift Tools/parhelion-cli/Sources
+   $ swift format lint --strict --recursive Package.swift Sources Tests Examples \
+       Tools/parhelion-cli/Package.swift Tools/parhelion-cli/Sources
    ```
 
 4. Build with warnings treated as errors, the way CI does:

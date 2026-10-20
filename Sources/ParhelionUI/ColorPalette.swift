@@ -48,6 +48,10 @@ enum ColorPalette {
     /// The background of a window.
     static let background = RGBA.white
 
+    /// Assumed: the opacity of a button's label while it is pressed, as with
+    /// SwiftUI's default button style on iOS.
+    static let pressedOpacity = 0.25
+
     private static func rgbaComponents(_ name: String) -> [Double]? {
         guard name.hasPrefix("rgba("), name.hasSuffix(")") else { return nil }
         let values = name.dropFirst(5).dropLast().split(separator: ",").compactMap {
