@@ -20,6 +20,22 @@ enum LayoutDefaults {
     /// Assumed: the minimum length of a `Spacer` when `minLength` is `nil`.
     static let spacerMinLength: CGFloat = 8
 
+    /// Assumed: how far a press moves over a scroll view before it becomes a
+    /// scroll and cancels any button press, in points.
+    static let dragThreshold: CGFloat = 10
+
+    /// Assumed: the fraction of scroll velocity kept per millisecond after
+    /// a drag ends, `UIScrollView.DecelerationRate.normal` on iOS.
+    static let scrollDecelerationRate = 0.998
+
+    /// Assumed: the slowest release, in points per second, that keeps the
+    /// content moving after a drag.
+    static let minimumFlingSpeed: CGFloat = 50
+
+    /// Assumed: the speed, in points per second, below which scroll momentum
+    /// stops.
+    static let momentumStopSpeed: CGFloat = 5
+
     /// Assumed: the point size of the `body` text style at the default
     /// Dynamic Type size, on iOS.
     static let bodyFontSize: CGFloat = 17

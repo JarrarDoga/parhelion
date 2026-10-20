@@ -29,12 +29,24 @@ struct Run: ParsableCommand {
     @Option(help: "The product to run, if the package has more than one.")
     var product: String?
 
+    @Option(
+        name: [.customShort("c"), .long],
+        help: """
+            debug builds faster after each change; release animates more smoothly.
+            """
+    )
+    var configuration: BuildConfiguration = .debug
+
+    enum BuildConfiguration: String, ExpressibleByArgument {
+        case debug, release
+    }
+
     func run() throws {
         // Show progress as it happens, even when output goes to a file.
         parhelion_line_buffer_standard_output()
         let package = try AppPackage.load(at: packagePath)
         let plan = try RunPlan.make(for: package, at: packagePath, product: product)
-        let builder = AppBuilder(plan: plan)
+        let builder = AppBuilder(plan: plan, configuration: configuration.rawValue)
         var watcher = SourceWatcher(root: plan.watchRoot)
 
         print("Building \(plan.product)...")

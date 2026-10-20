@@ -137,8 +137,31 @@ given number of pixels per point. Like layout, the renderer reads only the tree.
 - **Backgrounds** fill the bounds at their position in the modifier chain. Each node records those
   bounds in `modifierFrames`.
 - **Symbols** draw as placeholder rings until an open-source icon set replaces SF Symbols.
+- **Rectangles**, most of what an interface draws, skip the general rasterizer: each pixel's
+  coverage is its exact overlap with the rectangle, and fully covered runs are written as whole
+  32-bit words. A typical screen renders in under 1 ms in an optimized build.
 - **PNG** output uses a small built-in deflate encoder. A screen of mostly flat color compresses
   to about 50 KB at 2× scale.
+
+### Scrolling and time
+
+A `ScrollView` takes the space it is offered and lays its content out at its ideal size along
+the scrollable axes. Several content views stack along the scroll axis, as in SwiftUI. `ViewHost`
+keeps each scroll view's offset by node identifier, so scrolling lays the tree out again without
+evaluating views, and the renderer clips the content to the scroll view's bounds.
+
+- `scroll(by:at:)` scrolls the innermost scroll view under a point that can move that way, as a
+  mouse wheel does.
+- A press over a scroll view that moves more than 10 points becomes a drag: the button press is
+  cancelled and the content follows the pointer, as on iOS.
+- A release while moving keeps the content moving. The speed decays at iOS's normal deceleration
+  rate until it stops or reaches the end of the content.
+
+Momentum runs on the host's own clock, which advances only through `advanceTime(by:)`, in fixed
+steps. The same input at the same times always produces the same frames, however the time is
+split, so tests and agents can step animations exactly. The preview session advances the clock
+by real time and draws at 60 frames per second while anything moves. `ViewHost.revision`
+increases whenever the screen changes, and the session sends a frame only then.
 
 ### Interaction
 

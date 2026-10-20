@@ -29,7 +29,7 @@ struct ProposedSize: Hashable {
     }
 }
 
-enum Axis {
+enum LayoutAxis {
     case horizontal, vertical
 }
 
@@ -42,10 +42,17 @@ enum Axis {
 struct LayoutEngine {
     let device: Device
     let measurer: any TextMeasurer
+    /// Scroll offsets to apply, and the scroll views found while laying out.
+    let scrolling: ScrollLayout
 
-    init(device: Device, measurer: any TextMeasurer = FontTextMeasurer(font: .interRegular)) {
+    init(
+        device: Device,
+        measurer: any TextMeasurer = FontTextMeasurer(font: .interRegular),
+        scrolling: ScrollLayout = ScrollLayout()
+    ) {
         self.device = device
         self.measurer = measurer
+        self.scrolling = scrolling
     }
 
     /// Lays out the root node for the device. Root content is proposed the
@@ -72,7 +79,8 @@ struct LayoutEngine {
 
     /// The size a node chooses for a proposal, including its layout
     /// modifiers.
-    func sizeThatFits(_ node: ViewNode, _ proposal: ProposedSize, parentAxis: Axis?) -> CGSize {
+    func sizeThatFits(_ node: ViewNode, _ proposal: ProposedSize, parentAxis: LayoutAxis?) -> CGSize
+    {
         sizeThatFits(node, proposal, modifierCount: node.modifiers.count, parentAxis: parentAxis)
     }
 
@@ -83,7 +91,7 @@ struct LayoutEngine {
         _ node: ViewNode,
         _ proposal: ProposedSize,
         modifierCount: Int,
-        parentAxis: Axis?
+        parentAxis: LayoutAxis?
     ) -> CGSize {
         guard modifierCount > 0 else {
             return baseSize(node, proposal, parentAxis: parentAxis)
@@ -142,7 +150,9 @@ struct LayoutEngine {
     }
 
     /// The size of a node without its layout modifiers.
-    private func baseSize(_ node: ViewNode, _ proposal: ProposedSize, parentAxis: Axis?) -> CGSize {
+    private func baseSize(
+        _ node: ViewNode, _ proposal: ProposedSize, parentAxis: LayoutAxis?
+    ) -> CGSize {
         switch node.kind {
         case "Text":
             return measurer.size(
@@ -180,6 +190,14 @@ struct LayoutEngine {
             return stackLayout(node, proposal, axis: .vertical).size
         case "HStack":
             return stackLayout(node, proposal, axis: .horizontal).size
+        case "ScrollView":
+            // A scroll view takes the space it is offered, and its content's
+            // size where it is offered none.
+            let content = scrollContentSize(node, proposal)
+            return CGSize(
+                width: proposal.width ?? content.width,
+                height: proposal.height ?? content.height
+            )
         case "ZStack":
             return overlaySize(node.children, proposal)
         case "Button":
@@ -219,8 +237,9 @@ struct LayoutEngine {
     /// whatever it does not use goes to the children after it. A child's
     /// flexibility is the difference between its largest and smallest size
     /// along the stack's axis.
-    private func stackLayout(_ node: ViewNode, _ proposal: ProposedSize, axis: Axis) -> StackLayout
-    {
+    private func stackLayout(
+        _ node: ViewNode, _ proposal: ProposedSize, axis: LayoutAxis
+    ) -> StackLayout {
         let children = node.children
         let spacing =
             node.attributes["spacing"].flatMap(Double.init).map { CGFloat($0) }
@@ -273,7 +292,7 @@ struct LayoutEngine {
 
     /// Places a node in `rect`, the space its parent gave it, and returns the
     /// node with frames assigned to it and its descendants.
-    func place(_ node: ViewNode, in rect: CGRect, parentAxis: Axis?) -> ViewNode {
+    func place(_ node: ViewNode, in rect: CGRect, parentAxis: LayoutAxis?) -> ViewNode {
         place(node, in: rect, modifierCount: node.modifiers.count, parentAxis: parentAxis)
     }
 
@@ -281,7 +300,7 @@ struct LayoutEngine {
         _ node: ViewNode,
         in rect: CGRect,
         modifierCount: Int,
-        parentAxis: Axis?
+        parentAxis: LayoutAxis?
     ) -> ViewNode {
         guard modifierCount > 0 else {
             return placeBase(node, in: rect, parentAxis: parentAxis)
@@ -304,7 +323,7 @@ struct LayoutEngine {
         _ node: ViewNode,
         in rect: CGRect,
         modifierCount: Int,
-        parentAxis: Axis?
+        parentAxis: LayoutAxis?
     ) -> ViewNode {
         let inner = modifierCount - 1
 
@@ -344,15 +363,17 @@ struct LayoutEngine {
         }
     }
 
-    private func placeBase(_ node: ViewNode, in rect: CGRect, parentAxis: Axis?) -> ViewNode {
+    private func placeBase(_ node: ViewNode, in rect: CGRect, parentAxis: LayoutAxis?) -> ViewNode {
         var node = node
         node.frame = rect
         let proposal = ProposedSize(rect.size)
 
         switch node.kind {
         case "VStack", "HStack":
-            let axis: Axis = node.kind == "VStack" ? .vertical : .horizontal
+            let axis: LayoutAxis = node.kind == "VStack" ? .vertical : .horizontal
             node.children = placeStack(node, in: rect, axis: axis)
+        case "ScrollView":
+            placeScrollView(&node, in: rect)
         case "Button" where node.children.count > 1:
             node.children = placeStack(node, in: rect, axis: .vertical)
         case "ZStack":
@@ -370,7 +391,7 @@ struct LayoutEngine {
         return node
     }
 
-    private func placeStack(_ node: ViewNode, in rect: CGRect, axis: Axis) -> [ViewNode] {
+    private func placeStack(_ node: ViewNode, in rect: CGRect, axis: LayoutAxis) -> [ViewNode] {
         let layout = stackLayout(node, ProposedSize(rect.size), axis: axis)
         let alignment = node.attributes["alignment"]
         var offset = axis == .vertical ? rect.minY : rect.minX
@@ -399,6 +420,82 @@ struct LayoutEngine {
             }
             return place(child, in: CGRect(origin: origin, size: size), parentAxis: axis)
         }
+    }
+
+    // MARK: - Scroll views
+
+    /// The axes a scroll view scrolls along, from its `axes` attribute.
+    static func scrollAxes(of node: ViewNode) -> (horizontal: Bool, vertical: Bool) {
+        switch node.attributes["axes"] {
+        case "both": (true, true)
+        case "horizontal": (true, false)
+        case "none": (false, false)
+        default: (false, true)
+        }
+    }
+
+    /// The content of a scroll view as a stack along its scroll axis, as
+    /// SwiftUI lays out several content views.
+    private func scrollContentStack(_ node: ViewNode) -> (stack: ViewNode, axis: LayoutAxis) {
+        let axes = Self.scrollAxes(of: node)
+        let axis: LayoutAxis = axes.horizontal && !axes.vertical ? .horizontal : .vertical
+        let stack = ViewNode(
+            id: node.id,
+            kind: axis == .vertical ? "VStack" : "HStack",
+            children: node.children
+        )
+        return (stack, axis)
+    }
+
+    /// The proposal a scroll view gives its content: no limit along the
+    /// scrollable axes, and the scroll view's own size across them.
+    private func scrollContentProposal(_ node: ViewNode, _ proposal: ProposedSize) -> ProposedSize {
+        let axes = Self.scrollAxes(of: node)
+        return ProposedSize(
+            width: axes.horizontal ? nil : proposal.width,
+            height: axes.vertical ? nil : proposal.height
+        )
+    }
+
+    private func scrollContentSize(_ node: ViewNode, _ proposal: ProposedSize) -> CGSize {
+        let (stack, _) = scrollContentStack(node)
+        return sizeThatFits(stack, scrollContentProposal(node, proposal), parentAxis: nil)
+    }
+
+    private func placeScrollView(_ node: inout ViewNode, in rect: CGRect) {
+        let (stack, axis) = scrollContentStack(node)
+        let contentSize = sizeThatFits(
+            stack,
+            scrollContentProposal(node, ProposedSize(rect.size)),
+            parentAxis: nil
+        )
+        let maxOffset = CGPoint(
+            x: max(contentSize.width - rect.width, 0),
+            y: max(contentSize.height - rect.height, 0)
+        )
+        let requested = scrolling.offsets[node.id] ?? .zero
+        let offset = CGPoint(
+            x: min(max(requested.x, 0), maxOffset.x),
+            y: min(max(requested.y, 0), maxOffset.y)
+        )
+        scrolling.metrics[node.id] = ScrollMetrics(
+            viewport: rect,
+            contentSize: contentSize,
+            offset: offset
+        )
+        node.attributes["contentSize"] =
+            "\(formatPoints(contentSize.width)) × \(formatPoints(contentSize.height))"
+        node.attributes["contentOffset"] = "\(formatPoints(offset.x)), \(formatPoints(offset.y))"
+
+        // Content narrower than the scroll view is centered across the scroll
+        // axis, as in SwiftUI.
+        let contentRect = CGRect(
+            x: rect.minX - offset.x,
+            y: rect.minY - offset.y,
+            width: axis == .vertical ? max(contentSize.width, rect.width) : contentSize.width,
+            height: axis == .horizontal ? max(contentSize.height, rect.height) : contentSize.height
+        )
+        node.children = placeStack(stack, in: contentRect, axis: axis)
     }
 
     // MARK: - Helpers
@@ -454,4 +551,31 @@ extension Alignment {
         guard let match = all.first(where: { $0.name == name }) else { return nil }
         self = match
     }
+}
+
+/// The scroll position and size of one scroll view after layout.
+struct ScrollMetrics: Equatable {
+    /// The scroll view's bounds on screen.
+    var viewport: CGRect
+    /// The size of all of its content.
+    var contentSize: CGSize
+    /// How far the content is scrolled, clamped to the content.
+    var offset: CGPoint
+
+    /// The largest offset on each axis.
+    var maxOffset: CGPoint {
+        CGPoint(
+            x: max(contentSize.width - viewport.width, 0),
+            y: max(contentSize.height - viewport.height, 0)
+        )
+    }
+}
+
+/// Scroll offsets for layout to apply, and the metrics it records.
+///
+/// A class, so that the layout engine, a value type, can report what it found
+/// without threading results through every call.
+final class ScrollLayout {
+    var offsets: [NodeID: CGPoint] = [:]
+    var metrics: [NodeID: ScrollMetrics] = [:]
 }

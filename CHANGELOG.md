@@ -44,5 +44,16 @@ may contain breaking changes.
 - `parhelion run`, with hot reload: it rebuilds on save, restarts the app in the same window, and
   keeps `Codable` `@State` values. It runs executable products and `xtool`-shaped library apps.
 - `ViewHost.stateSnapshot()` and `ViewHost(_:device:restoring:)`.
+- `ScrollView` and `ForEach`, with scrolling by drag with momentum, by mouse wheel, and by
+  trackpad. `ViewHost.scroll(by:at:)`, `scroll(_:to:)`, `scrollOffset(of:)`, `isAnimating`, and a
+  deterministic clock, `advanceTime(by:)`.
+- `ViewHost.revision`, which increases whenever the screen changes.
+- `parhelion run --configuration release`.
+- A `Scrolling` example.
+
+### Changed
+
+- Rectangles render through a fast path, so a full frame takes about 7 ms in a debug build
+  instead of 45 ms.
 
 [Unreleased]: https://github.com/JarrarDoga/parhelion/commits/main

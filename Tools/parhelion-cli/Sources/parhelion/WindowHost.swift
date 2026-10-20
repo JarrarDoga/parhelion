@@ -20,6 +20,9 @@ final class WindowHost {
     private let zoom: Double
     private let wakeEventType: UInt32
 
+    /// How far one mouse wheel step scrolls, in points.
+    static let pointsPerWheelStep = 40.0
+
     init(title: String, width: Int, height: Int, zoom: Double) throws {
         guard SDL_Init(parhelion_init_video) else { throw SDLError.current("initialize video") }
         guard
@@ -88,6 +91,25 @@ final class WindowHost {
         where event.motion.state & parhelion_button_left_mask != 0:
             let position = point(event.motion.x, event.motion.y)
             return .input(.pointerMoved(x: position.x, y: position.y))
+        case SDL_EVENT_MOUSE_WHEEL.rawValue:
+            var dx = Double(event.wheel.x)
+            var dy = Double(event.wheel.y)
+            if event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED {
+                dx = -dx
+                dy = -dy
+            }
+            let position = point(event.wheel.mouse_x, event.wheel.mouse_y)
+            // SDL's y points away from the user, and scrolling away moves
+            // toward the start of the content. Trackpads report fractions of
+            // a step, which keeps their scrolling smooth.
+            return .input(
+                .scroll(
+                    dx: dx * Self.pointsPerWheelStep,
+                    dy: -dy * Self.pointsPerWheelStep,
+                    x: position.x,
+                    y: position.y
+                )
+            )
         default:
             return nil
         }
@@ -95,7 +117,11 @@ final class WindowHost {
 
     /// Shows a frame, scaled to fill the window.
     func present(_ frame: PreviewFrame) throws {
-        debugLog("presenting a \(frame.width) × \(frame.height) frame")
+        let clock = ContinuousClock()
+        let start = clock.now
+        defer {
+            debugLog("presented a \(frame.width) × \(frame.height) frame in \(clock.now - start)")
+        }
         if texture == nil || textureSize != (frame.width, frame.height) {
             if let texture { SDL_DestroyTexture(texture) }
             // ABGR8888 is a packed 32-bit format; on little-endian machines its
