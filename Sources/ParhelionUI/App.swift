@@ -7,7 +7,9 @@ import Foundation
 /// Mark your type with `@main`. Under Parhelion, `main()` currently runs the app
 /// without a window: it resolves and lays out the first window's content and
 /// prints the view tree. Pass `--frames` to include each node's frame, `--ids`
-/// to include identifiers, or `--json` to print the tree as JSON.
+/// to include identifiers, or `--json` to print the tree as JSON. Pass
+/// `--png PATH` to draw the window to a PNG file instead, with `--scale` pixels
+/// per point (2 by default).
 @MainActor
 @preconcurrency
 public protocol App {
@@ -27,13 +29,21 @@ extension App {
             exit(1)
         }
         let host = ViewHost(anyRootView: content)
-        if CommandLine.arguments.contains("--json") {
+        let arguments = CommandLine.arguments
+        if let pngPath = value(after: "--png", in: arguments) {
+            let scale = value(after: "--scale", in: arguments).flatMap(Double.init) ?? 2
+            do {
+                try host.render(scale: scale).pngData().write(to: URL(fileURLWithPath: pngPath))
+            } catch {
+                FileHandle.standardError.write(Data("parhelion: \(error)\n".utf8))
+                exit(1)
+            }
+        } else if arguments.contains("--json") {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let data = (try? encoder.encode(host.root)) ?? Data()
             print(String(decoding: data, as: UTF8.self))
         } else {
-            let arguments = CommandLine.arguments
             print(
                 host.root.outline(
                     includeIDs: arguments.contains("--ids"),
@@ -42,6 +52,14 @@ extension App {
             )
         }
     }
+}
+
+/// The argument that follows `flag`, as in `--png out.png`.
+private func value(after flag: String, in arguments: [String]) -> String? {
+    guard let index = arguments.firstIndex(of: flag), index + 1 < arguments.count else {
+        return nil
+    }
+    return arguments[index + 1]
 }
 
 /// A part of an app's user interface with a lifecycle managed by the system.

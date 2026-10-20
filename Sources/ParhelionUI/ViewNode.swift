@@ -54,6 +54,11 @@ public struct ViewNode: Hashable, Sendable {
     /// frames. `nil` until layout has run.
     public var frame: CGRect?
 
+    /// The bounds each layout modifier was placed in, in the same order as
+    /// ``modifiers``. A `background` fills its entry. Empty until layout has
+    /// run.
+    public var modifierFrames: [CGRect] = []
+
     public var children: [ViewNode]
 
     public init(
@@ -108,7 +113,7 @@ public struct ViewNode: Hashable, Sendable {
 
 extension ViewNode: Codable {
     private enum CodingKeys: String, CodingKey {
-        case id, kind, attributes, modifiers, frame, children
+        case id, kind, attributes, modifiers, frame, modifierFrames, children
     }
 
     /// Frames are encoded as `{"x": 0, "y": 0, "width": 0, "height": 0}`,
@@ -118,6 +123,15 @@ extension ViewNode: Codable {
         var y: CGFloat
         var width: CGFloat
         var height: CGFloat
+
+        init(_ rect: CGRect) {
+            x = rect.origin.x
+            y = rect.origin.y
+            width = rect.size.width
+            height = rect.size.height
+        }
+
+        var rect: CGRect { CGRect(x: x, y: y, width: width, height: height) }
     }
 
     public init(from decoder: any Decoder) throws {
@@ -127,9 +141,10 @@ extension ViewNode: Codable {
         attributes =
             try container.decodeIfPresent([String: String].self, forKey: .attributes) ?? [:]
         modifiers = try container.decodeIfPresent([LayoutModifier].self, forKey: .modifiers) ?? []
-        frame = try container.decodeIfPresent(EncodedRect.self, forKey: .frame).map {
-            CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height)
-        }
+        frame = try container.decodeIfPresent(EncodedRect.self, forKey: .frame)?.rect
+        modifierFrames =
+            try container.decodeIfPresent([EncodedRect].self, forKey: .modifierFrames)?.map(\.rect)
+            ?? []
         children = try container.decodeIfPresent([ViewNode].self, forKey: .children) ?? []
     }
 
@@ -139,14 +154,9 @@ extension ViewNode: Codable {
         try container.encode(kind, forKey: .kind)
         if !attributes.isEmpty { try container.encode(attributes, forKey: .attributes) }
         if !modifiers.isEmpty { try container.encode(modifiers, forKey: .modifiers) }
-        if let frame {
-            let rect = EncodedRect(
-                x: frame.origin.x,
-                y: frame.origin.y,
-                width: frame.size.width,
-                height: frame.size.height
-            )
-            try container.encode(rect, forKey: .frame)
+        if let frame { try container.encode(EncodedRect(frame), forKey: .frame) }
+        if !modifierFrames.isEmpty {
+            try container.encode(modifierFrames.map(EncodedRect.init), forKey: .modifierFrames)
         }
         if !children.isEmpty { try container.encode(children, forKey: .children) }
     }

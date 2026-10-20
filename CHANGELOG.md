@@ -27,5 +27,13 @@ may contain breaking changes.
 - `ViewHost.tap(at:)`, which taps the frontmost button at a screen position.
 - `ViewNode.frame` and `ViewNode.modifiers`, which list layout modifiers in the order they apply.
 - `--frames` for the headless app runner.
+- `ParhelionRender`, a pure-Swift renderer: TrueType outlines, anti-aliased path filling, and PNG
+  encoding, with no dependencies.
+- `ViewHost.render(scale:)`, which draws the tree into a `RenderedFrame`, and `--png PATH` for the
+  app runner.
+- The `background(_:ignoresSafeAreaEdges:)` modifier with a shape style, and
+  `ViewNode.modifierFrames`.
+- iOS's light-appearance system colors for named colors and styles.
+- A `Counter` example.
 
 [Unreleased]: https://github.com/JarrarDoga/parhelion/commits/main

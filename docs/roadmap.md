@@ -24,7 +24,8 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [x] Hit testing: tap by screen position
 - [ ] Cache `sizeThatFits` results by node, modifier depth, and proposal, so that layout on every
       state change stays fast
-- [ ] A renderer backend (see [ADR 0002](adr/0002-defer-renderer-backend.md))
+- [x] A renderer: pure-Swift rasterization and PNG output (see [ADR 0004](adr/0004-pure-swift-renderer.md))
+- [x] `background` with a shape style
 - [ ] A phone-sized window on Linux
 - [ ] Mouse input: click to tap
 

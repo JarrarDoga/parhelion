@@ -22,12 +22,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Check formatting
-        run: swift format lint --strict --recursive Package.swift Sources Tests Examples Scripts
-      - name: Check generated font metrics
-        run: |
-          swift Scripts/generate-font-metrics.swift Fonts/Inter-Regular.ttf > "$RUNNER_TEMP/metrics.swift"
-          swift format --configuration .swift-format "$RUNNER_TEMP/metrics.swift" \
-            | diff - Sources/ParhelionUI/InterRegularMetrics.swift
+        run: swift format lint --strict --recursive Package.swift Sources Tests Examples
+      - name: Check the embedded font
+        run: Scripts/embed-font.sh Fonts/Inter-Regular.ttf | diff -q - Sources/ParhelionRender/InterRegularFontData.swift
       - name: Check that no target declares resources
         # See docs/adr/0003-no-swiftpm-resources.md.
         run: "! grep -nE '^[[:space:]]*resources:' Package.swift"
@@ -50,3 +47,10 @@ jobs:
         run: swift test --skip-build
       - name: Run example
         run: swift run HelloParhelion
+      - name: Check the README screenshot
+        # Rendering is deterministic, so the image in the README must match a
+        # fresh render. After an intended rendering change, regenerate it with
+        # `swift run Counter --png docs/images/counter.png`.
+        run: |
+          swift run Counter --png "$RUNNER_TEMP/counter.png"
+          cmp "$RUNNER_TEMP/counter.png" docs/images/counter.png

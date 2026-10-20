@@ -13,8 +13,9 @@ interface, so a coding agent can check what is on screen and what happens when i
 of guessing from a screenshot.
 
 > [!NOTE]
-> Parhelion is pre-alpha. Today it resolves and lays out views, keeps state, and handles taps
-> without a window. The preview window and hot reload are the next milestones. See [Status](#status) and the
+> Parhelion is pre-alpha. Today it resolves, lays out, and draws views, keeps state, and handles
+> taps, and it can write any screen to a PNG file. The preview window and hot reload are the next
+> milestones. See [Status](#status) and the
 > [roadmap](docs/roadmap.md).
 
 ## Why Parhelion
@@ -67,7 +68,14 @@ Root
       └─ Text "Increment"  #Counter/VStack/1/Button/Text
 ```
 
-The bundled example is the app that `xtool new` generates, copied without changes:
+Parhelion draws the screen itself. This image of the `Counter` example came from
+`swift run Counter --png docs/images/counter.png`:
+
+<p align="center">
+  <img src="docs/images/counter.png" alt="The Counter example rendered by Parhelion: a count label, red Decrease and blue Increase buttons, and a Reset button." width="240">
+</p>
+
+The bundled `HelloParhelion` example is the app that `xtool new` generates, copied without changes:
 
 ```console
 $ swift run HelloParhelion
@@ -77,8 +85,8 @@ Root
    └─ Text "Hello, world!"
 ```
 
-Pass `--frames` to show each node's frame in points, `--ids` to show node identifiers, or `--json`
-for the tree as JSON:
+Pass `--png PATH` to draw the screen to an image, `--frames` to show each node's frame in points,
+`--ids` to show node identifiers, or `--json` for the tree as JSON:
 
 ```console
 $ swift run HelloParhelion --frames
@@ -95,12 +103,13 @@ Root  [0, 0, 393 × 852]
 | Views | `Text`, `Image`, `Button`, `VStack`, `HStack`, `ZStack`, `Spacer`, `Color`, `EmptyView` |
 | Builders | Multiple children, `if`/`else`, optional content |
 | State | `@State` and `@Binding`, with SwiftUI's structural identity and lifetime rules |
-| Modifiers | `padding`, `frame` (fixed and flexible), `foregroundStyle`, `imageScale` |
+| Modifiers | `padding`, `frame` (fixed and flexible), `background`, `foregroundStyle`, `imageScale` |
 | Layout | SwiftUI's propose-and-respond stack algorithm, text wrapping with the bundled Inter font, iPhone 16 screen and safe area |
 | Input | Tap by node, by button label, or by screen position |
+| Rendering | Anti-aliased shapes and Inter text drawn in pure Swift at any scale, with PNG output; SF Symbols draw as placeholder rings |
 | App | `App`, `Scene`, `WindowGroup`, with a headless runner |
 
-Not yet available: rendering, fonts other than body text, lists and scrolling, navigation, the
+Not yet available: the preview window, fonts other than body text, lists and scrolling, navigation, the
 environment, animation, and gestures other than tap. Layout constants that Parhelion assumes about
 SwiftUI, such as the default padding, are listed in `LayoutDefaults.swift` until a macOS CI job
 verifies them. The [roadmap](docs/roadmap.md) lists the
@@ -144,6 +153,9 @@ the parent proposes a size, the child picks its size, and the parent places it. 
 belongs to the host and is keyed by a view's structural position, so state survives updates and
 is discarded when the view leaves the tree. Taps run the button's action, and the host evaluates
 and lays out the tree again.
+
+`ViewHost.render(scale:)` then draws the tree into pixels with Parhelion's own rasterizer, which
+needs no GPU and no system libraries, so screenshots look the same on every machine.
 
 The [architecture overview](docs/architecture.md) covers the design. The
 [decision records](docs/adr/) explain the choices behind it.
