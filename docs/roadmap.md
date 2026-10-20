@@ -31,8 +31,9 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 
 ## 0.3: Hot reload
 
-- [ ] A `parhelion` command that builds an app package and opens it in the preview window
-- [ ] Rebuild and reload on save, keeping state where the structure allows
+- [x] `parhelion run`, which builds an app package and opens it in the preview window
+- [x] Rebuild and reload on save, keeping `Codable` state where the structure allows
+- [x] Apps shaped like `xtool new` creates, through a generated runner package
 
 ## 0.4: Scrolling and text input
 

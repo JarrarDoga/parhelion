@@ -41,9 +41,11 @@ The `SwiftUI` shim module, the source compatibility tests, and the examples exis
 
    ```console
    $ swift format --in-place --recursive Package.swift Sources Tests Examples \
-       Tools/parhelion-cli/Package.swift Tools/parhelion-cli/Sources
+       Tools/parhelion-cli/Package.swift Tools/parhelion-cli/Sources \
+       Tools/parhelion-cli/Tests Tools/parhelion-cli/Fixtures
    $ swift format lint --strict --recursive Package.swift Sources Tests Examples \
-       Tools/parhelion-cli/Package.swift Tools/parhelion-cli/Sources
+       Tools/parhelion-cli/Package.swift Tools/parhelion-cli/Sources \
+       Tools/parhelion-cli/Tests Tools/parhelion-cli/Fixtures
    ```
 
 4. Build with warnings treated as errors, the way CI does:

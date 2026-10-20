@@ -28,7 +28,7 @@ to behave exactly enough to test against.
 | `parhelion` (in `Tools/parhelion-cli`) | Linux | The command-line tool and SDL3 window host. A separate package, because it depends on SDL3. |
 | `SwiftUI` | Linux only | Re-exports `ParhelionUI` so that `import SwiftUI` compiles. See [ADR 0001](adr/0001-swiftui-module-shim.md). |
 
-Planned: hot reload and an agent server. See the [roadmap](roadmap.md).
+Planned: an agent server. See the [roadmap](roadmap.md).
 
 ## The pipeline
 
@@ -177,6 +177,27 @@ Pointer input follows iOS: a press on a button highlights it, moving off the but
 highlight, and releasing over the same button taps it. `ViewHost.pointerDown(at:)`,
 `pointerMoved(to:)`, and `pointerUp(at:)` implement this for every client, not only the window.
 
+### Hot reload
+
+`parhelion run` keeps one window open across many runs of the app:
+
+1. It reads the package with `swift package dump-package`. An executable product or target is
+   built as it is. A library product, the shape `xtool new` creates, is built through a runner
+   package generated in `.build/parhelion-runner`: an executable target whose source directory
+   is a symbolic link to the app's target, with the same dependencies. The app's `@main` type
+   becomes the entry point.
+2. It builds, starts the app with `parhelion preview`'s protocol, and polls the package's Swift
+   files for changes twice a second.
+3. On a change, it rebuilds on a background thread while the window keeps showing the running
+   app. If the build fails, it prints the errors, with runner paths mapped back to the app's
+   files, and leaves the app running.
+4. If the build succeeds, it sends `close`. The app writes `ViewHost.stateSnapshot()` to the file
+   named in `PARHELION_PREVIEW_STATE` and exits. The host starts the new build with the same
+   variable, and the new `ViewHost` restores each `Codable` state whose structural position and
+   type still match.
+
+The tool's logic lives in `ParhelionTooling`, a library with tests, separate from the SDL code.
+
 ### Apps
 
 `App`, `Scene`, and `WindowGroup` mirror SwiftUI so an app's `@main` type compiles. Under
@@ -192,9 +213,6 @@ with `--png`.
 - **Input.** The preview translates mouse and keyboard input into the touch model that SwiftUI
   apps expect: a click is a tap, a drag is a touch drag, the mouse wheel and trackpad scroll, and
   the keyboard types into the focused field. Hit testing uses the frames from layout.
-- **Hot reload.** A `parhelion` command builds the app package, opens it in the preview, and
-  rebuilds when a source file changes. State is kept for views whose structural position did not
-  change.
 - **Agent server.** A process that exposes `ViewHost` over the Model Context Protocol (MCP), so
   agents can read the tree, tap, type, scroll, take screenshots, and advance a deterministic
   clock, either alongside a person in the same preview or without a window.

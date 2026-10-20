@@ -29,10 +29,15 @@ let package = Package(
                 .brew(["sdl3"]),
             ]
         ),
+        // Package inspection, runner generation, file watching, and builds:
+        // everything that does not need a window, so it can be tested.
+        .target(name: "ParhelionTooling"),
+        .testTarget(name: "ParhelionToolingTests", dependencies: ["ParhelionTooling"]),
         .executableTarget(
             name: "parhelion",
             dependencies: [
                 "CSDL3",
+                "ParhelionTooling",
                 .product(name: "ParhelionPreview", package: "parhelion"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]

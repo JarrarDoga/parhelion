@@ -6,6 +6,11 @@ import Foundation
 /// preview. Its value is the path of the window host's socket.
 public let previewSocketEnvironmentKey = "PARHELION_PREVIEW_SOCKET"
 
+/// The name of the environment variable that holds the path of a state
+/// file. The app restores state from the file when it starts and saves state
+/// to it when the host closes it, so hot reload keeps state across restarts.
+public let previewStateEnvironmentKey = "PARHELION_PREVIEW_STATE"
+
 /// The first message an app sends after it connects.
 public struct PreviewHello: Codable, Equatable, Sendable {
     /// The app's display name, for the window title.

@@ -46,18 +46,58 @@ public final class ViewHost {
     /// The device the tree is laid out for.
     public let device: Device
 
-    public init(_ rootView: some View, device: Device = .iPhone16) {
+    /// Creates a host for a view.
+    ///
+    /// - Parameter snapshot: State saved by ``stateSnapshot()``, for example by
+    ///   an earlier run of the same app. Each `@State` whose structural
+    ///   position and type still match starts from its saved value.
+    public init(_ rootView: some View, device: Device = .iPhone16, restoring snapshot: Data? = nil)
+    {
         self.rootView = rootView
         self.device = device
         self.layoutEngine = LayoutEngine(device: device)
+        pendingState = snapshot.flatMap(Self.decodeSnapshot) ?? [:]
         evaluate()
     }
 
-    init(anyRootView rootView: any View, device: Device = .iPhone16) {
+    init(
+        anyRootView rootView: any View, device: Device = .iPhone16, restoring snapshot: Data? = nil
+    ) {
         self.rootView = rootView
         self.device = device
         self.layoutEngine = LayoutEngine(device: device)
+        pendingState = snapshot.flatMap(Self.decodeSnapshot) ?? [:]
         evaluate()
+    }
+
+    // MARK: - State snapshots
+
+    /// Saved values waiting for their `@State` to appear, keyed by
+    /// structural position.
+    private var pendingState: [String: Data] = [:]
+
+    /// The value of every `@State` whose type is `Codable`, as JSON.
+    ///
+    /// The snapshot maps each state's structural position, such as
+    /// `"CounterView.count"`, to its value. Hot reload uses it to carry state
+    /// into the rebuilt app. State of other types is not included.
+    public func stateSnapshot() -> Data {
+        var values: [String: String] = [:]
+        for (key, box) in storage {
+            if let box = box as? any SnapshotEncodable, let json = box.encodedValue() {
+                values[key] = String(decoding: json, as: UTF8.self)
+            }
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return (try? encoder.encode(values)) ?? Data("{}".utf8)
+    }
+
+    private static func decodeSnapshot(_ data: Data) -> [String: Data]? {
+        guard let values = try? JSONDecoder().decode([String: String].self, from: data) else {
+            return nil
+        }
+        return values.mapValues { Data($0.utf8) }
     }
 
     /// Resolves the tree again if any state changed since the last update.
@@ -160,7 +200,14 @@ public final class ViewHost {
         if let box = storage[key] as? StateBox<Value> {
             return box
         }
-        let box = StateBox(initialValue)
+        var value = initialValue
+        if let saved = pendingState.removeValue(forKey: key),
+            let type = Value.self as? any Decodable.Type,
+            let restored = decode(type, from: saved) as? Value
+        {
+            value = restored
+        }
+        let box = StateBox(value)
         box.host = self
         storage[key] = box
         return box

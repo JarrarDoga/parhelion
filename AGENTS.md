@@ -12,7 +12,7 @@ changing anything under `Sources/`.
 - To check rendering, write a PNG with `--png` and look at it. Never open windows on the user's
   desktop from a shell; the window host is for the user to run.
 - Before you finish, run the same checks as CI:
-  - `swift format lint --strict --recursive Package.swift Sources Tests Examples Tools/parhelion-cli/Package.swift Tools/parhelion-cli/Sources`
+  - `swift format lint --strict --recursive Package.swift Sources Tests Examples Tools/parhelion-cli/Package.swift Tools/parhelion-cli/Sources Tools/parhelion-cli/Tests Tools/parhelion-cli/Fixtures`
   - `swift build --build-tests -Xswiftc -warnings-as-errors`
   - `swift test`
 
@@ -23,6 +23,10 @@ changing anything under `Sources/`.
 - Check it without a display:
   `SDL_VIDEODRIVER=offscreen Tools/parhelion-cli/.build/debug/parhelion preview --exit-after-first-frame .build/debug/Counter`.
 - Set `PARHELION_DEBUG=1` to trace events and messages in the host and the app.
+- `swift test --package-path Tools/parhelion-cli` tests package inspection, runner generation,
+  and file watching in `ParhelionTooling`.
+- `parhelion run --exit-after-first-frame --package-path Tools/parhelion-cli/Fixtures/LibraryApp`
+  checks an `xtool`-shaped app end to end.
 - Never open a preview window on the user's desktop. Exporting `DISPLAY` is not enough: SDL3
   prefers Wayland when `WAYLAND_DISPLAY` is set. Use `SDL_VIDEODRIVER=offscreen`, or an isolated
   display with `WAYLAND_DISPLAY` unset and `SDL_VIDEODRIVER=x11`.
