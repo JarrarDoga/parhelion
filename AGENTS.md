@@ -12,9 +12,20 @@ changing anything under `Sources/`.
 - To check rendering, write a PNG with `--png` and look at it. Never open windows on the user's
   desktop from a shell; the window host is for the user to run.
 - Before you finish, run the same checks as CI:
-  - `swift format lint --strict --recursive Package.swift Sources Tests Examples`
+  - `swift format lint --strict --recursive Package.swift Sources Tests Examples Tools/parhelion-cli/Package.swift Tools/parhelion-cli/Sources`
   - `swift build --build-tests -Xswiftc -warnings-as-errors`
   - `swift test`
+
+### The parhelion tool
+
+- Build it with `swift build --package-path Tools/parhelion-cli`. It needs SDL3 (`SDL3-devel` on
+  Fedora, `libsdl3-dev` on Ubuntu 25.04 or later).
+- Check it without a display:
+  `SDL_VIDEODRIVER=offscreen Tools/parhelion-cli/.build/debug/parhelion preview --exit-after-first-frame .build/debug/Counter`.
+- Set `PARHELION_DEBUG=1` to trace events and messages in the host and the app.
+- Never open a preview window on the user's desktop. Exporting `DISPLAY` is not enough: SDL3
+  prefers Wayland when `WAYLAND_DISPLAY` is set. Use `SDL_VIDEODRIVER=offscreen`, or an isolated
+  display with `WAYLAND_DISPLAY` unset and `SDL_VIDEODRIVER=x11`.
 
 ## Conventions
 

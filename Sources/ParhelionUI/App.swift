@@ -4,7 +4,8 @@ import Foundation
 
 /// The structure and behavior of an app, mirroring SwiftUI's `App`.
 ///
-/// Mark your type with `@main`. Under Parhelion, `main()` currently runs the app
+/// Mark your type with `@main`. When the `parhelion` window host launches the
+/// app, `main()` runs it in the preview window. Otherwise it runs the app
 /// without a window: it resolves and lays out the first window's content and
 /// prints the view tree. Pass `--frames` to include each node's frame, `--ids`
 /// to include identifiers, or `--json` to print the tree as JSON. Pass
@@ -28,6 +29,10 @@ extension App {
             FileHandle.standardError.write(Data("parhelion: the app declares no window.\n".utf8))
             exit(1)
         }
+        #if canImport(Glibc)
+        let appName = String(describing: Self.self)
+        if PreviewSession.runIfRequested(content: content, appName: appName) { return }
+        #endif
         let host = ViewHost(anyRootView: content)
         let arguments = CommandLine.arguments
         if let pngPath = value(after: "--png", in: arguments) {

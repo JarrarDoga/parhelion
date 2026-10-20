@@ -22,7 +22,10 @@ jobs:
         with:
           persist-credentials: false
       - name: Check formatting
-        run: swift format lint --strict --recursive Package.swift Sources Tests Examples
+        run: >-
+          swift format lint --strict --recursive
+          Package.swift Sources Tests Examples
+          Tools/parhelion-cli/Package.swift Tools/parhelion-cli/Sources
       - name: Check the embedded font
         run: Scripts/embed-font.sh Fonts/Inter-Regular.ttf | diff -q - Sources/ParhelionRender/InterRegularFontData.swift
       - name: Check that no target declares resources
@@ -54,3 +57,25 @@ jobs:
         run: |
           swift run Counter --png "$RUNNER_TEMP/counter.png"
           cmp "$RUNNER_TEMP/counter.png" docs/images/counter.png
+
+  window-host:
+    name: Window host (Swift 6.4)
+    runs-on: ubuntu-latest
+    # SDL3 is packaged for Ubuntu 26.04 but not 24.04; see docs/adr/0004-pure-swift-renderer.md.
+    container: swift:6.4-resolute
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install SDL3
+        run: apt-get update && apt-get install -y --no-install-recommends libsdl3-dev
+      - name: Build the parhelion tool
+        run: swift build --package-path Tools/parhelion-cli -Xswiftc -warnings-as-errors
+      - name: Build the example app
+        run: swift build --product Counter
+      - name: Preview the example without a display
+        env:
+          SDL_VIDEODRIVER: offscreen
+        run: >-
+          Tools/parhelion-cli/.build/debug/parhelion preview --exit-after-first-frame
+          .build/debug/Counter

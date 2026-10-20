@@ -35,5 +35,11 @@ may contain breaking changes.
   `ViewNode.modifierFrames`.
 - iOS's light-appearance system colors for named colors and styles.
 - A `Counter` example.
+- The `parhelion` command-line tool, in `Tools/parhelion-cli`, with `parhelion preview`: an SDL3
+  window that shows an app's frames and sends mouse input back.
+- `ParhelionPreview`, the socket protocol between an app and the window host. Apps run a preview
+  session automatically when the window host starts them.
+- `ViewHost.pointerDown(at:)`, `pointerMoved(to:)`, `pointerUp(at:)`, and `pressedNodeID`, with
+  iOS's press, cancel, and release behavior. Pressed buttons draw dimmed.
 
 [Unreleased]: https://github.com/JarrarDoga/parhelion/commits/main

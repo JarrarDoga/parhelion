@@ -26,8 +26,8 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
       state change stays fast
 - [x] A renderer: pure-Swift rasterization and PNG output (see [ADR 0004](adr/0004-pure-swift-renderer.md))
 - [x] `background` with a shape style
-- [ ] A phone-sized window on Linux
-- [ ] Mouse input: click to tap
+- [x] A phone-sized window on Linux: `parhelion preview`
+- [x] Mouse input: click to tap, with a pressed state and drag-away cancel
 
 ## 0.3: Hot reload
 
