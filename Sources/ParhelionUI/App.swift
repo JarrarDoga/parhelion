@@ -5,8 +5,9 @@ import Foundation
 /// The structure and behavior of an app, mirroring SwiftUI's `App`.
 ///
 /// Mark your type with `@main`. Under Parhelion, `main()` currently runs the app
-/// headlessly: it resolves the first window's content and prints the view
-/// tree. Pass `--json` to print the tree as JSON.
+/// without a window: it resolves and lays out the first window's content and
+/// prints the view tree. Pass `--frames` to include each node's frame, `--ids`
+/// to include identifiers, or `--json` to print the tree as JSON.
 @MainActor
 @preconcurrency
 public protocol App {
@@ -32,7 +33,13 @@ extension App {
             let data = (try? encoder.encode(host.root)) ?? Data()
             print(String(decoding: data, as: UTF8.self))
         } else {
-            print(host.root.outline(includeIDs: CommandLine.arguments.contains("--ids")))
+            let arguments = CommandLine.arguments
+            print(
+                host.root.outline(
+                    includeIDs: arguments.contains("--ids"),
+                    includeFrames: arguments.contains("--frames")
+                )
+            )
         }
     }
 }

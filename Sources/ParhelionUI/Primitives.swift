@@ -122,11 +122,7 @@ public struct Spacer: View, Sendable {
 extension Spacer: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         var attributes: [String: String] = [:]
-        if let minLength { attributes["minLength"] = formatLength(minLength) }
+        if let minLength { attributes["minLength"] = formatPoints(minLength) }
         return [ViewNode(id: path.appending("Spacer").id, kind: "Spacer", attributes: attributes)]
     }
-}
-
-func formatLength(_ value: CGFloat) -> String {
-    value.rounded() == value ? String(Int(value)) : String(Double(value))
 }

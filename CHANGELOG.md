@@ -17,5 +17,15 @@ may contain breaking changes.
 - `App`, `Scene`, and `WindowGroup`, with a headless runner that prints the view tree.
 - `ViewHost`, which resolves a view to a `Codable` `ViewNode` tree and delivers taps.
 - A `SwiftUI` module on Linux, so unmodified `import SwiftUI` sources compile against Parhelion.
+- A layout pass that assigns every node a frame, following SwiftUI's propose-and-respond model,
+  with SwiftUI's stack algorithm.
+- Text measurement and wrapping with the bundled Inter typeface.
+- The `frame(width:height:alignment:)` and
+  `frame(minWidth:idealWidth:maxWidth:minHeight:idealHeight:maxHeight:alignment:)` modifiers,
+  and `padding(_:)` with `EdgeInsets`.
+- `Device`, with an iPhone 16 preset, and `ViewHost(_:device:)`.
+- `ViewHost.tap(at:)`, which taps the frontmost button at a screen position.
+- `ViewNode.frame` and `ViewNode.modifiers`, which list layout modifiers in the order they apply.
+- `--frames` for the headless app runner.
 
 [Unreleased]: https://github.com/JarrarDoga/parhelion/commits/main

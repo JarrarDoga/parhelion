@@ -5,15 +5,20 @@ import Foundation
 /// A view with a modifier applied, produced by modifier methods such as
 /// ``View/padding(_:_:)``.
 ///
-/// The modifier is recorded as an attribute on each node its content
-/// resolves to. The content keeps its structural position, so applying a
-/// modifier does not reset state.
+/// The modifier is recorded on each node its content resolves to. The content
+/// keeps its structural position, so applying a modifier does not reset state.
 struct ModifiedContent<Content: View>: View {
     typealias Body = Never
 
+    enum Change {
+        /// A style value, recorded in ``ViewNode/attributes``.
+        case attribute(key: String, value: String)
+        /// A layout change, appended to ``ViewNode/modifiers``.
+        case layout(LayoutModifier)
+    }
+
     let content: Content
-    let key: String
-    let value: String
+    let change: Change
 
     var body: Never {
         fatalError("ModifiedContent is a primitive view and has no body.")
@@ -24,64 +29,50 @@ extension ModifiedContent: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         evaluator.evaluate(content, at: path).map { node in
             var node = node
-            node.attributes[key] = value
+            switch change {
+            case .attribute(let key, let value): node.attributes[key] = value
+            case .layout(let modifier): node.modifiers.append(modifier)
+            }
             return node
         }
     }
 }
 
 extension View {
-    func modifier(_ key: String, _ value: String) -> some View {
-        ModifiedContent(content: self, key: key, value: value)
+    func attributeModifier(_ key: String, _ value: String) -> some View {
+        ModifiedContent(content: self, change: .attribute(key: key, value: value))
+    }
+
+    func layoutModifier(_ modifier: LayoutModifier) -> some View {
+        ModifiedContent(content: self, change: .layout(modifier))
     }
 }
 
-// MARK: - Layout
+// MARK: - Edges
 
-/// A set of edges of a rectangle.
-public struct Edge: Sendable {
+/// An edge of a rectangle.
+public enum Edge: Int8, CaseIterable, Sendable {
+    case top, leading, bottom, trailing
+
+    /// A set of edges.
     public struct Set: OptionSet, Sendable {
-        public let rawValue: UInt8
+        public let rawValue: Int8
 
-        public init(rawValue: UInt8) {
+        public init(rawValue: Int8) {
             self.rawValue = rawValue
         }
 
-        public static let top = Set(rawValue: 1 << 0)
-        public static let leading = Set(rawValue: 1 << 1)
-        public static let bottom = Set(rawValue: 1 << 2)
-        public static let trailing = Set(rawValue: 1 << 3)
+        public init(_ edge: Edge) {
+            self.init(rawValue: 1 << edge.rawValue)
+        }
+
+        public static let top = Set(.top)
+        public static let leading = Set(.leading)
+        public static let bottom = Set(.bottom)
+        public static let trailing = Set(.trailing)
         public static let horizontal: Set = [.leading, .trailing]
         public static let vertical: Set = [.top, .bottom]
         public static let all: Set = [.horizontal, .vertical]
-
-        var name: String {
-            switch self {
-            case .all: return "all"
-            case .horizontal: return "horizontal"
-            case .vertical: return "vertical"
-            default:
-                let names: [(Set, String)] = [
-                    (.top, "top"), (.leading, "leading"), (.bottom, "bottom"),
-                    (.trailing, "trailing"),
-                ]
-                return names.filter { contains($0.0) }.map(\.1).joined(separator: ",")
-            }
-        }
-    }
-}
-
-extension View {
-    /// Adds padding to the given edges. A `nil` length uses the platform
-    /// default.
-    public func padding(_ edges: Edge.Set = .all, _ length: CGFloat? = nil) -> some View {
-        let value = length.map { "\(edges.name) \(formatLength($0))" } ?? edges.name
-        return modifier("padding", value)
-    }
-
-    /// Adds the same padding to every edge.
-    public func padding(_ length: CGFloat) -> some View {
-        padding(.all, length)
     }
 }
 
@@ -171,11 +162,11 @@ extension View {
     /// Sets the style used to draw foreground content such as text and
     /// symbols.
     public func foregroundStyle(_ style: some ShapeStyle) -> some View {
-        modifier("foregroundStyle", style.styleName)
+        attributeModifier("foregroundStyle", style.styleName)
     }
 
     /// Sets the relative size of symbol images.
     public func imageScale(_ scale: Image.Scale) -> some View {
-        modifier("imageScale", scale.rawValue)
+        attributeModifier("imageScale", scale.rawValue)
     }
 }

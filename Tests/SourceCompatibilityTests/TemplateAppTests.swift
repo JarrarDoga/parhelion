@@ -27,9 +27,22 @@ struct TemplateAppTests {
         #expect(
             host.root.outline() == """
                 Root
-                └─ VStack padding=all
+                └─ VStack padding(16)
                    ├─ Image foregroundStyle=tint imageScale=large systemName=globe
                    └─ Text "Hello, world!"
+                """
+        )
+    }
+
+    @Test("The template view's layout matches the README")
+    func templateLayout() {
+        let host = ViewHost(ContentView())
+        #expect(
+            host.root.outline(includeFrames: true) == """
+                Root  [0, 0, 393 × 852]
+                └─ VStack padding(16)  [146.21, 413.25, 100.57 × 50.5]
+                   ├─ Image foregroundStyle=tint imageScale=large systemName=globe  [185.54, 413.25, 21.93 × 21.93]
+                   └─ Text "Hello, world!"  [146.21, 443.18, 100.57 × 20.57]
                 """
         )
     }

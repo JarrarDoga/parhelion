@@ -1,3 +1,7 @@
+#if canImport(Foundation)
+import Foundation
+#endif
+
 /// An error from driving a view through a ``ViewHost``.
 public enum InteractionError: Error, Equatable, Sendable {
     /// No node in the current tree has this identifier.
@@ -8,13 +12,16 @@ public enum InteractionError: Error, Equatable, Sendable {
     case noButton(label: String)
     /// More than one button's label matches the given text.
     case ambiguousButton(label: String, matches: [NodeID])
+    /// No node that responds to taps contains the given point.
+    case nothingTappable(at: CGPoint)
 }
 
-/// Owns a view hierarchy: resolves it to a ``ViewNode`` tree, keeps its state,
-/// and delivers interactions to it.
+/// Owns a view hierarchy: resolves it to a ``ViewNode`` tree, lays it out for
+/// a device, keeps its state, and delivers interactions to it.
 ///
-/// `ViewHost` is the boundary that renderers, tests, and agents all use. It
-/// works headlessly; nothing here depends on a window or a GPU.
+/// `ViewHost` is the boundary that the preview window, tests, and agents all
+/// use. Nothing here depends on a window or a GPU, so it also works without a
+/// display.
 ///
 /// ```swift
 /// let host = ViewHost(CounterView())
@@ -24,6 +31,7 @@ public enum InteractionError: Error, Equatable, Sendable {
 @MainActor
 public final class ViewHost {
     private let rootView: any View
+    private let layoutEngine: LayoutEngine
     private var storage: [String: AnyObject] = [:]
     private var visitedKeys: Set<String> = []
     private var actions: [NodeID: @MainActor () -> Void] = [:]
@@ -31,16 +39,24 @@ public final class ViewHost {
     /// Whether a state change is waiting for the next ``update()``.
     public private(set) var needsUpdate = false
 
-    /// The resolved tree. Its root node has kind `"Root"`.
+    /// The resolved and laid-out tree. Its root node has kind `"Root"` and
+    /// covers the whole screen.
     public private(set) var root = ViewNode(id: "", kind: "Root")
 
-    public init(_ rootView: some View) {
+    /// The device the tree is laid out for.
+    public let device: Device
+
+    public init(_ rootView: some View, device: Device = .iPhone16) {
         self.rootView = rootView
+        self.device = device
+        self.layoutEngine = LayoutEngine(device: device)
         evaluate()
     }
 
-    init(anyRootView rootView: any View) {
+    init(anyRootView rootView: any View, device: Device = .iPhone16) {
         self.rootView = rootView
+        self.device = device
+        self.layoutEngine = LayoutEngine(device: device)
         evaluate()
     }
 
@@ -58,6 +74,18 @@ public final class ViewHost {
         update()
     }
 
+    /// Taps whatever is at a point on the screen, then updates the tree.
+    ///
+    /// The tap goes to the frontmost node that contains the point and
+    /// responds to taps. Later siblings are in front of earlier ones, and
+    /// children are in front of their parents.
+    public func tap(at point: CGPoint) throws(InteractionError) {
+        guard let target = frontmostTappableNode(at: point, in: root) else {
+            throw .nothingTappable(at: point)
+        }
+        try tap(target.id)
+    }
+
     /// Taps the one button whose label is exactly `label`.
     public func tapButton(labeled label: String) throws(InteractionError) {
         let matches = root.allNodes.filter { $0.kind == "Button" && $0.label == label }
@@ -71,6 +99,14 @@ public final class ViewHost {
     /// Every node whose kind is `"Text"` and whose text is exactly `text`.
     public func nodes(withText text: String) -> [ViewNode] {
         root.allNodes.filter { $0.text == text }
+    }
+
+    private func frontmostTappableNode(at point: CGPoint, in node: ViewNode) -> ViewNode? {
+        guard let frame = node.frame, frame.contains(point) else { return nil }
+        for child in node.children.reversed() {
+            if let match = frontmostTappableNode(at: point, in: child) { return match }
+        }
+        return actions[node.id] != nil ? node : nil
     }
 
     func setNeedsUpdate() {
@@ -93,7 +129,7 @@ public final class ViewHost {
         visitedKeys = []
         let evaluator = Evaluator(host: self)
         let children = evaluator.evaluate(rootView, at: ViewPath())
-        root = ViewNode(id: "", kind: "Root", children: children)
+        root = layoutEngine.layout(ViewNode(id: "", kind: "Root", children: children))
         actions = evaluator.actions
         // State belongs to a structural position. When a view leaves the
         // tree, its state goes with it.

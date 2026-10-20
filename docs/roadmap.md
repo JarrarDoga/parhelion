@@ -17,13 +17,16 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 
 ## 0.2: Preview window
 
-- [ ] A layout pass that assigns a frame to every node
-- [ ] Text measurement with a bundled open-source font
-- [ ] Stack layout, spacing, alignment, `Spacer`, `padding`, and `frame`
+- [x] A layout pass that assigns a frame to every node
+- [x] Text measurement with a bundled open-source font
+- [x] Stack layout, spacing, alignment, `Spacer`, `padding`, and `frame`
+- [x] Frames in the `ViewNode` tree and in the JSON output
+- [x] Hit testing: tap by screen position
+- [ ] Cache `sizeThatFits` results by node, modifier depth, and proposal, so that layout on every
+      state change stays fast
 - [ ] A renderer backend (see [ADR 0002](adr/0002-defer-renderer-backend.md))
 - [ ] A phone-sized window on Linux
-- [ ] Mouse input: click to tap, with hit testing
-- [ ] Frames in the `ViewNode` tree and in the JSON output
+- [ ] Mouse input: click to tap
 
 ## 0.3: Hot reload
 
@@ -50,5 +53,7 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 ## Continuous: Fidelity
 
 - [ ] CI on macOS and on Linux arm64
+- [ ] Verify each constant in `LayoutDefaults.swift` against Apple's SwiftUI
+- [ ] Symbol images: substitute an open-source icon set for SF Symbols
 - [ ] A macOS CI job that resolves the same views with Apple's SwiftUI and compares the trees
 - [ ] Layout comparison against Apple's SwiftUI for the supported views

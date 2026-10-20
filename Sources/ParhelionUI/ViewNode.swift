@@ -1,3 +1,7 @@
+#if canImport(Foundation)
+import Foundation
+#endif
+
 /// A stable identifier for a node in the resolved view tree.
 ///
 /// Identifiers are structural: they are built from the position of a view in
@@ -33,15 +37,22 @@ public struct NodeID: Hashable, Sendable, Codable, CustomStringConvertible,
 ///
 /// The tree is plain data: it is `Codable` and `Sendable`, so tools and agents
 /// can inspect, diff, and serialize it without touching the live views.
-public struct ViewNode: Hashable, Sendable, Codable {
+public struct ViewNode: Hashable, Sendable {
     /// The structural identifier of this node.
     public var id: NodeID
 
     /// The primitive kind, such as `"Text"`, `"VStack"`, or `"Button"`.
     public var kind: String
 
-    /// Properties of the node, including those applied by modifiers.
+    /// Properties of the node, including style values applied by modifiers.
     public var attributes: [String: String]
+
+    /// Layout modifiers applied to this node, innermost first.
+    public var modifiers: [LayoutModifier]
+
+    /// The node's bounds in screen points, excluding its outer padding and
+    /// frames. `nil` until layout has run.
+    public var frame: CGRect?
 
     public var children: [ViewNode]
 
@@ -49,11 +60,15 @@ public struct ViewNode: Hashable, Sendable, Codable {
         id: NodeID,
         kind: String,
         attributes: [String: String] = [:],
+        modifiers: [LayoutModifier] = [],
+        frame: CGRect? = nil,
         children: [ViewNode] = []
     ) {
         self.id = id
         self.kind = kind
         self.attributes = attributes
+        self.modifiers = modifiers
+        self.frame = frame
         self.children = children
     }
 
@@ -91,18 +106,70 @@ public struct ViewNode: Hashable, Sendable, Codable {
     }
 }
 
+extension ViewNode: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case id, kind, attributes, modifiers, frame, children
+    }
+
+    /// Frames are encoded as `{"x": 0, "y": 0, "width": 0, "height": 0}`,
+    /// which is easier for tools to read than `CGRect`'s nested arrays.
+    private struct EncodedRect: Codable {
+        var x: CGFloat
+        var y: CGFloat
+        var width: CGFloat
+        var height: CGFloat
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(NodeID.self, forKey: .id)
+        kind = try container.decode(String.self, forKey: .kind)
+        attributes =
+            try container.decodeIfPresent([String: String].self, forKey: .attributes) ?? [:]
+        modifiers = try container.decodeIfPresent([LayoutModifier].self, forKey: .modifiers) ?? []
+        frame = try container.decodeIfPresent(EncodedRect.self, forKey: .frame).map {
+            CGRect(x: $0.x, y: $0.y, width: $0.width, height: $0.height)
+        }
+        children = try container.decodeIfPresent([ViewNode].self, forKey: .children) ?? []
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(kind, forKey: .kind)
+        if !attributes.isEmpty { try container.encode(attributes, forKey: .attributes) }
+        if !modifiers.isEmpty { try container.encode(modifiers, forKey: .modifiers) }
+        if let frame {
+            let rect = EncodedRect(
+                x: frame.origin.x,
+                y: frame.origin.y,
+                width: frame.size.width,
+                height: frame.size.height
+            )
+            try container.encode(rect, forKey: .frame)
+        }
+        if !children.isEmpty { try container.encode(children, forKey: .children) }
+    }
+}
+
 extension ViewNode {
     /// A human-readable outline of this subtree.
     ///
     /// ```
     /// Root
-    /// └─ VStack padding=all
-    ///    ├─ Image imageScale=large systemName=globe
+    /// └─ VStack padding(16)
+    ///    ├─ Image foregroundStyle=tint imageScale=large systemName=globe
     ///    └─ Text "Hello, world!"
     /// ```
-    public func outline(includeIDs: Bool = false) -> String {
+    public func outline(includeIDs: Bool = false, includeFrames: Bool = false) -> String {
         var lines: [String] = []
-        appendOutline(to: &lines, prefix: "", childPrefix: "", includeIDs: includeIDs)
+        appendOutline(
+            to: &lines,
+            prefix: "",
+            childPrefix: "",
+            includeIDs: includeIDs,
+            includeFrames: includeFrames
+        )
         return lines.joined(separator: "\n")
     }
 
@@ -110,12 +177,20 @@ extension ViewNode {
         to lines: inout [String],
         prefix: String,
         childPrefix: String,
-        includeIDs: Bool
+        includeIDs: Bool,
+        includeFrames: Bool
     ) {
         var line = prefix + kind
         if let text { line += " \"\(text)\"" }
-        for key in attributes.keys.sorted() where key != "text" || kind != "Text" {
+        for modifier in modifiers {
+            line += " \(modifier.outlineDescription)"
+        }
+        for key in attributes.keys.sorted() where !(kind == "Text" && key == "text") {
             line += " \(key)=\(attributes[key]!)"
+        }
+        if includeFrames, let frame {
+            line += "  [\(formatPoints(frame.minX)), \(formatPoints(frame.minY)), "
+            line += "\(formatPoints(frame.width)) × \(formatPoints(frame.height))]"
         }
         if includeIDs, !id.rawValue.isEmpty { line += "  #\(id)" }
         lines.append(line)
@@ -126,8 +201,20 @@ extension ViewNode {
                 to: &lines,
                 prefix: childPrefix + (isLast ? "└─ " : "├─ "),
                 childPrefix: childPrefix + (isLast ? "   " : "│  "),
-                includeIDs: includeIDs
+                includeIDs: includeIDs,
+                includeFrames: includeFrames
             )
         }
     }
+}
+
+/// Formats a point value with at most two decimal places: `16`, `20.5`,
+/// `120.33`.
+func formatPoints(_ value: CGFloat) -> String {
+    if value.isInfinite { return value < 0 ? "-inf" : "inf" }
+    let rounded = (Double(value) * 100).rounded() / 100
+    if rounded == rounded.rounded() { return String(Int(rounded)) }
+    var text = String(format: "%.2f", rounded)
+    while text.hasSuffix("0") { text.removeLast() }
+    return text
 }

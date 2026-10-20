@@ -22,7 +22,15 @@ jobs:
         with:
           persist-credentials: false
       - name: Check formatting
-        run: swift format lint --strict --recursive Package.swift Sources Tests Examples
+        run: swift format lint --strict --recursive Package.swift Sources Tests Examples Scripts
+      - name: Check generated font metrics
+        run: |
+          swift Scripts/generate-font-metrics.swift Fonts/Inter-Regular.ttf > "$RUNNER_TEMP/metrics.swift"
+          swift format --configuration .swift-format "$RUNNER_TEMP/metrics.swift" \
+            | diff - Sources/ParhelionUI/InterRegularMetrics.swift
+      - name: Check that no target declares resources
+        # See docs/adr/0003-no-swiftpm-resources.md.
+        run: "! grep -nE '^[[:space:]]*resources:' Package.swift"
 
   test:
     name: Test (Swift ${{ matrix.swift }})
