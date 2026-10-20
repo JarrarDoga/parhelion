@@ -22,7 +22,8 @@ to behave exactly enough to test against.
 
 | Module | Platforms | Role |
 | --- | --- | --- |
-| `ParhelionUI` | Linux (macOS planned) | The SwiftUI-compatible API and the headless runtime. |
+| `ParhelionUI` | Linux (macOS planned) | The SwiftUI-compatible API, layout, and the runtime. |
+| `ParhelionRender` | Linux (macOS planned) | Font parsing, anti-aliased rasterization, and PNG encoding, in pure Swift. |
 | `SwiftUI` | Linux only | Re-exports `ParhelionUI` so that `import SwiftUI` compiles. See [ADR 0001](adr/0001-swiftui-module-shim.md). |
 
 Planned modules: a renderer, a windowing and input layer, and an agent server. See the
@@ -120,6 +121,24 @@ Every number in which Parhelion assumes SwiftUI's behavior, such as the default 
 points, is in `LayoutDefaults.swift`. These are assumptions until the planned macOS fidelity job
 verifies them.
 
+### Rendering
+
+`ViewHost.render(scale:)` draws the laid-out tree into a `RenderedFrame`, an RGBA image at the
+given number of pixels per point. Like layout, the renderer reads only the tree.
+
+- **Drawing** happens in `ParhelionRender`, a module with no dependencies. It parses Inter's
+  TrueType outlines, flattens curves, and fills paths with exact-area anti-aliasing. There is no
+  GPU and no system font library, so the same tree produces the same pixels on every machine
+  ([ADR 0004](adr/0004-pure-swift-renderer.md)).
+- **Colors** come from `ColorPalette`, which maps SwiftUI's named colors and styles to iOS's
+  light-appearance system colors. A `foregroundStyle` applies to the node and its descendants, and
+  button labels take the tint color unless they set their own style.
+- **Backgrounds** fill the bounds at their position in the modifier chain. Each node records those
+  bounds in `modifierFrames`.
+- **Symbols** draw as placeholder rings until an open-source icon set replaces SF Symbols.
+- **PNG** output uses a small built-in deflate encoder. A screen of mostly flat color compresses
+  to about 50 KB at 2× scale.
+
 ### Interaction
 
 `ViewHost` delivers taps by node identifier (`tap(_:)`), by button label
@@ -135,9 +154,9 @@ tree. With a renderer, it will open a window.
 
 ## Planned layers
 
-- **Rendering.** A backend that draws the laid-out tree. It must draw both into a native window
-  and into off-screen frames, so that other tools can embed or stream the preview. The choice of
-  backend is open; see [ADR 0002](adr/0002-defer-renderer-backend.md).
+- **Window.** A window host in `Tools/` shows frames that the app process renders off screen, and
+  sends mouse and keyboard input back over a local socket. Only the host depends on SDL3
+  ([ADR 0004](adr/0004-pure-swift-renderer.md)).
 - **Input.** The preview translates mouse and keyboard input into the touch model that SwiftUI
   apps expect: a click is a tap, a drag is a touch drag, the mouse wheel and trackpad scroll, and
   the keyboard types into the focused field. Hit testing uses the frames from layout.

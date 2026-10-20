@@ -1,3 +1,5 @@
+import ParhelionRender
+
 #if canImport(Foundation)
 import Foundation
 #endif
@@ -41,7 +43,7 @@ struct LayoutEngine {
     let device: Device
     let measurer: any TextMeasurer
 
-    init(device: Device, measurer: any TextMeasurer = FontTextMeasurer(metrics: .interRegular)) {
+    init(device: Device, measurer: any TextMeasurer = FontTextMeasurer(font: .interRegular)) {
         self.device = device
         self.measurer = measurer
     }
@@ -92,6 +94,9 @@ struct LayoutEngine {
         }
 
         switch node.modifiers[inner] {
+        case .background:
+            return child(proposal)
+
         case .padding(let insets):
             let size = child(proposal.inset(by: insets))
             return CGSize(
@@ -281,9 +286,32 @@ struct LayoutEngine {
         guard modifierCount > 0 else {
             return placeBase(node, in: rect, parentAxis: parentAxis)
         }
+        var placed = placeModifier(
+            node,
+            in: rect,
+            modifierCount: modifierCount,
+            parentAxis: parentAxis
+        )
+        if placed.modifierFrames.count != placed.modifiers.count {
+            placed.modifierFrames = Array(repeating: .zero, count: placed.modifiers.count)
+        }
+        placed.modifierFrames[modifierCount - 1] = rect
+        return placed
+    }
+
+    /// Places a node inside its outermost applied modifier.
+    private func placeModifier(
+        _ node: ViewNode,
+        in rect: CGRect,
+        modifierCount: Int,
+        parentAxis: Axis?
+    ) -> ViewNode {
         let inner = modifierCount - 1
 
         switch node.modifiers[inner] {
+        case .background:
+            return place(node, in: rect, modifierCount: inner, parentAxis: parentAxis)
+
         case .padding(let insets):
             let content = CGRect(
                 x: rect.minX + insets.leading,

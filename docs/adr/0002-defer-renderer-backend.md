@@ -1,6 +1,6 @@
 # 0002: Defer the choice of renderer backend
 
-- **Status:** Proposed
+- **Status:** Superseded by [0004](0004-pure-swift-renderer.md)
 - **Date:** 2026-10-19
 
 ## Context

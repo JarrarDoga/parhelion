@@ -45,7 +45,7 @@ public struct FlexibleFrame: Hashable, Sendable, Codable {
     public var alignment: Alignment
 }
 
-/// A modifier that changes how a view is sized or placed.
+/// A modifier that changes how a view is sized, placed, or framed.
 ///
 /// Layout modifiers are kept in order on each ``ViewNode``, innermost first,
 /// because their order changes the result: `.padding().frame(width: 100)` is
@@ -54,9 +54,14 @@ public enum LayoutModifier: Hashable, Sendable, Codable {
     case padding(EdgeInsets)
     case frame(width: CGFloat?, height: CGFloat?, alignment: Alignment)
     case flexibleFrame(FlexibleFrame)
+    /// Fills the bounds at this point in the chain with a style, behind the
+    /// view. It does not change the size.
+    case background(style: String)
 
     var outlineDescription: String {
         switch self {
+        case .background(let style):
+            return "background(\(style))"
         case .padding(let insets):
             let values = [insets.top, insets.leading, insets.bottom, insets.trailing]
             if Set(values).count == 1 { return "padding(\(formatPoints(insets.top)))" }
@@ -97,6 +102,16 @@ extension View {
     /// Adds padding with a different length on each edge.
     public func padding(_ insets: EdgeInsets) -> some View {
         layoutModifier(.padding(insets))
+    }
+
+    /// Fills the view's bounds, at this point in the modifier chain, with a
+    /// style. The safe-area edges are ignored: Parhelion does not extend
+    /// backgrounds into the safe area yet.
+    public func background(
+        _ style: some ShapeStyle,
+        ignoresSafeAreaEdges edges: Edge.Set = .all
+    ) -> some View {
+        layoutModifier(.background(style: style.styleName))
     }
 
     /// Places the view in an invisible frame of a fixed size. A `nil`

@@ -3,16 +3,19 @@
 import PackageDescription
 
 var products: [Product] = [
-    .library(name: "ParhelionUI", targets: ["ParhelionUI"])
+    .library(name: "ParhelionUI", targets: ["ParhelionUI"]),
+    .library(name: "ParhelionRender", targets: ["ParhelionRender"]),
 ]
 
 var targets: [Target] = [
     // ParhelionUI must not declare SwiftPM resources: xtool packages the resource
     // bundles of every target in an app's graph, including targets that are
     // excluded on iOS, and fails when they were not built. Font metrics are
-    // generated into source instead; see Scripts/generate-font-metrics.swift.
-    .target(name: "ParhelionUI"),
-    .testTarget(name: "ParhelionUITests", dependencies: ["ParhelionUI"]),
+    // embedded as generated source instead; see Scripts/embed-font.sh.
+    .target(name: "ParhelionRender"),
+    .target(name: "ParhelionUI", dependencies: ["ParhelionRender"]),
+    .testTarget(name: "ParhelionRenderTests", dependencies: ["ParhelionRender"]),
+    .testTarget(name: "ParhelionUITests", dependencies: ["ParhelionUI", "ParhelionRender"]),
 ]
 
 // Apple's SwiftUI does not exist on Linux, so Parhelion ships a module with that
@@ -28,6 +31,11 @@ targets += [
         name: "HelloParhelion",
         dependencies: ["SwiftUI"],
         path: "Examples/HelloParhelion"
+    ),
+    .executableTarget(
+        name: "Counter",
+        dependencies: ["SwiftUI"],
+        path: "Examples/Counter"
     ),
 ]
 #endif
