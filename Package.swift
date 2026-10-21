@@ -53,6 +53,11 @@ targets += [
         dependencies: ["SwiftUI"],
         path: "Examples/Form"
     ),
+    .executableTarget(
+        name: "Tasks",
+        dependencies: ["SwiftUI"],
+        path: "Examples/Tasks"
+    ),
 ]
 #endif
 

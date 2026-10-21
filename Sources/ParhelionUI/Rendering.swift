@@ -35,11 +35,12 @@ extension ViewHost {
     /// Draws the current tree at the given number of pixels per point.
     public func render(scale: Double = 2) -> RenderedFrame {
         let renderer = TreeRenderer(
+            device: device,
             pressedNodeID: pressedNodeID,
             focusedNodeID: focusedNodeID,
             caretOffset: caretOffset
         )
-        return RenderedFrame(canvas: renderer.render(root, device: device, scale: scale))
+        return RenderedFrame(canvas: renderer.render(root, scale: scale))
     }
 }
 
@@ -47,13 +48,15 @@ extension ViewHost {
 struct TreeRenderer {
     let font = TrueTypeFont.interRegular
     let measurer = FontTextMeasurer(font: .interRegular)
+    /// The screen the tree was laid out for.
+    var device: Device
     /// The button being pressed, which draws dimmed.
     var pressedNodeID: NodeID?
     /// The text field being edited, which draws a caret.
     var focusedNodeID: NodeID?
     var caretOffset = 0
 
-    func render(_ root: ViewNode, device: Device, scale: Double) -> Canvas {
+    func render(_ root: ViewNode, scale: Double) -> Canvas {
         var canvas = Canvas(
             width: Double(device.screenSize.width),
             height: Double(device.screenSize.height),
@@ -77,13 +80,17 @@ struct TreeRenderer {
         var opacity = opacity
         guard let frame = node.frame else { return }
 
-        if node.kind == "Button", node.id == pressedNodeID {
+        // A pressed list row highlights its cell instead of dimming.
+        if node.kind == "Button", node.id == pressedNodeID, node.listRowFrame == nil {
             opacity *= ColorPalette.pressedOpacity
         }
-        func paint(_ style: String) -> RGBA {
-            var color = ColorPalette.color(named: style)
+        func paint(_ color: RGBA) -> RGBA {
+            var color = color
             color.alpha = UInt8((Double(color.alpha) * opacity).rounded())
             return color
+        }
+        func paint(_ style: String) -> RGBA {
+            paint(ColorPalette.color(named: style))
         }
 
         // Backgrounds sit behind the view, the outermost one at the back.
@@ -117,19 +124,90 @@ struct TreeRenderer {
             // own foreground style, as with SwiftUI's default button style.
             foreground = foreground ?? "tint"
 
+        case "List":
+            drawList(node, in: frame, paint: paint, into: &canvas)
+
+        case "SectionHeader", "SectionFooter":
+            // Assumed: section headers and footers use the secondary label
+            // color, as in iOS's grouped lists.
+            foreground = foreground ?? "secondary"
+
         default:
             break
         }
 
         // A scroll view shows only the part of its content inside its bounds.
         let outerClip = canvas.clipRect
-        if node.kind == "ScrollView" {
+        if node.isScrollContainer {
             canvas.clipRect = outerClip.map { $0.intersection(frame) } ?? frame
         }
         for child in node.children {
             draw(child, foreground: foreground, opacity: opacity, into: &canvas)
         }
         canvas.clipRect = outerClip
+    }
+
+    /// Draws a list's background, and each section's group of cells with
+    /// separators between its rows. The rows draw themselves afterward.
+    private func drawList(
+        _ node: ViewNode,
+        in frame: CGRect,
+        paint: (RGBA) -> RGBA,
+        into canvas: inout Canvas
+    ) {
+        let style = ListStyleMetrics(styleName: node.attributes["listStyle"])
+        if style.isGrouped {
+            // A list that reaches the safe area extends its background to the
+            // edge of the screen, as in SwiftUI.
+            let safeArea = device.safeArea
+            let screen = CGRect(origin: .zero, size: device.screenSize)
+            var background = frame
+            if abs(frame.minY - safeArea.minY) < 0.5 { background.origin.y = screen.minY }
+            if abs(frame.maxY - safeArea.maxY) < 0.5 {
+                background.size.height = screen.maxY - background.minY
+            }
+            if abs(frame.minX - safeArea.minX) < 0.5 { background.origin.x = screen.minX }
+            if abs(frame.maxX - safeArea.maxX) < 0.5 {
+                background.size.width = screen.maxX - background.minX
+            }
+            canvas.fill(background, color: paint(ColorPalette.groupedBackground))
+        }
+
+        let outerClip = canvas.clipRect
+        canvas.clipRect = outerClip.map { $0.intersection(frame) } ?? frame
+        defer { canvas.clipRect = outerClip }
+        for section in node.children {
+            let rows = section.children.compactMap { row -> (ViewNode, CGRect, EdgeInsets)? in
+                guard let cell = row.listRowFrame,
+                    case .listRow(let insets) = row.modifiers.last(where: { $0.isListRow })
+                else { return nil }
+                return (row, cell, insets)
+            }
+            guard let first = rows.first, let last = rows.last else { continue }
+            if style.isGrouped {
+                let group = first.1.union(last.1)
+                canvas.fill(
+                    Path(roundedRect: group, cornerRadius: style.cornerRadius),
+                    color: paint(ColorPalette.groupedRowBackground)
+                )
+            }
+            for (index, (row, cell, insets)) in rows.enumerated() {
+                if row.id == pressedNodeID {
+                    canvas.fill(cell, color: paint(ColorPalette.rowHighlight))
+                }
+                guard index < rows.count - 1 else { continue }
+                let thickness = LayoutDefaults.listSeparatorThickness
+                canvas.fill(
+                    CGRect(
+                        x: cell.minX + insets.leading,
+                        y: cell.maxY - thickness,
+                        width: cell.width - insets.leading,
+                        height: thickness
+                    ),
+                    color: paint(ColorPalette.separator)
+                )
+            }
+        }
     }
 
     /// Draws text wrapped the same way layout measured it, one line per

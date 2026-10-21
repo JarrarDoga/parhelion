@@ -56,6 +56,21 @@ enum ColorPalette {
     /// The background of a window.
     static let background = RGBA.white
 
+    /// Assumed: the background of a grouped list, iOS's
+    /// `systemGroupedBackground`.
+    static let groupedBackground = RGBA(red: 242, green: 242, blue: 247)
+
+    /// Assumed: the background of a grouped list's rows, iOS's
+    /// `secondarySystemGroupedBackground`.
+    static let groupedRowBackground = RGBA.white
+
+    /// Assumed: the color of a list's row separators, iOS's `separator`.
+    static let separator = RGBA(red: 60, green: 60, blue: 67, alpha: 74)
+
+    /// Assumed: the background of a list row while it is pressed, iOS's
+    /// `systemGray4`.
+    static let rowHighlight = RGBA(red: 209, green: 209, blue: 214)
+
     /// Assumed: the opacity of a button's label while it is pressed, as with
     /// SwiftUI's default button style on iOS.
     static let pressedOpacity = 0.25

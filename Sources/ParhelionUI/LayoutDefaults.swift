@@ -44,6 +44,31 @@ enum LayoutDefaults {
     /// `Color`, when the parent proposes no size.
     static let flexibleIdealSize: CGFloat = 10
 
+    /// Assumed: the insets around a list row's content, on iOS.
+    static let listRowInsets = EdgeInsets(top: 11, leading: 20, bottom: 11, trailing: 20)
+
+    /// Assumed: the minimum height of a list row, iOS's minimum tap target.
+    static let listRowMinHeight: CGFloat = 44
+
+    /// Assumed: the space around the sections of an inset grouped list.
+    static let listContentInsets = EdgeInsets(top: 20, leading: 16, bottom: 20, trailing: 16)
+
+    /// Assumed: the space between the sections of a grouped list.
+    static let listSectionSpacing: CGFloat = 35
+
+    /// Assumed: the corner radius of a section in an inset grouped list.
+    static let listCornerRadius: CGFloat = 10
+
+    /// Assumed: the insets around a section header in a list.
+    static let listHeaderInsets = EdgeInsets(top: 0, leading: 20, bottom: 7, trailing: 20)
+
+    /// Assumed: the insets around a section footer in a list.
+    static let listFooterInsets = EdgeInsets(top: 7, leading: 20, bottom: 0, trailing: 20)
+
+    /// Assumed: the thickness of a list's row separators, one pixel on a 3×
+    /// screen.
+    static let listSeparatorThickness: CGFloat = 1.0 / 3
+
     /// Assumed: the side of a symbol image relative to the font size, for
     /// each image scale. Parhelion has no SF Symbols, so every symbol is a
     /// square of this size.
