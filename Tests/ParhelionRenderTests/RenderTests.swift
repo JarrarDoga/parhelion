@@ -127,6 +127,33 @@ struct CanvasTests {
         #expect(pixel.alpha == 255)
     }
 
+    @Test("A translucent fill over several colors blends each run correctly")
+    func translucentRuns() {
+        var canvas = Canvas(width: 6, height: 1, scale: 1, background: .white)
+        canvas.fill(CGRect(x: 3, y: 0, width: 3, height: 1), color: RGBA(red: 0, green: 0, blue: 0))
+        var expected = canvas
+        let gray = RGBA(red: 0, green: 0, blue: 0, alpha: 128)
+        canvas.fill(CGRect(x: 0, y: 0, width: 6, height: 1), color: gray)
+        for x in 0..<6 {
+            expected.fill(CGRect(x: x, y: 0, width: 1, height: 1), color: gray)
+        }
+        #expect(canvas.pixels == expected.pixels)
+    }
+
+    @Test(
+        "A rounded rectangle matches the general rasterizer, without seams",
+        arguments: [1.0, 2.0, 3.0])
+    func roundedRectangle(scale: Double) {
+        let rect = CGRect(x: 3.3, y: 2.7, width: 40.2, height: 25.9)
+        let color = RGBA(red: 0, green: 0, blue: 255)
+        var fast = Canvas(width: 50, height: 32, scale: scale, background: .white)
+        fast.fill(rect, cornerRadius: 8, color: color)
+        var general = Canvas(width: 50, height: 32, scale: scale, background: .white)
+        general.fill(Path(roundedRect: rect, cornerRadius: 8), color: color)
+        let largest = zip(fast.pixels, general.pixels).map { abs(Int($0) - Int($1)) }.max() ?? 0
+        #expect(largest <= 3)
+    }
+
     @Test("Text draws ink inside its line box and none outside it")
     func text() {
         let font = TrueTypeFont.interRegular

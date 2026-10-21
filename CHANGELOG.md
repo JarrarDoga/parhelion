@@ -74,12 +74,25 @@ may contain breaking changes.
 - `Image(systemName:)` draws chevrons for `chevron.backward`, `chevron.left`, `chevron.forward`,
   and `chevron.right`.
 - `ViewHost.tapButton(labeled:)` also taps navigation links.
+- `sheet(isPresented:onDismiss:content:)`, `sheet(item:onDismiss:content:)`, and the matching
+  `fullScreenCover` modifiers, with `presentationDetents(_:)`. Drag a sheet down to dismiss it.
+- `alert(_:isPresented:actions:)` and `alert(_:isPresented:actions:message:)`, with and without
+  `presenting:` data. Every action dismisses the alert after it runs.
+- `ButtonRole`, with `Button(_:role:action:)` and `Button(role:action:label:)`. Destructive
+  buttons are red.
+- `@Environment`, `EnvironmentKey`, `EnvironmentValues`, and `environment(_:_:)`, with the
+  `dismiss` and `isPresented` values. `dismiss` closes a sheet or pops a pushed view.
+- `ViewHost.interactiveRoot`, the frontmost sheet or alert, and `InteractionError.covered` for
+  a tap on a view behind one.
 
 ### Changed
 
 - Rectangles render through a fast path, so a full frame takes about 7 ms in a debug build
   instead of 45 ms.
 - Build errors from `parhelion run` are plain text, without the compiler's color codes.
+- Rounded rectangles fill their interiors as rectangles and rasterize only their corners, and a
+  translucent fill blends once for each run of equal pixels. A screen with a sheet renders in
+  16 ms in a debug build instead of 380 ms.
 
 ### Fixed
 

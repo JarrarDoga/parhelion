@@ -72,9 +72,21 @@ public struct Button<Label: View>: View {
     public typealias Body = Never
 
     let label: Label
+    let role: ButtonRole?
     let action: @MainActor () -> Void
 
     public init(action: @escaping @MainActor () -> Void, @ViewBuilder label: () -> Label) {
+        self.init(role: nil, action: action, label: label)
+    }
+
+    /// Creates a button with a role, which can change how it looks and where
+    /// it goes in an alert.
+    public init(
+        role: ButtonRole?,
+        action: @escaping @MainActor () -> Void,
+        @ViewBuilder label: () -> Label
+    ) {
+        self.role = role
         self.action = action
         self.label = label()
     }
@@ -88,6 +100,15 @@ extension Button where Label == Text {
     public init(_ title: some StringProtocol, action: @escaping @MainActor () -> Void) {
         self.init(action: action) { Text(title) }
     }
+
+    /// Creates a button with a text label and a role.
+    public init(
+        _ title: some StringProtocol,
+        role: ButtonRole?,
+        action: @escaping @MainActor () -> Void
+    ) {
+        self.init(role: role, action: action) { Text(title) }
+    }
 }
 
 extension Button: PrimitiveView {
@@ -98,6 +119,7 @@ extension Button: PrimitiveView {
             ViewNode(
                 id: ownPath.id,
                 kind: "Button",
+                attributes: role.map { ["role": $0.name] } ?? [:],
                 children: evaluator.evaluate(label, at: ownPath)
             )
         ]

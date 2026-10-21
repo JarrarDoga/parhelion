@@ -122,8 +122,28 @@ struct TreeRenderer {
 
         case "Button":
             // Assumed: a button's label takes the tint color unless it sets its
-            // own foreground style, as with SwiftUI's default button style.
-            foreground = foreground ?? "tint"
+            // own foreground style, as with SwiftUI's default button style. A
+            // destructive button's label is red.
+            foreground = foreground ?? (node.attributes["role"] == "destructive" ? "red" : "tint")
+
+        case "Sheet":
+            let screen = CGRect(origin: .zero, size: device.screenSize)
+            canvas.fill(screen, color: paint(ColorPalette.presentationDim))
+            // Only the top corners are rounded; the bottom ones are off screen.
+            let radius = LayoutDefaults.sheetCornerRadius
+            canvas.fill(
+                CGRect(
+                    x: frame.minX, y: frame.minY, width: frame.width,
+                    height: frame.height + radius),
+                cornerRadius: radius,
+                color: paint(ColorPalette.background)
+            )
+
+        case "FullScreenCover":
+            canvas.fill(frame, color: paint(ColorPalette.background))
+
+        case "Alert":
+            drawAlert(node, in: frame, paint: paint, into: &canvas)
 
         case "NavigationLink":
             // Assumed: in a list, a link's label uses the primary color;
@@ -196,7 +216,7 @@ struct TreeRenderer {
             if style.isGrouped {
                 let group = first.1.union(last.1)
                 canvas.fill(
-                    Path(roundedRect: group, cornerRadius: style.cornerRadius),
+                    group, cornerRadius: style.cornerRadius,
                     color: paint(ColorPalette.groupedRowBackground)
                 )
             }
@@ -299,6 +319,34 @@ struct TreeRenderer {
         }
     }
 
+    /// Draws the dimmed screen behind an alert, the alert's background, and
+    /// the separators around its buttons.
+    private func drawAlert(
+        _ node: ViewNode,
+        in frame: CGRect,
+        paint: (RGBA) -> RGBA,
+        into canvas: inout Canvas
+    ) {
+        let screen = CGRect(origin: .zero, size: device.screenSize)
+        canvas.fill(screen, color: paint(ColorPalette.presentationDim))
+        canvas.fill(
+            frame, cornerRadius: LayoutDefaults.alertCornerRadius,
+            color: paint(ColorPalette.alertBackground)
+        )
+        let thickness = LayoutDefaults.listSeparatorThickness
+        for button in node.children where button.kind == "Button" {
+            guard let cell = button.frame else { continue }
+            canvas.fill(
+                CGRect(x: cell.minX, y: cell.minY, width: cell.width, height: thickness),
+                color: paint(ColorPalette.separator))
+            if cell.minX > frame.minX {
+                canvas.fill(
+                    CGRect(x: cell.minX, y: cell.minY, width: thickness, height: cell.height),
+                    color: paint(ColorPalette.separator))
+            }
+        }
+    }
+
     /// Draws the area behind a navigation bar, up to the top of the screen.
     /// It takes the background of a grouped list beneath it, as iOS's bar
     /// does at the top of scrolling content.
@@ -312,11 +360,17 @@ struct TreeRenderer {
             content.kind == "List",
             ListStyleMetrics(styleName: content.attributes["listStyle"]).isGrouped
         else { return }
-        var area = bar
         if abs(bar.minY - device.safeArea.minY) < 0.5 {
-            area = CGRect(x: bar.minX, y: 0, width: bar.width, height: bar.maxY)
+            let area = CGRect(x: bar.minX, y: 0, width: bar.width, height: bar.maxY)
+            canvas.fill(area, color: paint(ColorPalette.groupedBackground))
+        } else {
+            // A stack below the top of the screen is in a sheet, whose top
+            // corners are rounded. The fill extends under the list beneath.
+            let radius = LayoutDefaults.sheetCornerRadius
+            let area = CGRect(
+                x: bar.minX, y: bar.minY, width: bar.width, height: bar.height + radius)
+            canvas.fill(area, cornerRadius: radius, color: paint(ColorPalette.groupedBackground))
         }
-        canvas.fill(area, color: paint(ColorPalette.groupedBackground))
     }
 
     /// Draws a symbol. Parhelion has no SF Symbols yet: chevrons are drawn as

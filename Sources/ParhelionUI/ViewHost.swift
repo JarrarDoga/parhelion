@@ -18,6 +18,8 @@ public enum InteractionError: Error, Equatable, Sendable {
     case notScrollable(NodeID)
     /// The node is not a text field.
     case notEditable(NodeID)
+    /// The node is behind a sheet or an alert, which receives input instead.
+    case covered(NodeID)
 }
 
 /// Owns a view hierarchy: resolves it to a ``ViewNode`` tree, lays it out for
@@ -48,6 +50,8 @@ public final class ViewHost {
     /// stack's identifier.
     var navigationState: [NodeID: [NavigationEntry]] = [:]
     var visitedNavigationStacks: Set<NodeID> = []
+    /// The presentations on screen, by identifier.
+    private var presentations: [NodeID: Presentation] = [:]
 
     /// Whether a state change is waiting for the next ``update()``.
     public private(set) var needsUpdate = false
@@ -133,9 +137,16 @@ public final class ViewHost {
         evaluate()
     }
 
+    /// The part of the tree that receives input: the frontmost sheet or
+    /// alert, or the whole tree when nothing is presented.
+    public var interactiveRoot: ViewNode {
+        root.children.last { $0.isPresentation } ?? root
+    }
+
     /// Taps the node with the given identifier, then updates the tree.
     public func tap(_ id: NodeID) throws(InteractionError) {
         guard root.node(withID: id) != nil else { throw .nodeNotFound(id) }
+        guard interactiveRoot.node(withID: id) != nil else { throw .covered(id) }
         guard let action = actions[id] else { throw .notTappable(id) }
         action()
         update()
@@ -147,7 +158,7 @@ public final class ViewHost {
     /// responds to taps. Later siblings are in front of earlier ones, and
     /// children are in front of their parents.
     public func tap(at point: CGPoint) throws(InteractionError) {
-        guard let target = frontmostTappableNode(at: point, in: root) else {
+        guard let target = frontmostTappableNode(at: point, in: interactiveRoot) else {
             throw .nothingTappable(at: point)
         }
         try tap(target.id)
@@ -175,6 +186,9 @@ public final class ViewHost {
         var button: NodeID?
         /// The scroll view being dragged, once the press turns into a scroll.
         var scrollView: NodeID?
+        /// The sheet being dragged down, once the press turns into a drag
+        /// that dismisses it.
+        var sheet: NodeID?
         /// Recent pointer positions, for the release velocity.
         var samples: [(time: TimeInterval, point: CGPoint)]
     }
@@ -184,12 +198,13 @@ public final class ViewHost {
     /// momentum, as touching a scrolling list does on iOS.
     public func pointerDown(at point: CGPoint) {
         momentum.removeAll()
-        let button = frontmostTappableNode(at: point, in: root)?.id
+        let button = frontmostTappableNode(at: point, in: interactiveRoot)?.id
         press = Press(
             start: point,
             last: point,
             button: button,
             scrollView: nil,
+            sheet: nil,
             samples: [(time, point)]
         )
         // Text fields take focus on release but do not dim while pressed.
@@ -208,19 +223,25 @@ public final class ViewHost {
             press.last = point
             self.press = press
         }
-        if press.scrollView == nil,
-            hypot(point.x - press.start.x, point.y - press.start.y) > LayoutDefaults.dragThreshold,
-            let scrollView = innermostScrollView(
-                at: press.start,
-                along: CGSize(width: point.x - press.start.x, height: point.y - press.start.y),
-                requireRoom: false
-            )
+        let moved = CGSize(width: point.x - press.start.x, height: point.y - press.start.y)
+        if press.scrollView == nil, press.sheet == nil,
+            hypot(moved.width, moved.height) > LayoutDefaults.dragThreshold
         {
-            press.scrollView = scrollView
-            press.button = nil
-            pressedNodeID = nil
+            let scrollView = innermostScrollView(at: press.start, along: moved, requireRoom: false)
+            if let sheet = sheetToDrag(from: press.start, along: moved, over: scrollView) {
+                press.sheet = sheet
+            } else {
+                press.scrollView = scrollView
+            }
+            if press.sheet != nil || press.scrollView != nil {
+                press.button = nil
+                pressedNodeID = nil
+            }
         }
-        if let scrollView = press.scrollView {
+        if let sheet = press.sheet {
+            scrolling.presentationOffsets[sheet] = max(moved.height, 0)
+            relayout()
+        } else if let scrollView = press.scrollView {
             applyScroll(
                 scrollView,
                 by: CGSize(width: press.last.x - point.x, height: press.last.y - point.y)
@@ -228,7 +249,8 @@ public final class ViewHost {
             press.samples.append((time, point))
             press.samples.removeAll { time - $0.time > 0.15 }
         } else if let button = press.button, textFields[button] == nil {
-            pressedNodeID = frontmostTappableNode(at: point, in: root)?.id == button ? button : nil
+            pressedNodeID =
+                frontmostTappableNode(at: point, in: interactiveRoot)?.id == button ? button : nil
         }
     }
 
@@ -245,12 +267,25 @@ public final class ViewHost {
         self.press = nil
         pressedNodeID = nil
 
+        if let sheet = press.sheet {
+            let distance = scrolling.presentationOffsets[sheet] ?? 0
+            scrolling.presentationOffsets[sheet] = nil
+            if distance > LayoutDefaults.sheetDismissDistance,
+                let presentation = presentations[sheet]
+            {
+                presentation.dismiss()
+                update()
+            } else {
+                relayout()
+            }
+            return nil
+        }
         if let scrollView = press.scrollView {
             startMomentum(scrollView, samples: press.samples + [(time, point)])
             return nil
         }
         guard let button = press.button,
-            frontmostTappableNode(at: point, in: root)?.id == button
+            frontmostTappableNode(at: point, in: interactiveRoot)?.id == button
         else { return nil }
         if textFields[button] != nil {
             focusTextField(button, caretAt: point)
@@ -354,7 +389,7 @@ public final class ViewHost {
     /// Moves focus to the next or previous text field in reading order,
     /// wrapping around.
     private func moveFocus(forward: Bool) {
-        let fields = root.allNodes.filter { textFields[$0.id] != nil }.map(\.id)
+        let fields = interactiveRoot.allNodes.filter { textFields[$0.id] != nil }.map(\.id)
         guard !fields.isEmpty else { return }
         let next: NodeID
         if let current = focusedNodeID, let index = fields.firstIndex(of: current) {
@@ -505,7 +540,7 @@ public final class ViewHost {
             if node.isScrollContainer { candidates.append(node) }
             node.children.forEach(collect)
         }
-        collect(root)
+        collect(interactiveRoot)
 
         for node in candidates.reversed() {
             guard let metrics = scrolling.metrics[node.id] else { continue }
@@ -525,10 +560,29 @@ public final class ViewHost {
         return nil
     }
 
+    /// The sheet a press should drag down to dismiss: the frontmost
+    /// presentation, if it is a sheet that contains the press, the press
+    /// moves down, and no scroll view under it can scroll toward the top.
+    private func sheetToDrag(
+        from start: CGPoint, along moved: CGSize, over scrollView: NodeID?
+    )
+        -> NodeID?
+    {
+        let front = interactiveRoot
+        guard front.kind == "Sheet", front.frame?.contains(start) == true,
+            moved.height > abs(moved.width)
+        else { return nil }
+        if let scrollView, let metrics = scrolling.metrics[scrollView], metrics.offset.y > 0 {
+            return nil
+        }
+        return front.id
+    }
+
     /// Taps the one button or navigation link whose label is exactly
-    /// `label`.
+    /// `label`. Only the frontmost sheet or alert is searched while one is
+    /// presented.
     public func tapButton(labeled label: String) throws(InteractionError) {
-        let matches = root.allNodes.filter {
+        let matches = interactiveRoot.allNodes.filter {
             ($0.kind == "Button" || $0.kind == "NavigationLink") && $0.label == label
         }
         guard let button = matches.first else { throw .noButton(label: label) }
@@ -579,10 +633,24 @@ public final class ViewHost {
         visitedKeys = []
         visitedNavigationStacks = []
         let evaluator = Evaluator(host: self)
-        let children = evaluator.evaluate(rootView, at: ViewPath())
+        var children = evaluator.evaluate(rootView, at: ViewPath())
+        // Presented content can present more, so the list grows as it goes.
+        var index = 0
+        var presented: [NodeID: Presentation] = [:]
+        while index < evaluator.presentations.count {
+            let presentation = evaluator.presentations[index]
+            children.append(presentation.makeNode(evaluator))
+            presented[presentation.id] = presentation
+            index += 1
+        }
         resolvedRoot = ViewNode(id: "", kind: "Root", children: children)
         actions = evaluator.actions
         textFields = evaluator.textFields
+        let dismissed = presentations.filter { presented[$0.key] == nil }.values
+        presentations = presented
+        scrolling.presentationOffsets = scrolling.presentationOffsets.filter {
+            presented[$0.key] != nil
+        }
         // A focused field that left the tree loses focus.
         if let focused = focusedNodeID {
             if let field = textFields[focused] {
@@ -596,6 +664,13 @@ public final class ViewHost {
         // tree, its state goes with it.
         storage = storage.filter { visitedKeys.contains($0.key) }
         navigationState = navigationState.filter { visitedNavigationStacks.contains($0.key) }
+
+        // A dismissed sheet's onDismiss runs after it leaves the tree.
+        let callbacks = dismissed.compactMap(\.onDismiss)
+        if !callbacks.isEmpty {
+            callbacks.forEach { $0() }
+            update()
+        }
     }
 
     /// Lays out the evaluated tree again, for example after scrolling.

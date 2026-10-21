@@ -31,6 +31,13 @@ final class Evaluator {
     let host: ViewHost
     /// The innermost navigation stack being evaluated, if any.
     var navigation: NavigationContext?
+    /// The environment of the view being evaluated.
+    var environment = EnvironmentValues()
+    /// Sheets and alerts that views asked to present, in the order they
+    /// asked. The host evaluates their content after the main tree.
+    private(set) var presentations: [Presentation] = []
+    /// The detents declared inside the sheet being evaluated.
+    var presentationDetents: Set<PresentationDetent> = []
     private(set) var actions: [NodeID: @MainActor () -> Void] = [:]
     private(set) var textFields: [NodeID: Binding<String>] = [:]
 
@@ -55,12 +62,39 @@ final class Evaluator {
         textFields[id] = text
     }
 
+    func registerPresentation(_ presentation: Presentation) {
+        presentations.append(presentation)
+    }
+
+    /// Runs `extra` after the action registered for `id`, if any.
+    func appendToAction(for id: NodeID, _ extra: @escaping @MainActor () -> Void) {
+        guard let action = actions[id] else { return }
+        actions[id] = {
+            action()
+            extra()
+        }
+    }
+
+    /// Evaluates `body` with a changed environment.
+    func withEnvironment<Result>(
+        _ transform: (inout EnvironmentValues) -> Void, _ body: () -> Result
+    ) -> Result {
+        let outer = environment
+        transform(&environment)
+        defer { environment = outer }
+        return body()
+    }
+
     private func body<V: View>(of view: V) -> any View {
         view.body
     }
 
     private func installDynamicProperties(of view: any View, at path: ViewPath) {
         for child in Mirror(reflecting: view).children {
+            if let property = child.value as? any EnvironmentInstallable {
+                property.install(environment)
+                continue
+            }
             guard let label = child.label, let property = child.value as? any StateInstallable
             else { continue }
             property.install(in: host, key: "\(path.id.rawValue).\(label)")

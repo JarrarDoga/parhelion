@@ -58,7 +58,7 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 
 - [x] `List` and `Section`
 - [x] `NavigationStack` and `NavigationLink`
-- [ ] `sheet` and `alert`
+- [x] `sheet` and `alert`
 - [ ] Animations
 
 ## Continuous: Fidelity
