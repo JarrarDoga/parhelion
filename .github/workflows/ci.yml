@@ -27,8 +27,10 @@ jobs:
           Package.swift Sources Tests Examples
           Tools/parhelion-cli/Package.swift Tools/parhelion-cli/Sources
           Tools/parhelion-cli/Tests Tools/parhelion-cli/Fixtures
-      - name: Check the embedded font
-        run: Scripts/embed-font.sh Fonts/Inter-Regular.ttf | diff -q - Sources/ParhelionRender/InterRegularFontData.swift
+      - name: Check the embedded fonts
+        run: |
+          Scripts/embed-font.sh Fonts/Inter-Regular.ttf | diff -q - Sources/ParhelionRender/InterRegularFontData.swift
+          Scripts/embed-font.sh Fonts/Inter-SemiBold.ttf | diff -q - Sources/ParhelionRender/InterSemiBoldFontData.swift
       - name: Check that no target declares resources
         # See docs/adr/0003-no-swiftpm-resources.md.
         run: "! grep -nE '^[[:space:]]*resources:' Package.swift"

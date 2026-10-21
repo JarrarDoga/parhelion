@@ -31,7 +31,10 @@ let package = Package(
         ),
         // Package inspection, runner generation, file watching, and builds:
         // everything that does not need a window, so it can be tested.
-        .target(name: "ParhelionTooling"),
+        .target(
+            name: "ParhelionTooling",
+            dependencies: [.product(name: "ParhelionRender", package: "parhelion")]
+        ),
         .testTarget(name: "ParhelionToolingTests", dependencies: ["ParhelionTooling"]),
         .executableTarget(
             name: "parhelion",
@@ -39,6 +42,7 @@ let package = Package(
                 "CSDL3",
                 "ParhelionTooling",
                 .product(name: "ParhelionPreview", package: "parhelion"),
+                .product(name: "ParhelionRender", package: "parhelion"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),

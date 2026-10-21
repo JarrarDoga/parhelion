@@ -32,19 +32,22 @@ public struct RenderedFrame: Sendable {
 }
 
 extension ViewHost {
-    /// Draws the current tree at the given number of pixels per point.
-    public func render(scale: Double = 2) -> RenderedFrame {
+    /// Draws the current tree at the given number of pixels per point, with
+    /// the device's system interface over it.
+    public func render(scale: Double = 2, chrome: DeviceChrome = .none) -> RenderedFrame {
         let renderer = TreeRenderer(
             device: device,
             pressedNodeID: pressedNodeID,
             focusedNodeID: focusedNodeID,
             caretOffset: caretOffset
         )
-        return RenderedFrame(canvas: renderer.render(presentedRoot, scale: scale))
+        return RenderedFrame(
+            canvas: renderer.render(presentedRoot, scale: scale, chrome: chrome))
     }
 }
 
-/// Draws a laid-out ``ViewNode`` tree. Like layout, it reads only the tree.
+/// Draws a laid-out ``ViewNode`` tree. Like layout, it reads only the tree,
+/// and the device for the system interface it can draw over the tree.
 struct TreeRenderer {
     let font = TrueTypeFont.interRegular
     let measurer = FontTextMeasurer(font: .interRegular)
@@ -56,7 +59,7 @@ struct TreeRenderer {
     var focusedNodeID: NodeID?
     var caretOffset = 0
 
-    func render(_ root: ViewNode, scale: Double) -> Canvas {
+    func render(_ root: ViewNode, scale: Double, chrome: DeviceChrome = .none) -> Canvas {
         var canvas = Canvas(
             width: Double(device.screenSize.width),
             height: Double(device.screenSize.height),
@@ -64,6 +67,8 @@ struct TreeRenderer {
             background: ColorPalette.background
         )
         draw(root, foreground: nil, opacity: 1, into: &canvas)
+        // The system interface is above everything the app presents.
+        drawChrome(chrome, into: &canvas)
         return canvas
     }
 

@@ -30,7 +30,10 @@ extension ViewHost {
                 guard scale > 0, scale <= 4 else {
                     return reply(false, "The scale must be in 0...4.")
                 }
-                let frame = render(scale: scale)
+                // Like a screenshot taken in the Simulator: the status bar and
+                // the home indicator, but square corners and no Dynamic Island,
+                // so every point of the image is a point on the screen.
+                let frame = render(scale: scale, chrome: .systemBars)
                 return reply(
                     true,
                     "\(frame.pixelWidth) × \(frame.pixelHeight) pixels at scale \(formatPoints(CGFloat(scale))).",

@@ -9,8 +9,10 @@ import Foundation
 /// without a window: it resolves and lays out the first window's content and
 /// prints the view tree. Pass `--frames` to include each node's frame, `--ids`
 /// to include identifiers, or `--json` to print the tree as JSON. Pass
-/// `--png PATH` to draw the window to a PNG file instead, with `--scale` pixels
-/// per point (2 by default).
+/// `--png PATH` to draw the screen to a PNG file instead, with the status bar
+/// and the home indicator, at `--scale` pixels per point (2 by default). Set
+/// `PARHELION_DEVICE` to a preset's name, such as "iPhone 17 Pro", to
+/// simulate that device.
 @MainActor
 @preconcurrency
 public protocol App {
@@ -33,12 +35,13 @@ extension App {
         let appName = String(describing: Self.self)
         if PreviewSession.runIfRequested(content: content, appName: appName) { return }
         #endif
-        let host = ViewHost(anyRootView: content)
+        let host = ViewHost(anyRootView: content, device: .fromEnvironment())
         let arguments = CommandLine.arguments
         if let pngPath = value(after: "--png", in: arguments) {
             let scale = value(after: "--scale", in: arguments).flatMap(Double.init) ?? 2
             do {
-                try host.render(scale: scale).pngData().write(to: URL(fileURLWithPath: pngPath))
+                try host.render(scale: scale, chrome: .systemBars).pngData()
+                    .write(to: URL(fileURLWithPath: pngPath))
             } catch {
                 FileHandle.standardError.write(Data("parhelion: \(error)\n".utf8))
                 exit(1)

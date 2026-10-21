@@ -36,20 +36,29 @@ struct MCP: ParsableCommand {
     @Option(help: "The size of the preview window relative to the screen size in points.")
     var zoom: Double = 1
 
+    @Option(help: "The device to simulate, such as \"iPhone 17 Pro\". (default: iPhone 16)")
+    var device: String?
+
+    @Flag(
+        inversion: .prefixedNo,
+        help: "Draw the phone around the screen in the preview window.")
+    var bezel = true
+
     func run() throws {
         let package = try AppPackage.load(at: packagePath)
         let plan = try RunPlan.make(for: package, at: packagePath, product: product)
         let controller = try AgentController(
             plan: plan,
             builder: AppBuilder(plan: plan, configuration: configuration.rawValue),
-            scale: window ? 2 : 1
+            scale: window ? 2 : 1,
+            device: device
         )
         controller.start()
 
         let server = MCPServer(
             name: "parhelion",
             version: "0.1.0",
-            instructions: AgentTools.instructions(product: plan.product),
+            instructions: AgentTools.instructions(product: plan.product, device: device),
             tools: AgentTools.definitions,
             handler: controller.handle
         )
@@ -77,7 +86,8 @@ struct MCP: ParsableCommand {
                 continue
             }
             if host == nil {
-                host = try WindowOptions(scale: 2, zoom: zoom).openWindow(for: app.hello)
+                host = try WindowOptions(scale: 2, zoom: zoom, bezel: bezel)
+                    .openWindow(for: app.hello)
                 controller.setWaker(host!.waker)
             }
             guard let host else { continue }
@@ -97,10 +107,11 @@ struct MCP: ParsableCommand {
 }
 
 extension WindowOptions {
-    init(scale: Double, zoom: Double) {
+    init(scale: Double, zoom: Double, bezel: Bool) {
         self.init()
         self.scale = scale
         self.zoom = zoom
+        self.bezel = bezel
     }
 }
 
@@ -110,6 +121,7 @@ final class AgentController: @unchecked Sendable {
     private let plan: RunPlan
     private let builder: AppBuilder
     private let scale: Double
+    private let device: String?
     private let lock = NSLock()
     private var app: AppConnection?
     private var lastFailure: String?
@@ -121,10 +133,11 @@ final class AgentController: @unchecked Sendable {
         .appendingPathComponent("parhelion-\(ProcessInfo.processInfo.processIdentifier).state.json")
         .path
 
-    init(plan: RunPlan, builder: AppBuilder, scale: Double) throws {
+    init(plan: RunPlan, builder: AppBuilder, scale: Double, device: String?) throws {
         self.plan = plan
         self.builder = builder
         self.scale = scale
+        self.device = device
         listener = try PreviewListener(path: socketPath)
     }
 
@@ -167,14 +180,16 @@ final class AgentController: @unchecked Sendable {
         do {
             let executable = try builder.executablePath()
             currentApp?.close()
+            var environment = [
+                previewSocketEnvironmentKey: socketPath,
+                "PARHELION_PREVIEW_SCALE": String(scale),
+                previewStateEnvironmentKey: stateFile,
+            ]
+            environment[previewDeviceEnvironmentKey] = device
             let connection = try AppConnection(
                 executable: executable,
                 arguments: [],
-                environment: [
-                    previewSocketEnvironmentKey: socketPath,
-                    "PARHELION_PREVIEW_SCALE": String(scale),
-                    previewStateEnvironmentKey: stateFile,
-                ],
+                environment: environment,
                 listener: listener,
                 captureOutput: true,
                 wake: { [waker] in waker.wake() }

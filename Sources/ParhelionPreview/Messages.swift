@@ -11,6 +11,11 @@ public let previewSocketEnvironmentKey = "PARHELION_PREVIEW_SOCKET"
 /// to it when the host closes it, so hot reload keeps state across restarts.
 public let previewStateEnvironmentKey = "PARHELION_PREVIEW_STATE"
 
+/// The name of the environment variable that names the device an app
+/// simulates, such as "iPhone 17 Pro". Without it, the app uses its default
+/// device.
+public let previewDeviceEnvironmentKey = "PARHELION_DEVICE"
+
 /// The first message an app sends after it connects.
 public struct PreviewHello: Codable, Equatable, Sendable {
     /// The app's display name, for the window title.
@@ -20,12 +25,27 @@ public struct PreviewHello: Codable, Equatable, Sendable {
     public var screenHeight: Double
     /// Pixels per point in the frames the app sends.
     public var scale: Double
+    /// The name of the device the app simulates. Apps built with Parhelion
+    /// before device names were sent leave it out.
+    public var deviceName: String?
+    /// The radius of the screen's rounded corners in points, which the
+    /// window host uses to draw the device around the screen.
+    public var displayCornerRadius: Double?
 
-    public init(appName: String, screenWidth: Double, screenHeight: Double, scale: Double) {
+    public init(
+        appName: String,
+        screenWidth: Double,
+        screenHeight: Double,
+        scale: Double,
+        deviceName: String? = nil,
+        displayCornerRadius: Double? = nil
+    ) {
         self.appName = appName
         self.screenWidth = screenWidth
         self.screenHeight = screenHeight
         self.scale = scale
+        self.deviceName = deviceName
+        self.displayCornerRadius = displayCornerRadius
     }
 }
 

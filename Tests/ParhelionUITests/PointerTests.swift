@@ -96,7 +96,10 @@ struct PreviewSessionTests {
             return
         }
         #expect(
-            hello == PreviewHello(appName: "Counter", screenWidth: 50, screenHeight: 50, scale: 1))
+            hello
+                == PreviewHello(
+                    appName: "Counter", screenWidth: 50, screenHeight: 50, scale: 1,
+                    deviceName: "Test", displayCornerRadius: 0))
 
         var frames: [PreviewFrame] = []
         while case .frame(let frame)? = try hostEnd.receiveAppMessage(timeout: 0.2) {

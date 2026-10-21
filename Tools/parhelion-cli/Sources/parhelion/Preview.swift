@@ -2,6 +2,7 @@ import ArgumentParser
 import CSDL3
 import Foundation
 import ParhelionPreview
+import ParhelionTooling
 
 /// Options shared by the commands that open a preview window.
 struct WindowOptions: ParsableArguments {
@@ -10,6 +11,14 @@ struct WindowOptions: ParsableArguments {
 
     @Option(help: "The size of the window relative to the screen size in points.")
     var zoom: Double = 1
+
+    @Option(help: "The device to simulate, such as \"iPhone 17 Pro\". (default: iPhone 16)")
+    var device: String?
+
+    @Flag(
+        inversion: .prefixedNo,
+        help: "Draw the phone around the screen, like the Simulator's device bezel.")
+    var bezel = true
 
     @Flag(help: "Exit after showing the first frame. For automated checks.")
     var exitAfterFirstFrame = false
@@ -22,16 +31,32 @@ struct WindowOptions: ParsableArguments {
 
     /// The environment that tells an app to connect to `socketPath`.
     func environment(socketPath: String) -> [String: String] {
-        [previewSocketEnvironmentKey: socketPath, "PARHELION_PREVIEW_SCALE": String(scale)]
+        var environment = [
+            previewSocketEnvironmentKey: socketPath, "PARHELION_PREVIEW_SCALE": String(scale),
+        ]
+        environment[previewDeviceEnvironmentKey] = device
+        return environment
     }
 
     func openWindow(for hello: PreviewHello) throws -> WindowHost {
         try WindowHost(
-            title: "\(hello.appName) — Parhelion",
-            width: Int((hello.screenWidth * zoom).rounded()),
-            height: Int((hello.screenHeight * zoom).rounded()),
-            zoom: zoom
+            title: Self.title(for: hello),
+            screenWidth: hello.screenWidth,
+            screenHeight: hello.screenHeight,
+            zoom: zoom,
+            bezel: bezel
+                ? DeviceBezel(
+                    screenWidth: hello.screenWidth,
+                    screenHeight: hello.screenHeight,
+                    screenCornerRadius: hello.displayCornerRadius ?? 0
+                ) : nil,
+            scale: hello.scale
         )
+    }
+
+    /// The window's title: the app and the device it simulates.
+    static func title(for hello: PreviewHello) -> String {
+        [hello.appName, hello.deviceName, "Parhelion"].compactMap { $0 }.joined(separator: " — ")
     }
 }
 
