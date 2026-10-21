@@ -161,10 +161,10 @@ works.
 
 | Area | Supported today |
 | --- | --- |
-| Views | `Text`, `Image`, `Button`, `TextField`, `VStack`, `HStack`, `ZStack`, `Spacer`, `Color`, `ScrollView`, `List`, `Section`, `ForEach`, `EmptyView` |
+| Views | `Text`, `Image`, `Button`, `TextField`, `VStack`, `HStack`, `ZStack`, `Spacer`, `Color`, `ScrollView`, `List`, `Section`, `ForEach`, `NavigationStack`, `NavigationLink`, `EmptyView` |
 | Builders | Multiple children, `if`/`else`, optional content |
 | State | `@State` and `@Binding`, with SwiftUI's structural identity and lifetime rules |
-| Modifiers | `padding`, `frame` (fixed and flexible), `background`, `foregroundStyle`, `imageScale`, `listStyle`, and `Color.opacity` |
+| Modifiers | `padding`, `frame` (fixed and flexible), `background`, `foregroundStyle`, `imageScale`, `listStyle`, `navigationTitle`, `navigationDestination`, `toolbar`, and `Color.opacity` |
 | Layout | SwiftUI's propose-and-respond stack algorithm, text wrapping with the bundled Inter font, iPhone 16 screen and safe area |
 | Input | Tap by node, by button label, or by screen position; press, drag away to cancel, and release with the mouse; scroll by dragging with momentum, or with the mouse wheel and trackpad; type into text fields, with the caret keys, Backspace, Delete, and Tab between fields |
 | Window | `parhelion run` with hot reload that keeps `Codable` state, and `parhelion preview`; an SDL3 window host for Wayland and X11 |
@@ -172,7 +172,8 @@ works.
 | Rendering | Anti-aliased shapes and Inter text drawn in pure Swift at any scale, with PNG output; SF Symbols draw as placeholder rings |
 | App | `App`, `Scene`, `WindowGroup`, with a headless runner |
 
-Not yet available: text selection, fonts other than body text, navigation, the environment, animation, and gestures other than tap. Layout constants that Parhelion assumes about
+Not yet available: text selection, fonts other than body text, large navigation titles, the
+environment, animation, and gestures other than tap. Layout constants that Parhelion assumes about
 SwiftUI, such as the default padding, are listed in `LayoutDefaults.swift` until a macOS CI job
 verifies them. The [roadmap](docs/roadmap.md) lists the
 order of work.

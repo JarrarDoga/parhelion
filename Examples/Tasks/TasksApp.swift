@@ -23,37 +23,61 @@ struct TaskListView: View {
     ]
 
     var body: some View {
-        List {
-            Section("To do") {
-                ForEach(tasks.filter { !$0.isDone }) { task in
-                    Button(action: { toggle(task) }) {
-                        Text(task.title)
-                            .foregroundStyle(.primary)
+        NavigationStack {
+            List {
+                Section("To do") {
+                    ForEach(tasks.filter { !$0.isDone }) { task in
+                        NavigationLink(task.title, value: task.id)
                     }
                 }
-            }
-            Section {
-                ForEach(tasks.filter(\.isDone)) { task in
-                    Button(action: { toggle(task) }) {
-                        Text(task.title)
-                            .foregroundStyle(.secondary)
+                Section {
+                    ForEach(tasks.filter(\.isDone)) { task in
+                        NavigationLink(value: task.id) {
+                            Text(task.title)
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                } header: {
+                    Text("Done")
+                } footer: {
+                    Text("Open a task to mark it done or not done.")
                 }
-            } header: {
-                Text("Done")
-            } footer: {
-                Text("Tap a task to move it between lists.")
             }
-            Section {
-                Button("Add task") {
-                    tasks.append(TaskItem(id: tasks.count + 1, title: "Task \(tasks.count + 1)"))
+            .navigationTitle("Tasks")
+            .navigationDestination(for: Int.self) { id in
+                TaskDetailView(task: binding(for: id))
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Add") {
+                        tasks.append(
+                            TaskItem(id: tasks.count + 1, title: "Task \(tasks.count + 1)"))
+                    }
                 }
             }
         }
     }
 
-    private func toggle(_ task: TaskItem) {
-        guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
-        tasks[index].isDone.toggle()
+    private func binding(for id: Int) -> Binding<TaskItem> {
+        Binding(
+            get: { tasks.first { $0.id == id } ?? TaskItem(id: id, title: "Deleted") },
+            set: { task in
+                if let index = tasks.firstIndex(where: { $0.id == id }) { tasks[index] = task }
+            }
+        )
+    }
+}
+
+struct TaskDetailView: View {
+    @Binding var task: TaskItem
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Text(task.isDone ? "Done" : "Not done yet")
+            Button(task.isDone ? "Mark as not done" : "Mark as done") {
+                task.isDone.toggle()
+            }
+        }
+        .navigationTitle(task.title)
     }
 }

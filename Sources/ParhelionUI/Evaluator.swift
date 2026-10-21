@@ -28,7 +28,9 @@ func baseTypeName(of type: Any.Type) -> String {
 /// Resolves a view hierarchy into a tree of ``ViewNode`` values in one pass.
 @MainActor
 final class Evaluator {
-    private let host: ViewHost
+    let host: ViewHost
+    /// The innermost navigation stack being evaluated, if any.
+    var navigation: NavigationContext?
     private(set) var actions: [NodeID: @MainActor () -> Void] = [:]
     private(set) var textFields: [NodeID: Binding<String>] = [:]
 

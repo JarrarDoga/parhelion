@@ -44,6 +44,10 @@ public final class ViewHost {
     private var visitedKeys: Set<String> = []
     private var actions: [NodeID: @MainActor () -> Void] = [:]
     private var textFields: [NodeID: Binding<String>] = [:]
+    /// The entries each navigation stack keeps above its root view, by the
+    /// stack's identifier.
+    var navigationState: [NodeID: [NavigationEntry]] = [:]
+    var visitedNavigationStacks: Set<NodeID> = []
 
     /// Whether a state change is waiting for the next ``update()``.
     public private(set) var needsUpdate = false
@@ -521,9 +525,12 @@ public final class ViewHost {
         return nil
     }
 
-    /// Taps the one button whose label is exactly `label`.
+    /// Taps the one button or navigation link whose label is exactly
+    /// `label`.
     public func tapButton(labeled label: String) throws(InteractionError) {
-        let matches = root.allNodes.filter { $0.kind == "Button" && $0.label == label }
+        let matches = root.allNodes.filter {
+            ($0.kind == "Button" || $0.kind == "NavigationLink") && $0.label == label
+        }
         guard let button = matches.first else { throw .noButton(label: label) }
         guard matches.count == 1 else {
             throw .ambiguousButton(label: label, matches: matches.map(\.id))
@@ -570,6 +577,7 @@ public final class ViewHost {
     private func evaluate() {
         needsUpdate = false
         visitedKeys = []
+        visitedNavigationStacks = []
         let evaluator = Evaluator(host: self)
         let children = evaluator.evaluate(rootView, at: ViewPath())
         resolvedRoot = ViewNode(id: "", kind: "Root", children: children)
@@ -587,6 +595,7 @@ public final class ViewHost {
         // State belongs to a structural position. When a view leaves the
         // tree, its state goes with it.
         storage = storage.filter { visitedKeys.contains($0.key) }
+        navigationState = navigationState.filter { visitedNavigationStacks.contains($0.key) }
     }
 
     /// Lays out the evaluated tree again, for example after scrolling.
