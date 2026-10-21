@@ -498,7 +498,7 @@ public final class ViewHost {
         var candidates: [ViewNode] = []
         func collect(_ node: ViewNode) {
             guard let frame = node.frame, frame.contains(point) else { return }
-            if node.kind == "ScrollView" { candidates.append(node) }
+            if node.isScrollContainer { candidates.append(node) }
             node.children.forEach(collect)
         }
         collect(root)
@@ -538,7 +538,7 @@ public final class ViewHost {
 
     /// The frontmost button or text field at a point.
     private func frontmostTappableNode(at point: CGPoint, in node: ViewNode) -> ViewNode? {
-        guard let frame = node.frame, frame.contains(point) else { return nil }
+        guard let frame = node.hitFrame, frame.contains(point) else { return nil }
         for child in node.children.reversed() {
             if let match = frontmostTappableNode(at: point, in: child) { return match }
         }

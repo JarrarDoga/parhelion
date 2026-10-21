@@ -57,11 +57,18 @@ public enum LayoutModifier: Hashable, Sendable, Codable {
     /// Fills the bounds at this point in the chain with a style, behind the
     /// view. It does not change the size.
     case background(style: String)
+    /// The insets of a row in a ``List``. The row fills the width it is
+    /// offered and is at least a minimum height; its content sits inside the
+    /// insets at the leading edge. The bounds at this point in the chain are
+    /// the row's cell.
+    case listRow(EdgeInsets)
 
     var outlineDescription: String {
         switch self {
         case .background(let style):
             return "background(\(style))"
+        case .listRow:
+            return "listRow"
         case .padding(let insets):
             let values = [insets.top, insets.leading, insets.bottom, insets.trailing]
             if Set(values).count == 1 { return "padding(\(formatPoints(insets.top)))" }

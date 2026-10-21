@@ -56,7 +56,9 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 
 ## 0.6: More of SwiftUI
 
-- [ ] `List`, `NavigationStack`, `sheet`, and `alert`
+- [x] `List` and `Section`
+- [ ] `NavigationStack` and `NavigationLink`
+- [ ] `sheet` and `alert`
 - [ ] Animations
 
 ## Continuous: Fidelity

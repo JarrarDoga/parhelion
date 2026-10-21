@@ -163,6 +163,23 @@ split, so tests and agents can step animations exactly. The preview session adva
 by real time and draws at 60 frames per second while anything moves. `ViewHost.revision`
 increases whenever the screen changes, and the session sends a frame only then.
 
+### Lists
+
+A `List` lays out like a vertical scroll view whose content is its sections, so scrolling,
+momentum, and `scroll(_:to:)` work the same way. Evaluation shapes the tree:
+
+- Rows outside a `Section` are grouped into sections of their own, one for each run of
+  consecutive rows, so a list's children are always `Section` nodes.
+- A section's header and footer become `SectionHeader` and `SectionFooter` nodes around its rows.
+- Each row gets a `listRow` layout modifier, its outermost. The row fills the width it is
+  offered, is at least 44 points tall, and places its content at the leading edge inside the
+  row insets. The bounds recorded for the modifier are the row's cell.
+
+The renderer draws each section's cells as one rounded group and a separator between rows. Hit
+testing uses a row's cell instead of its frame, so a button row responds to taps across its whole
+width, and a pressed button row highlights its cell. `listStyle(_:)` records a `listStyle`
+attribute that layout and drawing read.
+
 ### Text input
 
 A `TextField` registers its binding with the evaluator, the way a `Button` registers its action.

@@ -112,6 +112,13 @@ struct LayoutEngine {
                 height: size.height + insets.vertical
             )
 
+        case .listRow(let insets):
+            let size = child(proposal.inset(by: insets))
+            return CGSize(
+                width: proposal.width ?? size.width + insets.horizontal,
+                height: max(size.height + insets.vertical, LayoutDefaults.listRowMinHeight)
+            )
+
         case .frame(let width, let height, _):
             let size = child(
                 ProposedSize(width: width ?? proposal.width, height: height ?? proposal.height)
@@ -202,7 +209,7 @@ struct LayoutEngine {
             return stackLayout(node, proposal, axis: .vertical).size
         case "HStack":
             return stackLayout(node, proposal, axis: .horizontal).size
-        case "ScrollView":
+        case "ScrollView", "List":
             // A scroll view takes the space it is offered, and its content's
             // size where it is offered none.
             let content = scrollContentSize(node, proposal)
@@ -212,6 +219,15 @@ struct LayoutEngine {
             )
         case "ZStack":
             return overlaySize(node.children, proposal)
+        case "Section":
+            return stackLayout(node, proposal, axis: .vertical, spacing: 0).size
+        case "SectionHeader", "SectionFooter":
+            let insets = Self.sectionLabelInsets(node)
+            let size = overlaySize(node.children, proposal.inset(by: insets))
+            return CGSize(
+                width: size.width + insets.horizontal,
+                height: size.height + insets.vertical
+            )
         case "Button":
             // Assumed: several views in a button label stack vertically.
             if node.children.count == 1 {
@@ -250,11 +266,11 @@ struct LayoutEngine {
     /// flexibility is the difference between its largest and smallest size
     /// along the stack's axis.
     private func stackLayout(
-        _ node: ViewNode, _ proposal: ProposedSize, axis: LayoutAxis
+        _ node: ViewNode, _ proposal: ProposedSize, axis: LayoutAxis, spacing: CGFloat? = nil
     ) -> StackLayout {
         let children = node.children
         let spacing =
-            node.attributes["spacing"].flatMap(Double.init).map { CGFloat($0) }
+            spacing ?? node.attributes["spacing"].flatMap(Double.init).map { CGFloat($0) }
             ?? LayoutDefaults.stackSpacing
         let totalSpacing = spacing * CGFloat(max(children.count - 1, 0))
         let along = axis == .vertical ? proposal.height : proposal.width
@@ -352,6 +368,18 @@ struct LayoutEngine {
             )
             return place(node, in: content, modifierCount: inner, parentAxis: parentAxis)
 
+        case .listRow(let insets):
+            let content = rect.inset(by: insets)
+            let size = sizeThatFits(
+                node,
+                ProposedSize(content.size),
+                modifierCount: inner,
+                parentAxis: parentAxis
+            )
+            return place(
+                node, in: align(size, in: content, .leading), modifierCount: inner,
+                parentAxis: parentAxis)
+
         case .frame(_, _, let alignment):
             let size = sizeThatFits(
                 node,
@@ -384,8 +412,17 @@ struct LayoutEngine {
         case "VStack", "HStack":
             let axis: LayoutAxis = node.kind == "VStack" ? .vertical : .horizontal
             node.children = placeStack(node, in: rect, axis: axis)
-        case "ScrollView":
+        case "ScrollView", "List":
             placeScrollView(&node, in: rect)
+        case "Section":
+            node.children = placeStack(
+                node, in: rect, axis: .vertical, spacing: 0, alignment: "leading")
+        case "SectionHeader", "SectionFooter":
+            let content = rect.inset(by: Self.sectionLabelInsets(node))
+            node.children = node.children.map { child in
+                let size = sizeThatFits(child, ProposedSize(content.size), parentAxis: nil)
+                return place(child, in: align(size, in: content, .leading), parentAxis: nil)
+            }
         case "Button" where node.children.count > 1:
             node.children = placeStack(node, in: rect, axis: .vertical)
         case "ZStack":
@@ -403,9 +440,12 @@ struct LayoutEngine {
         return node
     }
 
-    private func placeStack(_ node: ViewNode, in rect: CGRect, axis: LayoutAxis) -> [ViewNode] {
-        let layout = stackLayout(node, ProposedSize(rect.size), axis: axis)
-        let alignment = node.attributes["alignment"]
+    private func placeStack(
+        _ node: ViewNode, in rect: CGRect, axis: LayoutAxis, spacing: CGFloat? = nil,
+        alignment: String? = nil
+    ) -> [ViewNode] {
+        let layout = stackLayout(node, ProposedSize(rect.size), axis: axis, spacing: spacing)
+        let alignment = alignment ?? node.attributes["alignment"]
         var offset = axis == .vertical ? rect.minY : rect.minX
 
         return node.children.enumerated().map { index, child in
@@ -449,6 +489,18 @@ struct LayoutEngine {
     /// The content of a scroll view as a stack along its scroll axis, as
     /// SwiftUI lays out several content views.
     private func scrollContentStack(_ node: ViewNode) -> (stack: ViewNode, axis: LayoutAxis) {
+        if node.kind == "List" {
+            // A list stacks its sections, inside the style's content insets.
+            let style = ListStyleMetrics(styleName: node.attributes["listStyle"])
+            let stack = ViewNode(
+                id: node.id,
+                kind: "VStack",
+                attributes: ["spacing": formatPoints(style.sectionSpacing)],
+                modifiers: [.padding(style.contentInsets)],
+                children: node.children
+            )
+            return (stack, .vertical)
+        }
         let axes = Self.scrollAxes(of: node)
         let axis: LayoutAxis = axes.horizontal && !axes.vertical ? .horizontal : .vertical
         let stack = ViewNode(
@@ -507,10 +559,16 @@ struct LayoutEngine {
             width: axis == .vertical ? max(contentSize.width, rect.width) : contentSize.width,
             height: axis == .horizontal ? max(contentSize.height, rect.height) : contentSize.height
         )
-        node.children = placeStack(stack, in: contentRect, axis: axis)
+        node.children = place(stack, in: contentRect, parentAxis: nil).children
     }
 
     // MARK: - Helpers
+
+    /// The insets around a list section's header or footer.
+    private static func sectionLabelInsets(_ node: ViewNode) -> EdgeInsets {
+        node.kind == "SectionHeader"
+            ? LayoutDefaults.listHeaderInsets : LayoutDefaults.listFooterInsets
+    }
 
     private func align(_ size: CGSize, in rect: CGRect, _ alignment: Alignment) -> CGRect {
         let x: CGFloat =
@@ -549,6 +607,19 @@ struct LayoutEngine {
         if let lower { result = Swift.max(lower, Swift.min(result, proposed)) }
         if let upper { result = Swift.min(upper, Swift.max(result, proposed)) }
         return result
+    }
+}
+
+extension CGRect {
+    /// The rectangle with each edge moved inward by an inset, never smaller
+    /// than zero.
+    func inset(by insets: EdgeInsets) -> CGRect {
+        CGRect(
+            x: minX + insets.leading,
+            y: minY + insets.top,
+            width: max(width - insets.horizontal, 0),
+            height: max(height - insets.vertical, 0)
+        )
     }
 }
 

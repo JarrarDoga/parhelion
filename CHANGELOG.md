@@ -60,6 +60,10 @@ may contain breaking changes.
   output. `--window` shows the same app in a preview window.
 - `ViewHost.execute(_:)` and `drag(from:to:duration:)`, and command and reply messages in the
   preview protocol.
+- `List` and `Section`, with headers, footers, and the inset grouped, grouped, and plain styles
+  through `listStyle(_:)`. Lists scroll, separate their rows, and make a button row respond to
+  taps across its whole width. Rows record a `listRow` layout modifier with their cell's bounds.
+- A `Tasks` example.
 
 ### Changed
 
