@@ -94,6 +94,32 @@ enum LayoutDefaults {
     /// Assumed: the space between items in a group of toolbar items.
     static let toolbarItemSpacing: CGFloat = 16
 
+    /// Assumed: the space between the top of the safe area and the top of a
+    /// sheet at its large detent.
+    static let sheetTopInset: CGFloat = 10
+
+    /// Assumed: the corner radius of a sheet's top corners.
+    static let sheetCornerRadius: CGFloat = 10
+
+    /// Assumed: how far a sheet must be dragged down to dismiss it when
+    /// released, in points.
+    static let sheetDismissDistance: CGFloat = 100
+
+    /// Assumed: the width of an alert.
+    static let alertWidth: CGFloat = 270
+
+    /// Assumed: the corner radius of an alert.
+    static let alertCornerRadius: CGFloat = 14
+
+    /// Assumed: the space around an alert's title and message.
+    static let alertContentInsets = EdgeInsets(top: 20, leading: 16, bottom: 20, trailing: 16)
+
+    /// Assumed: the space between an alert's title and message.
+    static let alertContentSpacing: CGFloat = 4
+
+    /// Assumed: the height of each button in an alert.
+    static let alertButtonHeight: CGFloat = 44
+
     /// Assumed: the side of a symbol image relative to the font size, for
     /// each image scale. Parhelion has no SF Symbols, so every symbol is a
     /// square of this size.

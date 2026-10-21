@@ -528,18 +528,18 @@ extension NavigationStack: PrimitiveView {
         defer { evaluator.navigation = outer }
 
         func evaluateScreen(
-            _ view: any View, at screenPath: ViewPath
-        ) -> (
-            nodes: [ViewNode], screen: NavigationContext.Screen
-        ) {
+            _ view: any View, at screenPath: ViewPath, environment: EnvironmentValues
+        ) -> (nodes: [ViewNode], screen: NavigationContext.Screen) {
             navigation.screen = NavigationContext.Screen()
-            let nodes = evaluator.evaluate(view, at: screenPath)
+            let nodes = evaluator.withEnvironment({ $0 = environment }) {
+                evaluator.evaluate(view, at: screenPath)
+            }
             return (nodes, navigation.screen)
         }
 
         // Every screen is evaluated, in order, so that the views beneath the
         // top one keep their state and declare the destinations above them.
-        var screens = [evaluateScreen(root, at: ownPath)]
+        var screens = [evaluateScreen(root, at: ownPath, environment: evaluator.environment)]
         let entries = host.navigationEntries(of: id, path: pathAccess)
         for (index, entry) in entries.enumerated() {
             guard let destination = navigation.destination(for: entry) else {
@@ -548,7 +548,13 @@ extension NavigationStack: PrimitiveView {
                 break
             }
             screens.append(
-                evaluateScreen(destination, at: ownPath.appending("Destination[\(index + 1)]")))
+                evaluateScreen(
+                    destination, at: ownPath.appending("Destination[\(index + 1)]"),
+                    environment: evaluator.environment.presenting { [weak host] in
+                        // A pushed view's dismiss action pops it and the views
+                        // above it.
+                        host?.popNavigation(of: id, path: pathAccess, toCount: index)
+                    }))
         }
 
         let top = screens[screens.count - 1]
@@ -556,8 +562,9 @@ extension NavigationStack: PrimitiveView {
         var leading: [ViewNode] = []
         if screens.count > 1, !top.screen.backButtonHidden {
             let backPath = barPath.appending("back")
+            let count = screens.count - 2
             evaluator.registerAction(
-                { [weak host] in host?.popNavigation(of: id, path: pathAccess) },
+                { [weak host] in host?.popNavigation(of: id, path: pathAccess, toCount: count) },
                 for: backPath.id
             )
             let previousTitle = screens[screens.count - 2].screen.title
@@ -636,12 +643,15 @@ extension ViewHost {
         setNeedsUpdate()
     }
 
-    func popNavigation(of stack: NodeID, path: NavigationPathAccess?) {
-        if var entries = navigationState[stack], !entries.isEmpty {
-            entries.removeLast()
-            navigationState[stack] = entries
-        } else if let path {
-            path.set(Array(path.get().dropLast()))
+    /// Pops entries until `count` remain above the root view.
+    func popNavigation(of stack: NodeID, path: NavigationPathAccess?, toCount count: Int) {
+        let values = path?.get() ?? []
+        if count >= values.count {
+            navigationState[stack] = Array(
+                (navigationState[stack] ?? []).prefix(count - values.count))
+        } else {
+            navigationState[stack] = []
+            path?.set(Array(values.prefix(count)))
         }
         setNeedsUpdate()
     }

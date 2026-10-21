@@ -71,6 +71,12 @@ enum ColorPalette {
     /// `systemGray4`.
     static let rowHighlight = RGBA(red: 209, green: 209, blue: 214)
 
+    /// Assumed: the color that dims the screen behind a sheet or an alert.
+    static let presentationDim = RGBA(red: 0, green: 0, blue: 0, alpha: 51)
+
+    /// Assumed: the background of an alert.
+    static let alertBackground = RGBA(red: 242, green: 242, blue: 242)
+
     /// Assumed: the opacity of a button's label while it is pressed, as with
     /// SwiftUI's default button style on iOS.
     static let pressedOpacity = 0.25

@@ -151,6 +151,8 @@ extension ViewHost {
                 "Nothing that responds to taps is at (\(formatPoints(point.x)), \(formatPoints(point.y)))."
         case .notScrollable(let id): return "\(id) is not a scroll view."
         case .notEditable(let id): return "\(id) is not a text field."
+        case .covered(let id):
+            return "\(id) is behind a sheet or an alert. Use the sheet or alert first."
         }
     }
 }

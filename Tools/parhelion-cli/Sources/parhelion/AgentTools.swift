@@ -9,9 +9,10 @@ enum AgentTools {
         Parhelion runs the SwiftUI app \(product) on Linux, on a simulated iPhone 16 screen of \
         393 × 852 points. Start with get_view_tree: it lists every view with its identifier \
         (after #) and its frame in points. Tap buttons by label or identifier, type into text \
-        fields, scroll, and take screenshots to check how the screen looks. After you edit the \
-        app's Swift files, call rebuild; it returns compiler errors if the build fails and keeps \
-        Codable @State values when it succeeds.
+        fields, scroll, and take screenshots to check how the screen looks. While a sheet or an \
+        alert is presented, only it receives input; drag a sheet down to dismiss it. After you \
+        edit the app's Swift files, call rebuild; it returns compiler errors if the build fails \
+        and keeps Codable @State values when it succeeds.
         """
     }
 

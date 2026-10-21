@@ -103,7 +103,8 @@ public struct Canvas: Sendable {
     /// Rectangles are most of what an interface draws, so they skip the
     /// general rasterizer: each pixel's coverage is the exact overlap of the
     /// pixel with the rectangle, and fully covered runs of an opaque color are
-    /// written as whole 32-bit words.
+    /// written as whole 32-bit words. A translucent color is blended once for
+    /// each run of equal pixels it covers.
     public mutating func fill(_ rect: CGRect, color: RGBA) {
         guard color.alpha > 0, rect.width > 0, rect.height > 0 else { return }
         let left = Double(rect.minX) * scale
@@ -128,11 +129,27 @@ public struct Canvas: Sendable {
             for y in startY..<endY {
                 let rowCoverage = min(Double(y + 1), bottom) - max(Double(y), top)
                 let row = y * width
-                if color.alpha == 255, rowCoverage >= 1, solidEndX > solidStartX {
-                    UnsafeMutableBufferPointer(
-                        rebasing: words[(row + solidStartX)..<(row + solidEndX)]
-                    )
-                    .update(repeating: word)
+                if rowCoverage >= 1, solidEndX > solidStartX {
+                    if color.alpha == 255 {
+                        UnsafeMutableBufferPointer(
+                            rebasing: words[(row + solidStartX)..<(row + solidEndX)]
+                        )
+                        .update(repeating: word)
+                    } else {
+                        // Interfaces draw translucent colors over flat ones,
+                        // so blend once per run of equal pixels.
+                        var source: UInt32?
+                        var blended: UInt32 = 0
+                        for index in (row + solidStartX)..<(row + solidEndX) {
+                            if words[index] == source {
+                                words[index] = blended
+                                continue
+                            }
+                            source = words[index]
+                            Self.blend(color, 1, into: bytes, at: index * 4)
+                            blended = words[index]
+                        }
+                    }
                     for x in startX..<solidStartX {
                         let columnCoverage = min(Double(x + 1), right) - max(Double(x), left)
                         Self.blend(color, Float(columnCoverage), into: bytes, at: (row + x) * 4)
@@ -153,6 +170,75 @@ public struct Canvas: Sendable {
                     }
                 }
             }
+        }
+    }
+
+    /// Fills a rectangle with rounded corners, given in points.
+    ///
+    /// Only the four corners go through the general rasterizer, each clipped
+    /// to its own box. The rest is filled as rectangles. Every edge that two
+    /// of these pieces share lies on a pixel boundary, so no seams show.
+    public mutating func fill(_ rect: CGRect, cornerRadius: CGFloat, color: RGBA) {
+        guard color.alpha > 0, rect.width > 0, rect.height > 0 else { return }
+        let radius = min(cornerRadius, rect.width / 2, rect.height / 2)
+        guard radius > 0 else {
+            fill(rect, color: color)
+            return
+        }
+        func snap(_ value: CGFloat, _ rule: FloatingPointRoundingRule) -> CGFloat {
+            CGFloat((Double(value) * scale).rounded(rule) / scale)
+        }
+        let innerLeft = snap(rect.minX + radius, .up)
+        let innerRight = snap(rect.maxX - radius, .down)
+        let innerTop = snap(rect.minY + radius, .up)
+        let innerBottom = snap(rect.maxY - radius, .down)
+        let path = Path(roundedRect: rect, cornerRadius: radius)
+        guard innerLeft < innerRight, innerTop < innerBottom else {
+            fill(path, color: color)
+            return
+        }
+
+        fill(
+            CGRect(x: rect.minX, y: innerTop, width: rect.width, height: innerBottom - innerTop),
+            color: color)
+        fill(
+            CGRect(
+                x: innerLeft, y: rect.minY, width: innerRight - innerLeft,
+                height: innerTop - rect.minY),
+            color: color)
+        fill(
+            CGRect(
+                x: innerLeft, y: innerBottom, width: innerRight - innerLeft,
+                height: rect.maxY - innerBottom),
+            color: color)
+
+        // Each corner box reaches outward to whole pixels, so the clip keeps
+        // the partly covered pixels along the rectangle's edges.
+        let outerLeft = snap(rect.minX, .down)
+        let outerRight = snap(rect.maxX, .up)
+        let outerTop = snap(rect.minY, .down)
+        let outerBottom = snap(rect.maxY, .up)
+        let corners = [
+            CGRect(
+                x: outerLeft, y: outerTop, width: innerLeft - outerLeft, height: innerTop - outerTop
+            ),
+            CGRect(
+                x: innerRight, y: outerTop, width: outerRight - innerRight,
+                height: innerTop - outerTop),
+            CGRect(
+                x: outerLeft, y: innerBottom, width: innerLeft - outerLeft,
+                height: outerBottom - innerBottom),
+            CGRect(
+                x: innerRight, y: innerBottom, width: outerRight - innerRight,
+                height: outerBottom - innerBottom),
+        ]
+        let outerClip = clipRect
+        defer { clipRect = outerClip }
+        for corner in corners {
+            let clip = outerClip.map { $0.intersection(corner) } ?? corner
+            guard !clip.isNull, clip.width > 0, clip.height > 0 else { continue }
+            clipRect = clip
+            fill(path, color: color)
         }
     }
 

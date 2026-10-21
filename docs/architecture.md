@@ -202,6 +202,32 @@ back button is an ordinary `Button` whose identifier ends in `/bar/back`, so eve
 drives it. The stack fills the space it is offered: the bar takes the top 44 points, and the
 screen is centered in the rest, as root content is.
 
+### Presentations
+
+A sheet, full-screen cover, or alert is a modifier that registers a presentation with the
+evaluator while it is presented. After the main tree, the host evaluates each presentation's
+content, which can present more, and adds it to the root of the tree as a `Sheet`,
+`FullScreenCover`, or `Alert` node, in the order the views asked. Layout places these nodes on the
+screen instead of in the root's implicit stack.
+
+- **Identity.** Presented content is evaluated at the presenting view's path plus `sheet`,
+  `sheet[<item ID>]`, `fullScreenCover`, or `alert`, so its state is separate from the presenting
+  view's and is discarded when it is dismissed.
+- **Input.** The last presentation is in front. `interactiveRoot` is that node, or the whole tree
+  when nothing is presented, and every kind of input searches only there.
+- **Dismissal.** Dismissing sets the presenting binding back. A drag down on a sheet that no
+  scroll view under the pointer can take moves the sheet, and a release beyond 100 points
+  dismisses it. An alert's buttons dismiss it after their actions run. When a sheet leaves the
+  tree, the host runs its `onDismiss`.
+
+### The environment
+
+`EnvironmentValues` flow down through evaluation. The evaluator holds the current values,
+`environment(_:_:)` changes them for its content, and an `@Environment` property reads them when
+the evaluator installs a view's dynamic properties. Presented content and pushed views get
+`isPresented` and a `dismiss` action that sets their binding back or pops them. Other built-in
+values arrive with the modifiers that read them.
+
 ### Text input
 
 A `TextField` registers its binding with the evaluator, the way a `Button` registers its action.

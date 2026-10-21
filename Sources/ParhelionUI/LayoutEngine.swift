@@ -60,8 +60,133 @@ struct LayoutEngine {
     func layout(_ root: ViewNode) -> ViewNode {
         var root = root
         root.frame = CGRect(origin: .zero, size: device.screenSize)
-        root.children = placeCentered(root.children, id: root.id, in: device.safeArea)
+        let content = root.children.filter { !$0.isPresentation }
+        root.children =
+            placeCentered(content, id: root.id, in: device.safeArea)
+            + root.children.filter(\.isPresentation).map(placePresentation)
         return root
+    }
+
+    // MARK: - Presentations
+
+    /// Places a sheet, full-screen cover, or alert on the screen.
+    private func placePresentation(_ node: ViewNode) -> ViewNode {
+        var node = node
+        let screen = CGRect(origin: .zero, size: device.screenSize)
+        let safeArea = device.safeArea
+        switch node.kind {
+        case "Alert":
+            let size = alertLayout(node).size
+            let frame = CGRect(
+                x: safeArea.midX - size.width / 2,
+                y: safeArea.midY - size.height / 2,
+                width: size.width,
+                height: size.height
+            )
+            node.frame = frame
+            node.children = placeAlert(node, in: frame)
+        case "Sheet":
+            let top =
+                sheetTop(detents: node.attributes["detents"])
+                + (scrolling.presentationOffsets[node.id] ?? 0)
+            let frame = CGRect(x: 0, y: top, width: screen.width, height: screen.maxY - top)
+            node.frame = frame
+            // The sheet's content stays above the home indicator.
+            let content = CGRect(
+                x: frame.minX, y: frame.minY, width: frame.width,
+                height: max(frame.height - device.safeAreaInsets.bottom, 0))
+            node.children = placeCentered(node.children, id: node.id, in: content)
+        default:
+            node.frame = screen
+            node.children = placeCentered(node.children, id: node.id, in: safeArea)
+        }
+        return node
+    }
+
+    /// Where a sheet's top edge rests: at its smallest detent, or below the
+    /// status bar.
+    private func sheetTop(detents: String?) -> CGFloat {
+        let screenHeight = device.screenSize.height
+        let largeTop = device.safeArea.minY + LayoutDefaults.sheetTopInset
+        let tops = (detents ?? "").split(separator: ",").map { detent -> CGFloat in
+            if detent == "medium" { return screenHeight / 2 }
+            if detent.hasPrefix("fraction:"), let fraction = Double(detent.dropFirst(9)) {
+                return screenHeight * (1 - CGFloat(fraction))
+            }
+            if detent.hasPrefix("height:"), let height = Double(detent.dropFirst(7)) {
+                return screenHeight - CGFloat(height)
+            }
+            return largeTop
+        }
+        return min(max(tops.max() ?? largeTop, largeTop), screenHeight)
+    }
+
+    private struct AlertLayout {
+        var size: CGSize
+        /// The title, message, and any other content, with their sizes.
+        var content: [(node: ViewNode, size: CGSize)]
+        var buttons: [ViewNode]
+        var buttonsInRow: Bool
+    }
+
+    /// Stacks an alert's title and message, centered, above its buttons. Two
+    /// buttons share a row; otherwise each has its own.
+    private func alertLayout(_ node: ViewNode) -> AlertLayout {
+        let insets = LayoutDefaults.alertContentInsets
+        let width = LayoutDefaults.alertWidth
+        let content = node.children.filter { $0.kind != "Button" }.map { child in
+            (
+                child,
+                sizeThatFits(
+                    child, ProposedSize(width: width - insets.horizontal, height: nil),
+                    parentAxis: nil)
+            )
+        }
+        let buttons = node.children.filter { $0.kind == "Button" }
+        let contentHeight =
+            content.reduce(0) { $0 + $1.1.height }
+            + LayoutDefaults.alertContentSpacing * CGFloat(max(content.count - 1, 0))
+        let buttonsInRow = buttons.count == 2
+        let buttonRows = buttonsInRow ? 1 : buttons.count
+        let height =
+            insets.vertical + contentHeight + LayoutDefaults.alertButtonHeight * CGFloat(buttonRows)
+        return AlertLayout(
+            size: CGSize(width: width, height: height),
+            content: content,
+            buttons: buttons,
+            buttonsInRow: buttonsInRow
+        )
+    }
+
+    private func placeAlert(_ node: ViewNode, in frame: CGRect) -> [ViewNode] {
+        let layout = alertLayout(node)
+        let insets = LayoutDefaults.alertContentInsets
+        var placed: [NodeID: ViewNode] = [:]
+        var y = frame.minY + insets.top
+        for (child, size) in layout.content {
+            let rect = CGRect(
+                x: frame.midX - size.width / 2, y: y, width: size.width, height: size.height)
+            placed[child.id] = place(child, in: rect, parentAxis: nil)
+            y += size.height + LayoutDefaults.alertContentSpacing
+        }
+        // Each button fills its cell, so the whole cell responds to taps.
+        let buttonHeight = LayoutDefaults.alertButtonHeight
+        var buttonTop =
+            frame.maxY - buttonHeight * CGFloat(layout.buttonsInRow ? 1 : layout.buttons.count)
+        for (index, button) in layout.buttons.enumerated() {
+            let cell: CGRect
+            if layout.buttonsInRow {
+                let half = frame.width / 2
+                cell = CGRect(
+                    x: frame.minX + half * CGFloat(index), y: buttonTop, width: half,
+                    height: buttonHeight)
+            } else {
+                cell = CGRect(x: frame.minX, y: buttonTop, width: frame.width, height: buttonHeight)
+                buttonTop += buttonHeight
+            }
+            placed[button.id] = place(button, in: cell, parentAxis: nil)
+        }
+        return node.children.map { placed[$0.id] ?? $0 }
     }
 
     /// Proposes `rect` to content and centers it there, as the root and a
@@ -752,5 +877,8 @@ struct ScrollMetrics: Equatable {
 /// without threading results through every call.
 final class ScrollLayout {
     var offsets: [NodeID: CGPoint] = [:]
+    /// How far each sheet is dragged down from where it rests, by the
+    /// sheet's identifier.
+    var presentationOffsets: [NodeID: CGFloat] = [:]
     var metrics: [NodeID: ScrollMetrics] = [:]
 }
