@@ -36,6 +36,11 @@ final class Evaluator {
     /// Sheets and alerts that views asked to present, in the order they
     /// asked. The host evaluates their content after the main tree.
     private(set) var presentations: [Presentation] = []
+    /// Animations from `animation(_:value:)` modifiers whose value changed,
+    /// by the identifiers of the nodes they cover.
+    var implicitAnimations: [NodeID: Animation?] = [:]
+    /// Transitions from `transition(_:)` modifiers, by node identifier.
+    var transitions: [NodeID: AnyTransition] = [:]
     /// The detents declared inside the sheet being evaluated.
     var presentationDetents: Set<PresentationDetent> = []
     private(set) var actions: [NodeID: @MainActor () -> Void] = [:]

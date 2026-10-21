@@ -53,12 +53,43 @@ public final class ViewHost {
     /// The presentations on screen, by identifier.
     private var presentations: [NodeID: Presentation] = [:]
 
+    // Animation state. See docs/adr/0005-model-tree-and-presented-frames.md.
+    private let animations = AnimationEngine()
+    /// The animation for the next layout change, from `withAnimation` or a
+    /// navigation push or pop.
+    private var pendingAnimation: Animation??
+    /// The last value of each `animation(_:value:)` modifier.
+    var animationValues: [String: Any] = [:]
+    var visitedAnimationKeys: Set<String> = []
+    private var implicitAnimations: [NodeID: Animation?] = [:]
+    private var transitions: [NodeID: AnyTransition] = [:]
+    private var previousTransitions: [NodeID: AnyTransition] = [:]
+    /// The navigation stacks that pushed or popped since the last layout.
+    var navigationChanges: [NodeID: NavigationDirection] = [:]
+    private var presentedCache: ViewNode?
+    private var hasLaidOut = false
+
     /// Whether a state change is waiting for the next ``update()``.
     public private(set) var needsUpdate = false
 
     /// The resolved and laid-out tree. Its root node has kind `"Root"` and
     /// covers the whole screen.
+    ///
+    /// The tree holds final values: while an animation runs, its frames are
+    /// where views are going, and taps go there too. ``presentedRoot`` is the
+    /// tree as drawn.
     public private(set) var root = ViewNode(id: "", kind: "Root")
+
+    /// The tree as it is drawn at the current ``time``: ``root`` with every
+    /// animation in progress applied, including views that have left
+    /// ``root`` and are still transitioning out. It equals ``root`` when
+    /// nothing is animating.
+    public var presentedRoot: ViewNode {
+        if let presentedCache { return presentedCache }
+        let presented = animations.presented(root, at: time)
+        presentedCache = presented
+        return presented
+    }
 
     /// The device the tree is laid out for.
     public let device: Device
@@ -276,6 +307,8 @@ public final class ViewHost {
                 presentation.dismiss()
                 update()
             } else {
+                // The sheet springs back to where it rests.
+                pendingAnimation = .some(LayoutDefaults.presentationAnimation)
                 relayout()
             }
             return nil
@@ -419,7 +452,7 @@ public final class ViewHost {
 
     /// Whether anything is still moving, so that a client should keep calling
     /// ``advanceTime(by:)`` and drawing frames.
-    public var isAnimating: Bool { !momentum.isEmpty }
+    public var isAnimating: Bool { !momentum.isEmpty || animations.isActive(at: time) }
 
     /// How far a scroll view's content is scrolled, or `nil` if the node is
     /// not a scroll view.
@@ -451,10 +484,17 @@ public final class ViewHost {
         relayout()
     }
 
-    /// Advances the host's clock, moving any scroll momentum forward.
+    /// Advances the host's clock, moving animations and scroll momentum
+    /// forward.
     public func advanceTime(by interval: TimeInterval) {
         guard interval > 0 else { return }
+        let wasAnimating = animations.isActive(at: time)
         time += interval
+        if wasAnimating {
+            animations.removeFinished(at: time)
+            presentedCache = nil
+            revision += 1
+        }
         guard !momentum.isEmpty else { return }
 
         // Fixed steps make the result the same however the time is split.
@@ -598,16 +638,30 @@ public final class ViewHost {
     }
 
     /// The frontmost button or text field at a point.
+    /// Children outside their parent's bounds, such as views moved by
+    /// `offset`, still receive taps, except where a scroll view clips them.
     private func frontmostTappableNode(at point: CGPoint, in node: ViewNode) -> ViewNode? {
-        guard let frame = node.hitFrame, frame.contains(point) else { return nil }
+        let isInside = node.hitFrame?.contains(point) ?? false
+        if node.isScrollContainer, !isInside { return nil }
         for child in node.children.reversed() {
             if let match = frontmostTappableNode(at: point, in: child) { return match }
         }
+        guard isInside else { return nil }
         return actions[node.id] != nil || textFields[node.id] != nil ? node : nil
+    }
+
+    /// Slides a navigation stack's screens, with the navigation animation
+    /// unless `withAnimation` chose another.
+    func animateNavigation(of stack: NodeID, _ direction: NavigationDirection) {
+        navigationChanges[stack] = direction
+        if AnimationContext.current == nil, pendingAnimation == nil {
+            pendingAnimation = .some(LayoutDefaults.presentationAnimation)
+        }
     }
 
     func setNeedsUpdate() {
         needsUpdate = true
+        if let animation = AnimationContext.current { pendingAnimation = animation }
     }
 
     func stateBox<Value>(forKey key: String, initialValue: Value) -> StateBox<Value> {
@@ -632,6 +686,7 @@ public final class ViewHost {
         needsUpdate = false
         visitedKeys = []
         visitedNavigationStacks = []
+        visitedAnimationKeys = []
         let evaluator = Evaluator(host: self)
         var children = evaluator.evaluate(rootView, at: ViewPath())
         // Presented content can present more, so the list grows as it goes.
@@ -646,6 +701,10 @@ public final class ViewHost {
         resolvedRoot = ViewNode(id: "", kind: "Root", children: children)
         actions = evaluator.actions
         textFields = evaluator.textFields
+        implicitAnimations = evaluator.implicitAnimations
+        previousTransitions = transitions
+        transitions = evaluator.transitions
+        animationValues = animationValues.filter { visitedAnimationKeys.contains($0.key) }
         let dismissed = presentations.filter { presented[$0.key] == nil }.values
         presentations = presented
         scrolling.presentationOffsets = scrolling.presentationOffsets.filter {
@@ -675,8 +734,28 @@ public final class ViewHost {
 
     /// Lays out the evaluated tree again, for example after scrolling.
     private func relayout() {
+        let previous = presentedRoot
         scrolling.metrics = [:]
         root = layoutEngine.layout(resolvedRoot)
+        if hasLaidOut {
+            animations.update(
+                from: previous,
+                to: root,
+                request: AnimationRequest(
+                    transaction: pendingAnimation,
+                    implicit: implicitAnimations,
+                    transitions: transitions,
+                    previousTransitions: previousTransitions,
+                    navigation: navigationChanges
+                ),
+                at: time
+            )
+        }
+        hasLaidOut = true
+        pendingAnimation = nil
+        implicitAnimations = [:]
+        navigationChanges = [:]
+        presentedCache = nil
         // Keep each offset clamped to its content, and forget the offsets of
         // scroll views that left the tree.
         scrolling.offsets = scrolling.metrics.mapValues(\.offset)

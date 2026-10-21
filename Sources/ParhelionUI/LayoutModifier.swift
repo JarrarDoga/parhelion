@@ -62,6 +62,9 @@ public enum LayoutModifier: Hashable, Sendable, Codable {
     /// insets at the leading edge. The bounds at this point in the chain are
     /// the row's cell.
     case listRow(EdgeInsets)
+    /// Moves the view when it is drawn and tapped, without changing its
+    /// size or the layout around it.
+    case offset(CGSize)
 
     var outlineDescription: String {
         switch self {
@@ -69,6 +72,8 @@ public enum LayoutModifier: Hashable, Sendable, Codable {
             return "background(\(style))"
         case .listRow:
             return "listRow"
+        case .offset(let offset):
+            return "offset(x: \(formatPoints(offset.width)), y: \(formatPoints(offset.height)))"
         case .padding(let insets):
             let values = [insets.top, insets.leading, insets.bottom, insets.trailing]
             if Set(values).count == 1 { return "padding(\(formatPoints(insets.top)))" }

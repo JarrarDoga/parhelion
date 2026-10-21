@@ -58,7 +58,9 @@ struct TaskListView: View {
             .sheet(isPresented: $isAdding) {
                 NewTaskView { title in
                     let id = (tasks.map(\.id).max() ?? 0) + 1
-                    tasks.append(TaskItem(id: id, title: title))
+                    withAnimation {
+                        tasks.append(TaskItem(id: id, title: title))
+                    }
                 }
             }
         }
@@ -84,7 +86,7 @@ struct TaskDetailView: View {
         VStack(spacing: 24) {
             Text(task.isDone ? "Done" : "Not done yet")
             Button(task.isDone ? "Mark as not done" : "Mark as done") {
-                task.isDone.toggle()
+                withAnimation { task.isDone.toggle() }
             }
             Button("Delete", role: .destructive) {
                 isConfirmingDelete = true

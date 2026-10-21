@@ -234,7 +234,7 @@ struct LayoutEngine {
         }
 
         switch node.modifiers[inner] {
-        case .background:
+        case .background, .offset:
             return child(proposal)
 
         case .padding(let insets):
@@ -512,6 +512,11 @@ struct LayoutEngine {
         switch node.modifiers[inner] {
         case .background:
             return place(node, in: rect, modifierCount: inner, parentAxis: parentAxis)
+
+        case .offset(let offset):
+            return place(
+                node, in: rect.offsetBy(dx: offset.width, dy: offset.height), modifierCount: inner,
+                parentAxis: parentAxis)
 
         case .padding(let insets):
             let content = CGRect(

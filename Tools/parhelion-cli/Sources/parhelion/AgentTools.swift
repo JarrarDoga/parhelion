@@ -10,9 +10,11 @@ enum AgentTools {
         393 × 852 points. Start with get_view_tree: it lists every view with its identifier \
         (after #) and its frame in points. Tap buttons by label or identifier, type into text \
         fields, scroll, and take screenshots to check how the screen looks. While a sheet or an \
-        alert is presented, only it receives input; drag a sheet down to dismiss it. After you \
-        edit the app's Swift files, call rebuild; it returns compiler errors if the build fails \
-        and keeps Codable @State values when it succeeds.
+        alert is presented, only it receives input; drag a sheet down to dismiss it. The view tree \
+        shows where views end up, even while an animation is still moving them; if a reply says \
+        the screen is animating, call wait before you take a screenshot. After you edit the app's \
+        Swift files, call rebuild; it returns compiler errors if the build fails and keeps \
+        Codable @State values when it succeeds.
         """
     }
 
@@ -129,7 +131,7 @@ enum AgentTools {
             name: "wait",
             title: "Wait",
             description:
-                "Waits up to 10 seconds, for example for scrolling to settle, then reports the state.",
+                "Waits up to 10 seconds, for example for scrolling or an animation to settle, then reports the state.",
             inputSchema: #"""
                 {"type": "object", "properties": {
                   "seconds": {"type": "number", "minimum": 0, "maximum": 10, "default": 0.5}}}

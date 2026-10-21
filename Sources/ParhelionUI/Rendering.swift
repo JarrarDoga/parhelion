@@ -40,7 +40,7 @@ extension ViewHost {
             focusedNodeID: focusedNodeID,
             caretOffset: caretOffset
         )
-        return RenderedFrame(canvas: renderer.render(root, scale: scale))
+        return RenderedFrame(canvas: renderer.render(presentedRoot, scale: scale))
     }
 }
 
@@ -79,6 +79,7 @@ struct TreeRenderer {
         var foreground = node.attributes["foregroundStyle"] ?? foreground
         var opacity = opacity
         guard let frame = node.frame else { return }
+        opacity *= node.opacity
 
         // A pressed list row highlights its cell instead of dimming.
         if node.kind == "Button" || node.kind == "NavigationLink", node.id == pressedNodeID,
@@ -127,8 +128,12 @@ struct TreeRenderer {
             foreground = foreground ?? (node.attributes["role"] == "destructive" ? "red" : "tint")
 
         case "Sheet":
+            // The dimming deepens as the sheet slides up into view.
             let screen = CGRect(origin: .zero, size: device.screenSize)
-            canvas.fill(screen, color: paint(ColorPalette.presentationDim))
+            let shown = min(max((screen.maxY - frame.minY) / max(frame.height, 1), 0), 1)
+            var dim = ColorPalette.presentationDim
+            dim.alpha = UInt8((Double(dim.alpha) * Double(shown)).rounded())
+            canvas.fill(screen, color: paint(dim))
             // Only the top corners are rounded; the bottom ones are off screen.
             let radius = LayoutDefaults.sheetCornerRadius
             canvas.fill(
