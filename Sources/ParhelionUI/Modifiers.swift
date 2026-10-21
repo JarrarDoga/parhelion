@@ -99,6 +99,11 @@ public struct Color: ShapeStyle, View, Hashable {
         styleName = "rgba(" + components.joined(separator: ",") + ")"
     }
 
+    /// The same color with its opacity multiplied by `opacity`.
+    public nonisolated func opacity(_ opacity: Double) -> Color {
+        Color(name: "\(styleName)@\(String(format: "%g", min(max(opacity, 0), 1)))")
+    }
+
     public var body: Never {
         fatalError("Color is a primitive view and has no body.")
     }

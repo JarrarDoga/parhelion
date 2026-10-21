@@ -94,6 +94,10 @@ final class PreviewSession {
             debugLog("released at time \(host.time); animating: \(host.isAnimating)")
         case .scroll(let dx, let dy, let x, let y):
             host.scroll(by: CGSize(width: dx, height: dy), at: CGPoint(x: x, y: y))
+        case .text(let text):
+            host.typeText(text)
+        case .key(let name):
+            if let key = ViewHost.Key(rawValue: name) { host.press(key) }
         case .close:
             saveState()
             return false

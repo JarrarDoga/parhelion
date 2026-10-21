@@ -41,8 +41,9 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 
 - [x] `ScrollView` with momentum, driven by the mouse wheel, trackpad, or drag
 - [x] A deterministic clock for momentum
-- [ ] `TextField` with keyboard input, focus, and selection
-- [ ] Keyboard navigation between controls
+- [x] `TextField` with keyboard input, focus, and a caret
+- [x] Keyboard navigation between text fields with Tab and Shift-Tab
+- [ ] Text selection, copy, and paste
 
 ## 0.5: Agent server
 

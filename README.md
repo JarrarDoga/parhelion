@@ -14,8 +14,8 @@ of guessing from a screenshot.
 
 > [!NOTE]
 > Parhelion is pre-alpha. Today it resolves, lays out, and draws views, keeps state, and runs apps
-> in a preview window that reloads when you save, where you click to tap and scroll with the
-> mouse. Keyboard input and an agent server are the next milestones. See [Status](#status) and the
+> in a preview window that reloads when you save, where you tap, scroll, and type with your mouse
+> and keyboard. An agent server is the next milestone. See [Status](#status) and the
 > [roadmap](docs/roadmap.md).
 
 ## Why Parhelion
@@ -138,17 +138,17 @@ can also run with no window at all, for tests and agents.
 
 | Area | Supported today |
 | --- | --- |
-| Views | `Text`, `Image`, `Button`, `VStack`, `HStack`, `ZStack`, `Spacer`, `Color`, `ScrollView`, `ForEach`, `EmptyView` |
+| Views | `Text`, `Image`, `Button`, `TextField`, `VStack`, `HStack`, `ZStack`, `Spacer`, `Color`, `ScrollView`, `ForEach`, `EmptyView` |
 | Builders | Multiple children, `if`/`else`, optional content |
 | State | `@State` and `@Binding`, with SwiftUI's structural identity and lifetime rules |
-| Modifiers | `padding`, `frame` (fixed and flexible), `background`, `foregroundStyle`, `imageScale` |
+| Modifiers | `padding`, `frame` (fixed and flexible), `background`, `foregroundStyle`, `imageScale`, and `Color.opacity` |
 | Layout | SwiftUI's propose-and-respond stack algorithm, text wrapping with the bundled Inter font, iPhone 16 screen and safe area |
-| Input | Tap by node, by button label, or by screen position; press, drag away to cancel, and release with the mouse; scroll by dragging with momentum, or with the mouse wheel and trackpad |
+| Input | Tap by node, by button label, or by screen position; press, drag away to cancel, and release with the mouse; scroll by dragging with momentum, or with the mouse wheel and trackpad; type into text fields, with the caret keys, Backspace, Delete, and Tab between fields |
 | Window | `parhelion run` with hot reload that keeps `Codable` state, and `parhelion preview`; an SDL3 window host for Wayland and X11 |
 | Rendering | Anti-aliased shapes and Inter text drawn in pure Swift at any scale, with PNG output; SF Symbols draw as placeholder rings |
 | App | `App`, `Scene`, `WindowGroup`, with a headless runner |
 
-Not yet available: keyboard input and text fields, fonts other than body text, lists and scrolling, navigation, the
+Not yet available: text selection, fonts other than body text, lists and scrolling, navigation, the
 environment, animation, and gestures other than tap. Layout constants that Parhelion assumes about
 SwiftUI, such as the default padding, are listed in `LayoutDefaults.swift` until a macOS CI job
 verifies them. The [roadmap](docs/roadmap.md) lists the

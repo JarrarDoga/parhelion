@@ -48,6 +48,11 @@ targets += [
         dependencies: ["SwiftUI"],
         path: "Examples/Scrolling"
     ),
+    .executableTarget(
+        name: "Form",
+        dependencies: ["SwiftUI"],
+        path: "Examples/Form"
+    ),
 ]
 #endif
 

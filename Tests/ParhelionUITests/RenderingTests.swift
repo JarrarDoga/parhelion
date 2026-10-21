@@ -109,3 +109,14 @@ struct RenderingTests {
         #expect(width == 200 && height == 200)
     }
 }
+
+@MainActor
+@Test("A color's opacity blends it with what is underneath")
+func colorOpacity() {
+    let device = Device(
+        name: "Test", screenSize: CGSize(width: 20, height: 20), safeAreaInsets: EdgeInsets())
+    let host = ViewHost(Color.black.opacity(0.5).frame(width: 20, height: 20), device: device)
+    let pixel = host.render(scale: 1).color(at: CGPoint(x: 10, y: 10))
+    #expect((126...129).contains(pixel.red))
+    #expect(host.root.children[0].attributes["color"] == "black@0.5")
+}
