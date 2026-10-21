@@ -1,3 +1,5 @@
+import ParhelionPreview
+
 #if canImport(Foundation)
 import Foundation
 #endif
@@ -35,7 +37,7 @@ extension App {
         let appName = String(describing: Self.self)
         if PreviewSession.runIfRequested(content: content, appName: appName) { return }
         #endif
-        let host = ViewHost(anyRootView: content, device: .fromEnvironment())
+        let host = ViewHost(anyRootView: content, device: simulatedDevice())
         let arguments = CommandLine.arguments
         if let pngPath = value(after: "--png", in: arguments) {
             let scale = value(after: "--scale", in: arguments).flatMap(Double.init) ?? 2
@@ -59,6 +61,18 @@ extension App {
                 )
             )
         }
+    }
+}
+
+/// The device `PARHELION_DEVICE` names, or iPhone 16. Exits with a message
+/// listing the presets if the name is unknown.
+func simulatedDevice() -> Device {
+    do {
+        return try Device.simulated(
+            named: ProcessInfo.processInfo.environment[previewDeviceEnvironmentKey])
+    } catch {
+        FileHandle.standardError.write(Data("parhelion: \(error)\n".utf8))
+        exit(1)
     }
 }
 

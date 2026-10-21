@@ -1,3 +1,5 @@
+import ParhelionRender
+
 #if canImport(Foundation)
 import Foundation
 #endif
@@ -103,6 +105,10 @@ public final class ViewHost {
     /// ``advanceTime(by:)``, so animations are deterministic: the same input
     /// at the same times always produces the same frames.
     public private(set) var time: TimeInterval = 0
+
+    /// The device chrome last drawn by `render(scale:chrome:)`, kept because
+    /// it does not change from frame to frame.
+    var chromeOverlayCache: (chrome: DeviceChrome, scale: Double, overlay: CanvasOverlay)?
 
     /// Creates a host for a view.
     ///

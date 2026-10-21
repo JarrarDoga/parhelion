@@ -199,6 +199,10 @@ final class AgentController: @unchecked Sendable {
                 lastFailure = nil
             }
             log("Running \(connection.hello.appName).")
+            if let warning = WindowOptions.deviceWarning(requested: device, hello: connection.hello)
+            {
+                log(warning)
+            }
             return .text(
                 String(
                     format: "Built and started %@ in %.1f s.", connection.hello.appName,

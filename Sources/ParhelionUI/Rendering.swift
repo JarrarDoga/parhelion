@@ -41,8 +41,17 @@ extension ViewHost {
             focusedNodeID: focusedNodeID,
             caretOffset: caretOffset
         )
+        var overlay: CanvasOverlay?
+        if chrome != .none {
+            if let cached = chromeOverlayCache, cached.chrome == chrome, cached.scale == scale {
+                overlay = cached.overlay
+            } else {
+                overlay = renderer.chromeOverlay(chrome, scale: scale)
+                chromeOverlayCache = overlay.map { (chrome, scale, $0) }
+            }
+        }
         return RenderedFrame(
-            canvas: renderer.render(presentedRoot, scale: scale, chrome: chrome))
+            canvas: renderer.render(presentedRoot, scale: scale, chrome: overlay))
     }
 }
 
@@ -59,7 +68,7 @@ struct TreeRenderer {
     var focusedNodeID: NodeID?
     var caretOffset = 0
 
-    func render(_ root: ViewNode, scale: Double, chrome: DeviceChrome = .none) -> Canvas {
+    func render(_ root: ViewNode, scale: Double, chrome: CanvasOverlay? = nil) -> Canvas {
         var canvas = Canvas(
             width: Double(device.screenSize.width),
             height: Double(device.screenSize.height),
@@ -68,7 +77,7 @@ struct TreeRenderer {
         )
         draw(root, foreground: nil, opacity: 1, into: &canvas)
         // The system interface is above everything the app presents.
-        drawChrome(chrome, into: &canvas)
+        if let chrome { canvas.draw(chrome) }
         return canvas
     }
 

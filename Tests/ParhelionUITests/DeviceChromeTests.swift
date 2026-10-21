@@ -107,6 +107,43 @@ struct DeviceChromeTests {
         #expect(darkest(in: left.insetBy(dx: 0, dy: 8), of: frame) == 0)
     }
 
+    @Test("At scale 1 the notch's flares leave no gray fringe beside them")
+    func notchFringe() throws {
+        let phone = Device.iPhone16e
+        let frame = ViewHost(EmptyView(), device: phone).render(scale: 1, chrome: .screen)
+        let notch = try #require(phone.sensorHousing?.frame)
+        let flare = ChromeMetrics.notchFlareRadius
+        // The column just outside each flare, and the row just below it.
+        for x in [notch.minX - flare - 1, notch.maxX + flare] {
+            for y in stride(from: CGFloat(0.5), to: flare, by: 1) {
+                #expect(frame.color(at: CGPoint(x: x + 0.5, y: y)).red == 255)
+            }
+        }
+        for x in stride(from: notch.minX - flare + 0.5, to: notch.minX - 1, by: 1) {
+            #expect(frame.color(at: CGPoint(x: x, y: flare + 0.5)).red == 255)
+        }
+    }
+
+    @Test("An unknown device name lists the presets")
+    func unknownDevice() throws {
+        #expect(try Device.simulated(named: nil) == .iPhone16)
+        #expect(try Device.simulated(named: "iphone 17 pro") == .iPhone17Pro)
+        #expect(throws: UnknownDeviceError.self) { try Device.simulated(named: "iPhone 6") }
+        let error = UnknownDeviceError(name: "iPhone 6")
+        #expect(error.description.hasPrefix("Unknown device \"iPhone 6\". Use one of: iPhone 16,"))
+    }
+
+    @Test("The chrome is drawn once and reused while the scale stays the same")
+    func overlayCache() {
+        let host = ViewHost(EmptyView(), device: device)
+        _ = host.render(scale: 1, chrome: .screen)
+        let first = host.chromeOverlayCache?.overlay.width
+        _ = host.render(scale: 2, chrome: .screen)
+        #expect(first == Int(device.screenSize.width))
+        #expect(host.chromeOverlayCache?.overlay.width == Int(device.screenSize.width * 2))
+        #expect(host.chromeOverlayCache?.chrome == .screen)
+    }
+
     @Test("The system bars are drawn above presentations, undimmed")
     func aboveAlerts() {
         let frame = ViewHost(AlertOnLaunch(), device: device).render(scale: 1, chrome: .systemBars)

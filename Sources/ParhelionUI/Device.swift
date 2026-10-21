@@ -1,5 +1,3 @@
-import ParhelionPreview
-
 #if canImport(Foundation)
 import Foundation
 #endif
@@ -108,6 +106,7 @@ extension Device {
         displayCornerRadius: 47.33,
         // Assumed: the iPhone 14's notch, the same panel.
         sensorHousing: .notch(CGRect(x: 115, y: 0, width: 160, height: 33.67), cornerRadius: 20),
+        // Assumed: the width older 375-point-wide design kits use.
         homeIndicatorWidth: 134
     )
 
@@ -152,18 +151,11 @@ extension Device {
         .iPhone17Pro, .iPhone17ProMax, .iPhoneAir,
     ]
 
-    /// The device a window host or `PARHELION_DEVICE` asks for, or iPhone
-    /// 16. Exits with a message listing the presets if the name is unknown.
-    static func fromEnvironment() -> Device {
-        guard let name = ProcessInfo.processInfo.environment[previewDeviceEnvironmentKey],
-            !name.isEmpty
-        else { return .iPhone16 }
-        guard let device = named(name) else {
-            let names = all.map(\.name).joined(separator: ", ")
-            FileHandle.standardError.write(
-                Data("parhelion: unknown device \"\(name)\". Use one of: \(names).\n".utf8))
-            exit(1)
-        }
+    /// The preset to simulate when a window host or `PARHELION_DEVICE` asks
+    /// for one by name, or iPhone 16 when nothing asks.
+    static func simulated(named name: String?) throws -> Device {
+        guard let name, !name.isEmpty else { return .iPhone16 }
+        guard let device = named(name) else { throw UnknownDeviceError(name: name) }
         return device
     }
 
@@ -175,5 +167,15 @@ extension Device {
         }
         let wanted = key(name)
         return all.first { key($0.name) == wanted }
+    }
+}
+
+/// A device name that matches none of the presets.
+struct UnknownDeviceError: Error, CustomStringConvertible {
+    let name: String
+
+    var description: String {
+        let names = Device.all.map(\.name).joined(separator: ", ")
+        return "Unknown device \"\(name)\". Use one of: \(names)."
     }
 }

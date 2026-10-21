@@ -75,9 +75,22 @@ enum ChromeMetrics {
 }
 
 extension TreeRenderer {
-    /// Draws the system interface over the content. It reads only the
-    /// device, not the tree.
-    func drawChrome(_ chrome: DeviceChrome, into canvas: inout Canvas) {
+    /// The system interface drawn once, to blend over every frame. It
+    /// depends only on the device, the scale, and the kind of chrome, so the
+    /// host keeps it between frames.
+    func chromeOverlay(_ chrome: DeviceChrome, scale: Double) -> CanvasOverlay {
+        var canvas = Canvas(
+            width: Double(device.screenSize.width),
+            height: Double(device.screenSize.height),
+            scale: scale,
+            background: RGBA(red: 0, green: 0, blue: 0, alpha: 0)
+        )
+        drawChrome(chrome, into: &canvas)
+        return CanvasOverlay(canvas)
+    }
+
+    /// Draws the system interface. It reads only the device, not the tree.
+    private func drawChrome(_ chrome: DeviceChrome, into canvas: inout Canvas) {
         guard chrome != .none else { return }
         // Assumed: Parhelion draws only the light appearance so far, in
         // which the status bar and the home indicator are black.
@@ -117,7 +130,8 @@ extension TreeRenderer {
         guard height > 0 else { return nil }
         let housing = device.sensorHousing?.frame
         // Assumed: without a sensor housing, the clock and the glyphs each
-        // take the outer third of the status bar.
+        // take the outer third of the status bar. Without a Dynamic Island,
+        // as beside a notch, they are centered in the top safe-area inset.
         let leftEdge = housing?.minX ?? width / 3
         let rightEdge = housing?.maxX ?? width * 2 / 3
         let midY = device.statusBarMidY ?? height / 2
@@ -244,24 +258,25 @@ extension TreeRenderer {
         let terminal = ChromeMetrics.batteryTerminalSize
         var terminalColor = color
         terminalColor.alpha = UInt8(Double(color.alpha) * ChromeMetrics.batteryTerminalOpacity)
-        // Only the terminal's outer corners are rounded: it is the right half
-        // of a rounded rectangle twice as wide.
+        // Only the terminal's outer corners are rounded.
         let terminalFrame = CGRect(
             x: body.maxX + ChromeMetrics.batteryTerminalGap,
             y: midY - terminal.height / 2,
             width: terminal.width,
             height: terminal.height
         )
-        canvas.fill(
-            Path(
-                roundedRect: CGRect(
-                    x: terminalFrame.minX - terminal.width, y: terminalFrame.minY,
-                    width: 2 * terminal.width, height: terminal.height),
-                cornerRadius: terminal.width
-            ),
-            clippedTo: terminalFrame,
-            color: terminalColor
-        )
+        var terminalPath = Path()
+        terminalPath.move(to: CGPoint(x: terminalFrame.minX, y: terminalFrame.minY))
+        terminalPath.addQuadCurve(
+            to: CGPoint(x: terminalFrame.maxX, y: terminalFrame.minY + terminal.width),
+            control: CGPoint(x: terminalFrame.maxX, y: terminalFrame.minY))
+        terminalPath.addLine(
+            to: CGPoint(x: terminalFrame.maxX, y: terminalFrame.maxY - terminal.width))
+        terminalPath.addQuadCurve(
+            to: CGPoint(x: terminalFrame.minX, y: terminalFrame.maxY),
+            control: CGPoint(x: terminalFrame.maxX, y: terminalFrame.maxY))
+        terminalPath.closeSubpath()
+        canvas.fill(terminalPath, color: terminalColor)
     }
 
     /// Draws a notch: a black shape hanging from the top of the screen with
@@ -277,20 +292,26 @@ extension TreeRenderer {
             cornerRadius: cornerRadius,
             color: .black
         )
-        // Each flare is a square beside the notch with a quarter circle cut
-        // out of its lower outer corner.
+        // Each flare runs along the top edge, down the notch's side, and
+        // back up along a quarter circle curving away from the notch.
         let flare = ChromeMetrics.notchFlareRadius
-        for x in [frame.minX - flare, frame.maxX] {
-            let square = CGRect(x: x, y: frame.minY, width: flare, height: flare)
-            let center = CGPoint(x: x == frame.maxX ? square.maxX : square.minX, y: square.maxY)
-            var path = Path(square)
-            path.addPath(
-                Path(
-                    ellipseIn: CGRect(
-                        x: center.x - flare, y: center.y - flare, width: 2 * flare,
-                        height: 2 * flare),
-                    reversed: true))
-            canvas.fill(path, clippedTo: square, color: .black)
+        for (wall, outward) in [(frame.minX, -1.0), (frame.maxX, 1.0)] {
+            let center = CGPoint(x: wall + outward * flare, y: frame.minY + flare)
+            var path = Path()
+            path.move(to: CGPoint(x: center.x, y: frame.minY))
+            path.addLine(to: CGPoint(x: wall, y: frame.minY))
+            path.addLine(to: CGPoint(x: wall, y: center.y))
+            let steps = 8
+            for step in 1...steps {
+                // From pointing at the wall to pointing straight up.
+                let angle = Double.pi / 2 * Double(step) / Double(steps)
+                path.addLine(
+                    to: CGPoint(
+                        x: center.x - outward * flare * CGFloat(cos(angle)),
+                        y: center.y - flare * CGFloat(sin(angle))))
+            }
+            path.closeSubpath()
+            canvas.fill(path, color: .black)
         }
     }
 
@@ -311,17 +332,5 @@ extension TreeRenderer {
         for corner in corners {
             canvas.fill(mask, clippedTo: corner, color: .black)
         }
-    }
-}
-
-extension Canvas {
-    /// Fills a path, drawing only inside a rectangle.
-    fileprivate mutating func fill(_ path: Path, clippedTo rect: CGRect, color: RGBA) {
-        let outerClip = clipRect
-        defer { clipRect = outerClip }
-        let clip = outerClip.map { $0.intersection(rect) } ?? rect
-        guard !clip.isNull, clip.width > 0, clip.height > 0 else { return }
-        clipRect = clip
-        fill(path, color: color)
     }
 }

@@ -24,6 +24,16 @@ struct DeviceBezelTests {
         #expect(bezel.screenPoint(x: 0, y: 0).x < 0)
     }
 
+    @Test("Window positions account for the zoom, then the bezel")
+    func windowPoint() {
+        let margin = DeviceBezel.margin
+        let point = ParhelionTooling.screenPoint(
+            windowX: (margin + 10) * 0.5, windowY: (margin + 20) * 0.5, zoom: 0.5, bezel: bezel)
+        #expect(abs(point.x - 10) < 1e-9 && abs(point.y - 20) < 1e-9)
+        let plain = ParhelionTooling.screenPoint(windowX: 30, windowY: 40, zoom: 2, bezel: nil)
+        #expect(plain.x == 15 && plain.y == 20)
+    }
+
     @Test("The screen is a transparent hole, and the bezel covers its square corners")
     func image() {
         let image = bezel.image(scale: 1)

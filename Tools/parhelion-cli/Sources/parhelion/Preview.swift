@@ -39,7 +39,8 @@ struct WindowOptions: ParsableArguments {
     }
 
     func openWindow(for hello: PreviewHello) throws -> WindowHost {
-        try WindowHost(
+        if let warning = Self.deviceWarning(requested: device, hello: hello) { print(warning) }
+        return try WindowHost(
             title: Self.title(for: hello),
             screenWidth: hello.screenWidth,
             screenHeight: hello.screenHeight,
@@ -52,6 +53,16 @@ struct WindowOptions: ParsableArguments {
                 ) : nil,
             scale: hello.scale
         )
+    }
+
+    /// A warning when the app ignored `--device`, as apps built with an
+    /// older Parhelion do, or `nil`.
+    static func deviceWarning(requested: String?, hello: PreviewHello) -> String? {
+        guard let requested, hello.deviceName == nil else { return nil }
+        return """
+            Warning: \(hello.appName) ignored --device "\(requested)" because it was built with \
+            an older Parhelion. Update its Parhelion dependency to simulate other devices.
+            """
     }
 
     /// The window's title: the app and the device it simulates.

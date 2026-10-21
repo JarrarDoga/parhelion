@@ -114,3 +114,14 @@ public struct DeviceBezel: Sendable {
         return canvas
     }
 }
+
+/// The point on the screen under a point in the preview window, both in
+/// points: the window is `zoom` times the size of the screen, or of the
+/// screen and the bezel around it.
+public func screenPoint(
+    windowX: Double, windowY: Double, zoom: Double, bezel: DeviceBezel?
+) -> (x: Double, y: Double) {
+    let x = windowX / zoom
+    let y = windowY / zoom
+    return bezel?.screenPoint(x: x, y: y) ?? (x, y)
+}

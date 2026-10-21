@@ -102,12 +102,12 @@ jobs:
         run: >-
           Tools/parhelion-cli/.build/debug/parhelion run --exit-after-first-frame
           --product Form
-      - name: Run the tasks example without a display
+      - name: Run the tasks example on another device without a display
         env:
           SDL_VIDEODRIVER: offscreen
         run: >-
           Tools/parhelion-cli/.build/debug/parhelion run --exit-after-first-frame
-          --product Tasks
+          --product Tasks --device "iPhone 16e"
       - name: Run an xtool-shaped app without a display
         env:
           SDL_VIDEODRIVER: offscreen

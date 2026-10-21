@@ -150,7 +150,10 @@ device for the system interface it draws over the tree.
   Dynamic Island or notch and blacks out the screen's rounded corners; the preview session sends
   these frames. Each `Device` preset records its corner radius, cutout, and home indicator width.
   Parhelion draws only the light appearance so far, so the bars are always black. The status
-  bar's clock uses Inter SemiBold in place of SF Pro.
+  bar's clock uses Inter SemiBold in place of SF Pro. The chrome depends only on the device, the
+  scale, and the kind of chrome, so `ViewHost` draws it once into a `CanvasOverlay` and blends
+  that over each frame: opaque runs are copied as whole words, and only the anti-aliased edges
+  are blended.
 - **The bezel** exists only in the window. The window host draws the phone once, with a
   transparent hole the shape of the screen, and draws it over each frame, so it also covers the
   frame's square corners. Pointer positions are moved by the bezel's margin before they go to

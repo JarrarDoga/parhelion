@@ -43,19 +43,28 @@ final class AppConnection: @unchecked Sendable {
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
         process.environment = ProcessInfo.processInfo.environment.merging(environment) { $1 }
-        if captureOutput {
-            let buffer = OutputBuffer()
+        let buffer = captureOutput ? OutputBuffer() : nil
+        if let buffer {
             let pipe = Pipe()
             process.standardOutput = pipe
             process.standardError = pipe
             buffer.drain(pipe.fileHandleForReading)
-            output = buffer
-        } else {
-            output = nil
         }
+        output = buffer
         try process.run()
 
-        channel = try Self.waitForConnection(of: process, on: listener)
+        do {
+            channel = try Self.waitForConnection(of: process, on: listener)
+        } catch {
+            // Captured output is the only place an agent can learn why the app
+            // exited, so it goes into the error.
+            guard let buffer else { throw error }
+            Thread.sleep(forTimeInterval: 0.1)
+            let lines = buffer.lines(last: 20)
+            guard !lines.isEmpty else { throw error }
+            throw ValidationError(
+                "\(error)\nThe app's last output:\n\(lines.joined(separator: "\n"))")
+        }
         guard case .hello(let hello) = try channel.receiveAppMessage(timeout: 10) else {
             process.terminate()
             throw ValidationError("The app connected but did not introduce itself.")

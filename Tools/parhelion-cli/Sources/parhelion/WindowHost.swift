@@ -97,9 +97,7 @@ final class WindowHost {
         var event = SDL_Event()
         guard SDL_WaitEventTimeout(&event, Int32(timeout * 1000)) else { return nil }
         func point(_ x: Float, _ y: Float) -> (x: Double, y: Double) {
-            let x = Double(x) / zoom
-            let y = Double(y) / zoom
-            return bezel?.screenPoint(x: x, y: y) ?? (x, y)
+            screenPoint(windowX: Double(x), windowY: Double(y), zoom: zoom, bezel: bezel)
         }
         switch event.type {
         case SDL_EVENT_QUIT.rawValue, SDL_EVENT_WINDOW_CLOSE_REQUESTED.rawValue:

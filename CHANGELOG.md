@@ -105,6 +105,9 @@ may contain breaking changes.
   `PARHELION_DEVICE`.
 - `Device.displayCornerRadius`, `Device.sensorHousing`, and `Device.homeIndicatorWidth`.
 - Inter SemiBold, for the status bar's clock, and `TrueTypeFont.capHeight`.
+- `CanvasOverlay`, a drawing kept to blend over many canvases, `Canvas.fill(_:clippedTo:color:)`,
+  and `Path(roundedRect:cornerRadius:reversed:)` in `ParhelionRender`.
+- `parhelion mcp` includes the app's last output when the app exits before it connects.
 
 ### Changed
 
