@@ -62,6 +62,11 @@ public enum HostMessage: Codable, Equatable, Sendable {
     /// at the pointer position `x`, `y`. A positive `dy` scrolls toward the
     /// end of the content.
     case scroll(dx: Double, dy: Double, x: Double, y: Double)
+    /// Text typed on the keyboard, after keyboard layout and input methods.
+    case text(String)
+    /// An editing or focus key: `backspace`, `delete`, `left`, `right`,
+    /// `home`, `end`, `tab`, `backTab`, `return`, or `escape`.
+    case key(String)
     /// The host is closing; the app should exit.
     case close
 }

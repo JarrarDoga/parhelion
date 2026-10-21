@@ -161,6 +161,18 @@ struct LayoutEngine {
                 width: proposal.width
             )
 
+        case "TextField":
+            // A text field fills the width it is offered and is one line tall.
+            let fontSize = LayoutDefaults.bodyFontSize
+            let widest =
+                [node.attributes["value"] ?? "", node.attributes["placeholder"] ?? ""]
+                .map { measurer.size(of: $0, fontSize: fontSize, width: nil).width }
+                .max() ?? 0
+            return CGSize(
+                width: proposal.width ?? widest + TextFieldGeometry.caretWidth,
+                height: measurer.lineHeight(fontSize: fontSize)
+            )
+
         case "Image":
             guard node.attributes["systemName"] != nil else { return .zero }
             let scale = node.attributes["imageScale"].flatMap(Image.Scale.init) ?? .medium

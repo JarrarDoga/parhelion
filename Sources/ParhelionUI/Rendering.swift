@@ -34,7 +34,11 @@ public struct RenderedFrame: Sendable {
 extension ViewHost {
     /// Draws the current tree at the given number of pixels per point.
     public func render(scale: Double = 2) -> RenderedFrame {
-        let renderer = TreeRenderer(pressedNodeID: pressedNodeID)
+        let renderer = TreeRenderer(
+            pressedNodeID: pressedNodeID,
+            focusedNodeID: focusedNodeID,
+            caretOffset: caretOffset
+        )
         return RenderedFrame(canvas: renderer.render(root, device: device, scale: scale))
     }
 }
@@ -45,6 +49,9 @@ struct TreeRenderer {
     let measurer = FontTextMeasurer(font: .interRegular)
     /// The button being pressed, which draws dimmed.
     var pressedNodeID: NodeID?
+    /// The text field being edited, which draws a caret.
+    var focusedNodeID: NodeID?
+    var caretOffset = 0
 
     func render(_ root: ViewNode, device: Device, scale: Double) -> Canvas {
         var canvas = Canvas(
@@ -95,6 +102,10 @@ struct TreeRenderer {
             drawText(
                 node.text ?? "", in: frame, color: paint(foreground ?? "primary"), into: &canvas)
 
+        case "TextField":
+            drawTextField(
+                node, in: frame, style: foreground ?? "primary", paint: paint, into: &canvas)
+
         case "Image":
             if node.attributes["systemName"] != nil {
                 drawSymbolPlaceholder(
@@ -143,6 +154,47 @@ struct TreeRenderer {
                     y: Double(frame.minY) + ascent + Double(index) * lineHeight
                 ),
                 color: color
+            )
+        }
+    }
+
+    /// Draws a single-line text field: its text, or its placeholder when it
+    /// is empty, and a caret when it is focused. Text wider than the field
+    /// shifts left to keep the caret in view, and is clipped to the field.
+    private func drawTextField(
+        _ node: ViewNode,
+        in frame: CGRect,
+        style: String,
+        paint: (String) -> RGBA,
+        into canvas: inout Canvas
+    ) {
+        let value = node.attributes["value"] ?? ""
+        let isFocused = node.id == focusedNodeID
+        let geometry = TextFieldGeometry()
+        let caret = min(caretOffset, value.count)
+        let shift =
+            isFocused ? geometry.horizontalShift(text: value, caret: caret, width: frame.width) : 0
+        let ascent = Double(font.ascender) * geometry.fontSize / Double(font.unitsPerEm)
+
+        let outerClip = canvas.clipRect
+        canvas.clipRect = outerClip.map { $0.intersection(frame) } ?? frame
+        defer { canvas.clipRect = outerClip }
+
+        let shown = value.isEmpty ? node.attributes["placeholder"] ?? "" : value
+        // Assumed: placeholders use the tertiary label color, as on iOS.
+        canvas.drawText(
+            shown,
+            font: font,
+            size: geometry.fontSize,
+            origin: CGPoint(x: Double(frame.minX - shift), y: Double(frame.minY) + ascent),
+            color: paint(value.isEmpty ? "tertiary" : style)
+        )
+        if isFocused {
+            let x = frame.minX - shift + geometry.caretX(in: value, at: caret)
+            canvas.fill(
+                CGRect(
+                    x: x, y: frame.minY, width: TextFieldGeometry.caretWidth, height: frame.height),
+                color: paint("tint")
             )
         }
     }

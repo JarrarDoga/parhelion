@@ -30,6 +30,7 @@ func baseTypeName(of type: Any.Type) -> String {
 final class Evaluator {
     private let host: ViewHost
     private(set) var actions: [NodeID: @MainActor () -> Void] = [:]
+    private(set) var textFields: [NodeID: Binding<String>] = [:]
 
     init(host: ViewHost) {
         self.host = host
@@ -46,6 +47,10 @@ final class Evaluator {
 
     func registerAction(_ action: @escaping @MainActor () -> Void, for id: NodeID) {
         actions[id] = action
+    }
+
+    func registerTextField(_ text: Binding<String>, for id: NodeID) {
+        textFields[id] = text
     }
 
     private func body<V: View>(of view: V) -> any View {

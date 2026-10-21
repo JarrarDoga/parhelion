@@ -13,6 +13,14 @@ enum ColorPalette {
     /// The color for a style name recorded by `foregroundStyle` or `Color`,
     /// such as `"blue"`, `"tint"`, `"secondary"`, or `"rgba(1,0.5,0,1)"`.
     static func color(named name: String) -> RGBA {
+        // A color with reduced opacity is recorded as "name@opacity".
+        if let separator = name.lastIndex(of: "@"),
+            let opacity = Double(name[name.index(after: separator)...])
+        {
+            var color = color(named: String(name[..<separator]))
+            color.alpha = UInt8((Double(color.alpha) * opacity).rounded())
+            return color
+        }
         if let components = rgbaComponents(name) {
             return RGBA(
                 fractionalRed: components[0],

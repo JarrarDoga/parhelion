@@ -163,6 +163,24 @@ split, so tests and agents can step animations exactly. The preview session adva
 by real time and draws at 60 frames per second while anything moves. `ViewHost.revision`
 increases whenever the screen changes, and the session sends a frame only then.
 
+### Text input
+
+A `TextField` registers its binding with the evaluator, the way a `Button` registers its action.
+`ViewHost` keeps the focused field and the caret offset, in characters:
+
+- `focus(_:)`, a click on a field, or Tab and Shift-Tab choose the field. A click places the
+  caret at the nearest character boundary.
+- `typeText(_:)` inserts at the caret and writes through the binding, so the bound `@State`
+  changes and the tree updates.
+- `press(_:)` applies `ViewHost.Key` editing keys: Backspace, Delete, Left, Right, Home, End, and
+  Return or Escape to end editing.
+
+The window host turns SDL3 text input events into `text` messages, after keyboard layouts and
+input methods, and key events into `key` messages. A field is one line tall and fills the width
+it is offered. It draws its text, or its placeholder in the tertiary color, shifts the text left
+to keep the caret in view, and draws a caret in the tint color while focused. There is no text
+selection yet.
+
 ### Interaction
 
 `ViewHost` delivers taps by node identifier (`tap(_:)`), by button label

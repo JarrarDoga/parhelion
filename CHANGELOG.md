@@ -50,6 +50,11 @@ may contain breaking changes.
 - `ViewHost.revision`, which increases whenever the screen changes.
 - `parhelion run --configuration release`.
 - A `Scrolling` example.
+- `TextField(_:text:)`, with focus by click or Tab, typing, Backspace, Delete, the caret keys,
+  Home, and End. `ViewHost.focus(_:)`, `typeText(_:)`, `press(_:)`, `focusedNodeID`, and
+  `caretOffset`, and keyboard input in the preview window.
+- `Color.opacity(_:)`.
+- A `Form` example.
 
 ### Changed
 

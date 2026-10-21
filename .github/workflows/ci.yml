@@ -94,6 +94,12 @@ jobs:
         run: >-
           Tools/parhelion-cli/.build/debug/parhelion run --exit-after-first-frame
           --product Scrolling
+      - name: Run the form example without a display
+        env:
+          SDL_VIDEODRIVER: offscreen
+        run: >-
+          Tools/parhelion-cli/.build/debug/parhelion run --exit-after-first-frame
+          --product Form
       - name: Run an xtool-shaped app without a display
         env:
           SDL_VIDEODRIVER: offscreen

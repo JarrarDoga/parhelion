@@ -45,6 +45,8 @@ final class WindowHost {
         self.renderer = renderer
         self.zoom = zoom
         wakeEventType = SDL_RegisterEvents(1)
+        // Deliver typed text, after keyboard layouts and input methods.
+        _ = SDL_StartTextInput(window)
     }
 
     deinit {
@@ -91,6 +93,12 @@ final class WindowHost {
         where event.motion.state & parhelion_button_left_mask != 0:
             let position = point(event.motion.x, event.motion.y)
             return .input(.pointerMoved(x: position.x, y: position.y))
+        case SDL_EVENT_TEXT_INPUT.rawValue:
+            guard let text = event.text.text else { return nil }
+            return .input(.text(String(cString: text)))
+        case SDL_EVENT_KEY_DOWN.rawValue:
+            return Self.keyName(event.key.key, shift: event.key.mod & parhelion_keymod_shift != 0)
+                .map { .input(.key($0)) }
         case SDL_EVENT_MOUSE_WHEEL.rawValue:
             var dx = Double(event.wheel.x)
             var dy = Double(event.wheel.y)
@@ -112,6 +120,23 @@ final class WindowHost {
             )
         default:
             return nil
+        }
+    }
+
+    /// The name of an editing key, as `ViewHost.Key` spells it, or `nil` for
+    /// keys that only type text.
+    static func keyName(_ key: SDL_Keycode, shift: Bool) -> String? {
+        switch key {
+        case SDLK_BACKSPACE: "backspace"
+        case SDLK_DELETE: "delete"
+        case SDLK_LEFT: "left"
+        case SDLK_RIGHT: "right"
+        case SDLK_HOME: "home"
+        case SDLK_END: "end"
+        case SDLK_TAB: shift ? "backTab" : "tab"
+        case SDLK_RETURN, SDLK_KP_ENTER: "return"
+        case SDLK_ESCAPE: "escape"
+        default: nil
         }
     }
 
