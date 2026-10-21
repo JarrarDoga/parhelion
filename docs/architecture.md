@@ -180,6 +180,28 @@ testing uses a row's cell instead of its frame, so a button row responds to taps
 width, and a pressed button row highlights its cell. `listStyle(_:)` records a `listStyle`
 attribute that layout and drawing read.
 
+### Navigation
+
+A `NavigationStack` keeps the entries above its root view in `ViewHost`, by the stack's
+identifier, the way scroll offsets are kept. A link with a destination view pushes its own
+identifier; a link with a value pushes the value, into the stack's path binding if it has one.
+On every update the stack evaluates each screen in order, at its own path (`Destination[1]`,
+`Destination[2]`, ...):
+
+- Each screen declares the destinations of the links and `navigationDestination` modifiers it
+  contains, so the next entry can be resolved. If an entry no longer resolves, because its link
+  left the tree, the stack drops it and the entries above it.
+- Only the top screen is in the tree, but every screen is evaluated, so the views beneath keep
+  their state. A popped screen is no longer evaluated, so its state is discarded.
+- Modifiers report a screen's title, toolbar items, and back-button visibility to the stack
+  through the evaluator, which holds the innermost stack being evaluated.
+
+The tree is `NavigationStack` with a `NavigationBar` child followed by the top screen. The bar
+contains `ToolbarItemGroup` nodes with a `placement` attribute and the title as a `Text` node. The
+back button is an ordinary `Button` whose identifier ends in `/bar/back`, so every tap method
+drives it. The stack fills the space it is offered: the bar takes the top 44 points, and the
+screen is centered in the rest, as root content is.
+
 ### Text input
 
 A `TextField` registers its binding with the evaluator, the way a `Button` registers its action.

@@ -69,6 +69,31 @@ enum LayoutDefaults {
     /// screen.
     static let listSeparatorThickness: CGFloat = 1.0 / 3
 
+    /// Assumed: the space between a navigation link's label and the
+    /// disclosure indicator at the trailing edge of its list row.
+    static let disclosureIndicatorSpacing: CGFloat = 12
+
+    /// Assumed: the size of the disclosure indicator, the chevron at the
+    /// trailing edge of a navigation link's list row.
+    static let disclosureIndicatorSize = CGSize(width: 7, height: 12)
+
+    /// Assumed: the height of the navigation bar with an inline title.
+    static let navigationBarHeight: CGFloat = 44
+
+    /// Assumed: the space between the navigation bar's items and the edges
+    /// of the screen.
+    static let navigationBarMargin: CGFloat = 16
+
+    /// Assumed: the space between the back button and the leading edge of
+    /// the screen.
+    static let backButtonMargin: CGFloat = 8
+
+    /// Assumed: the space between the back button's chevron and its title.
+    static let backButtonSpacing: CGFloat = 3
+
+    /// Assumed: the space between items in a group of toolbar items.
+    static let toolbarItemSpacing: CGFloat = 16
+
     /// Assumed: the side of a symbol image relative to the font size, for
     /// each image scale. Parhelion has no SF Symbols, so every symbol is a
     /// square of this size.

@@ -64,6 +64,16 @@ may contain breaking changes.
   through `listStyle(_:)`. Lists scroll, separate their rows, and make a button row respond to
   taps across its whole width. Rows record a `listRow` layout modifier with their cell's bounds.
 - A `Tasks` example.
+- `NavigationStack`, with a path binding of one type or a `NavigationPath`, and `NavigationLink`
+  with a destination view or a value. The navigation bar shows the top view's
+  `navigationTitle(_:)`, a back button labeled with the previous title, and items from
+  `toolbar(content:)` with `ToolbarItem` and `ToolbarItemGroup`. Also
+  `navigationDestination(for:destination:)`, `navigationBarBackButtonHidden(_:)`,
+  `navigationBarTitleDisplayMode(_:)`, and `NavigationView`. Titles display inline.
+- In a list, a navigation link's row shows a disclosure indicator.
+- `Image(systemName:)` draws chevrons for `chevron.backward`, `chevron.left`, `chevron.forward`,
+  and `chevron.right`.
+- `ViewHost.tapButton(labeled:)` also taps navigation links.
 
 ### Changed
 

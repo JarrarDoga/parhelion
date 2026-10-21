@@ -94,7 +94,14 @@ extension List: PrimitiveView {
                     return child
                 }
                 var row = child
-                row.modifiers.append(.listRow(LayoutDefaults.listRowInsets))
+                var insets = LayoutDefaults.listRowInsets
+                if row.kind == "NavigationLink" {
+                    // Leave room for the disclosure indicator.
+                    insets.trailing +=
+                        LayoutDefaults.disclosureIndicatorSize.width
+                        + LayoutDefaults.disclosureIndicatorSpacing
+                }
+                row.modifiers.append(.listRow(insets))
                 return row
             }
         }

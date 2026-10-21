@@ -60,19 +60,26 @@ struct LayoutEngine {
     func layout(_ root: ViewNode) -> ViewNode {
         var root = root
         root.frame = CGRect(origin: .zero, size: device.screenSize)
-        let safeArea = device.safeArea
-        // Several root views behave like an implicit vertical stack.
-        let content =
-            root.children.count == 1
-            ? root.children[0] : ViewNode(id: root.id, kind: "VStack", children: root.children)
-        let size = sizeThatFits(content, ProposedSize(safeArea.size), parentAxis: nil)
+        root.children = placeCentered(root.children, id: root.id, in: device.safeArea)
+        return root
+    }
+
+    /// Proposes `rect` to content and centers it there, as the root and a
+    /// navigation stack do. Several views behave like an implicit vertical
+    /// stack.
+    private func placeCentered(_ children: [ViewNode], id: NodeID, in rect: CGRect) -> [ViewNode] {
+        let content = Self.implicitStack(children, id: id)
+        let size = sizeThatFits(content, ProposedSize(rect.size), parentAxis: nil)
         let origin = CGPoint(
-            x: safeArea.minX + (safeArea.width - size.width) / 2,
-            y: safeArea.minY + (safeArea.height - size.height) / 2
+            x: rect.minX + (rect.width - size.width) / 2,
+            y: rect.minY + (rect.height - size.height) / 2
         )
         let placed = place(content, in: CGRect(origin: origin, size: size), parentAxis: nil)
-        root.children = root.children.count == 1 ? [placed] : placed.children
-        return root
+        return children.count == 1 ? [placed] : placed.children
+    }
+
+    private static func implicitStack(_ children: [ViewNode], id: NodeID) -> ViewNode {
+        children.count == 1 ? children[0] : ViewNode(id: id, kind: "VStack", children: children)
     }
 
     // MARK: - Sizing
@@ -221,6 +228,28 @@ struct LayoutEngine {
             return overlaySize(node.children, proposal)
         case "Section":
             return stackLayout(node, proposal, axis: .vertical, spacing: 0).size
+        case "NavigationStack":
+            // A navigation stack takes the space it is offered.
+            let barHeight = LayoutDefaults.navigationBarHeight
+            let content = Self.implicitStack(
+                node.children.filter { $0.kind != "NavigationBar" }, id: node.id)
+            let contentProposal = ProposedSize(
+                width: proposal.width, height: proposal.height.map { max($0 - barHeight, 0) })
+            let size = sizeThatFits(content, contentProposal, parentAxis: nil)
+            return CGSize(
+                width: proposal.width ?? size.width,
+                height: proposal.height ?? size.height + barHeight
+            )
+        case "NavigationBar":
+            let width = node.children.reduce(0) {
+                $0 + sizeThatFits($1, ProposedSize(width: nil, height: nil), parentAxis: nil).width
+            }
+            return CGSize(
+                width: proposal.width ?? width, height: LayoutDefaults.navigationBarHeight)
+        case "ToolbarItemGroup":
+            return stackLayout(
+                node, proposal, axis: .horizontal, spacing: LayoutDefaults.toolbarItemSpacing
+            ).size
         case "SectionHeader", "SectionFooter":
             let insets = Self.sectionLabelInsets(node)
             let size = overlaySize(node.children, proposal.inset(by: insets))
@@ -228,7 +257,7 @@ struct LayoutEngine {
                 width: size.width + insets.horizontal,
                 height: size.height + insets.vertical
             )
-        case "Button":
+        case "Button", "NavigationLink":
             // Assumed: several views in a button label stack vertically.
             if node.children.count == 1 {
                 return sizeThatFits(node.children[0], proposal, parentAxis: nil)
@@ -423,8 +452,26 @@ struct LayoutEngine {
                 let size = sizeThatFits(child, ProposedSize(content.size), parentAxis: nil)
                 return place(child, in: align(size, in: content, .leading), parentAxis: nil)
             }
-        case "Button" where node.children.count > 1:
+        case "Button" where node.children.count > 1,
+            "NavigationLink" where node.children.count > 1:
             node.children = placeStack(node, in: rect, axis: .vertical)
+        case "NavigationStack":
+            let barRect = CGRect(
+                x: rect.minX, y: rect.minY, width: rect.width,
+                height: min(LayoutDefaults.navigationBarHeight, rect.height))
+            let contentRect = CGRect(
+                x: rect.minX, y: barRect.maxY, width: rect.width,
+                height: rect.height - barRect.height)
+            let bar = node.children.first { $0.kind == "NavigationBar" }
+            let content = node.children.filter { $0.kind != "NavigationBar" }
+            node.children =
+                (bar.map { [place($0, in: barRect, parentAxis: nil)] } ?? [])
+                + placeCentered(content, id: node.id, in: contentRect)
+        case "NavigationBar":
+            node.children = placeNavigationBar(node.children, in: rect)
+        case "ToolbarItemGroup":
+            node.children = placeStack(
+                node, in: rect, axis: .horizontal, spacing: LayoutDefaults.toolbarItemSpacing)
         case "ZStack":
             let alignment = Alignment(name: node.attributes["alignment"]) ?? .center
             node.children = node.children.map { child in
@@ -472,6 +519,51 @@ struct LayoutEngine {
             }
             return place(child, in: CGRect(origin: origin, size: size), parentAxis: axis)
         }
+    }
+
+    // MARK: - Navigation
+
+    /// Places the leading and trailing item groups at the edges of the bar,
+    /// and the title, or the principal items, in the middle.
+    private func placeNavigationBar(_ children: [ViewNode], in rect: CGRect) -> [ViewNode] {
+        func size(_ child: ViewNode, width: CGFloat? = nil) -> CGSize {
+            sizeThatFits(child, ProposedSize(width: width, height: rect.height), parentAxis: nil)
+        }
+        func centered(_ size: CGSize, x: CGFloat) -> CGRect {
+            CGRect(
+                origin: CGPoint(x: x, y: rect.minY + (rect.height - size.height) / 2), size: size)
+        }
+        let margin = LayoutDefaults.navigationBarMargin
+        // The title stays centered, so it gets the width between the wider
+        // of the two side groups and its mirror image.
+        var sideExtent: CGFloat = 0
+        var placed: [ViewNode?] = Array(repeating: nil, count: children.count)
+        for (index, child) in children.enumerated() {
+            switch child.attributes["placement"] {
+            case "leading":
+                let isBack = child.children.first?.id.rawValue.hasSuffix("/bar/back") == true
+                let inset = isBack ? LayoutDefaults.backButtonMargin : margin
+                let childSize = size(child)
+                placed[index] = place(
+                    child, in: centered(childSize, x: rect.minX + inset), parentAxis: nil)
+                sideExtent = max(sideExtent, inset + childSize.width + margin)
+            case "trailing":
+                let childSize = size(child)
+                placed[index] = place(
+                    child, in: centered(childSize, x: rect.maxX - margin - childSize.width),
+                    parentAxis: nil)
+                sideExtent = max(sideExtent, margin + childSize.width + margin)
+            default:
+                break
+            }
+        }
+        for (index, child) in children.enumerated() where placed[index] == nil {
+            let available = max(rect.width - 2 * max(sideExtent, margin), 0)
+            let childSize = size(child, width: available)
+            placed[index] = place(
+                child, in: centered(childSize, x: rect.midX - childSize.width / 2), parentAxis: nil)
+        }
+        return placed.compactMap { $0 }
     }
 
     // MARK: - Scroll views

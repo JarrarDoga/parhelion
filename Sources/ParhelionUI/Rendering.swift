@@ -81,7 +81,9 @@ struct TreeRenderer {
         guard let frame = node.frame else { return }
 
         // A pressed list row highlights its cell instead of dimming.
-        if node.kind == "Button", node.id == pressedNodeID, node.listRowFrame == nil {
+        if node.kind == "Button" || node.kind == "NavigationLink", node.id == pressedNodeID,
+            node.listRowFrame == nil
+        {
             opacity *= ColorPalette.pressedOpacity
         }
         func paint(_ color: RGBA) -> RGBA {
@@ -114,15 +116,22 @@ struct TreeRenderer {
                 node, in: frame, style: foreground ?? "primary", paint: paint, into: &canvas)
 
         case "Image":
-            if node.attributes["systemName"] != nil {
-                drawSymbolPlaceholder(
-                    in: frame, color: paint(foreground ?? "primary"), into: &canvas)
+            if let name = node.attributes["systemName"] {
+                drawSymbol(name, in: frame, color: paint(foreground ?? "primary"), into: &canvas)
             }
 
         case "Button":
             // Assumed: a button's label takes the tint color unless it sets its
             // own foreground style, as with SwiftUI's default button style.
             foreground = foreground ?? "tint"
+
+        case "NavigationLink":
+            // Assumed: in a list, a link's label uses the primary color;
+            // elsewhere it takes the tint color, like a button.
+            foreground = foreground ?? (node.listRowFrame == nil ? "tint" : "primary")
+
+        case "NavigationStack":
+            drawNavigationBarBackground(node, paint: paint, into: &canvas)
 
         case "List":
             drawList(node, in: frame, paint: paint, into: &canvas)
@@ -194,6 +203,19 @@ struct TreeRenderer {
             for (index, (row, cell, insets)) in rows.enumerated() {
                 if row.id == pressedNodeID {
                     canvas.fill(cell, color: paint(ColorPalette.rowHighlight))
+                }
+                if row.kind == "NavigationLink" {
+                    let size = LayoutDefaults.disclosureIndicatorSize
+                    let indicator = CGRect(
+                        x: cell.maxX - LayoutDefaults.listRowInsets.trailing - size.width,
+                        y: cell.midY - size.height / 2,
+                        width: size.width,
+                        height: size.height
+                    )
+                    canvas.fill(
+                        Self.chevron(in: indicator, pointingLeft: false, thickness: 2),
+                        color: paint(ColorPalette.color(named: "tertiary"))
+                    )
                 }
                 guard index < rows.count - 1 else { continue }
                 let thickness = LayoutDefaults.listSeparatorThickness
@@ -277,7 +299,80 @@ struct TreeRenderer {
         }
     }
 
-    /// Parhelion has no SF Symbols yet, so every symbol is drawn as a ring.
+    /// Draws the area behind a navigation bar, up to the top of the screen.
+    /// It takes the background of a grouped list beneath it, as iOS's bar
+    /// does at the top of scrolling content.
+    private func drawNavigationBarBackground(
+        _ node: ViewNode,
+        paint: (RGBA) -> RGBA,
+        into canvas: inout Canvas
+    ) {
+        guard let bar = node.children.first(where: { $0.kind == "NavigationBar" })?.frame,
+            let content = node.children.first(where: { $0.kind != "NavigationBar" }),
+            content.kind == "List",
+            ListStyleMetrics(styleName: content.attributes["listStyle"]).isGrouped
+        else { return }
+        var area = bar
+        if abs(bar.minY - device.safeArea.minY) < 0.5 {
+            area = CGRect(x: bar.minX, y: 0, width: bar.width, height: bar.maxY)
+        }
+        canvas.fill(area, color: paint(ColorPalette.groupedBackground))
+    }
+
+    /// Draws a symbol. Parhelion has no SF Symbols yet: chevrons are drawn as
+    /// chevrons, and every other symbol as a ring.
+    private func drawSymbol(
+        _ name: String, in frame: CGRect, color: RGBA, into canvas: inout Canvas
+    ) {
+        let side = min(frame.width, frame.height)
+        switch name {
+        case "chevron.backward", "chevron.left", "chevron.forward", "chevron.right":
+            let width = side * 0.55
+            let rect = CGRect(
+                x: frame.midX - width / 2, y: frame.midY - side / 2, width: width, height: side)
+            let pointingLeft = name == "chevron.backward" || name == "chevron.left"
+            canvas.fill(
+                Self.chevron(in: rect, pointingLeft: pointingLeft, thickness: side * 0.13),
+                color: color)
+        default:
+            drawSymbolPlaceholder(in: frame, color: color, into: &canvas)
+        }
+    }
+
+    /// A chevron that fills `rect`, drawn as a stroke of the given
+    /// thickness with a mitered tip.
+    static func chevron(in rect: CGRect, pointingLeft: Bool, thickness: CGFloat) -> Path {
+        let half = thickness / 2
+        let tipX = pointingLeft ? rect.minX + half : rect.maxX - half
+        let tailX = pointingLeft ? rect.maxX - half : rect.minX + half
+        let top = CGPoint(x: tailX, y: rect.minY + half)
+        let tip = CGPoint(x: tipX, y: rect.midY)
+        let bottom = CGPoint(x: tailX, y: rect.maxY - half)
+        func normal(_ a: CGPoint, _ b: CGPoint) -> CGPoint {
+            let length = hypot(b.x - a.x, b.y - a.y)
+            return CGPoint(x: -(b.y - a.y) / length, y: (b.x - a.x) / length)
+        }
+        func offset(_ point: CGPoint, _ direction: CGPoint, _ distance: CGFloat) -> CGPoint {
+            CGPoint(x: point.x + direction.x * distance, y: point.y + direction.y * distance)
+        }
+        let first = normal(top, tip)
+        let second = normal(tip, bottom)
+        let sum = CGPoint(x: first.x + second.x, y: first.y + second.y)
+        let sumLength = hypot(sum.x, sum.y)
+        let miter = CGPoint(x: sum.x / sumLength, y: sum.y / sumLength)
+        let miterLength = half / (miter.x * first.x + miter.y * first.y)
+        var path = Path()
+        path.move(to: offset(top, first, half))
+        path.addLine(to: offset(tip, miter, miterLength))
+        path.addLine(to: offset(bottom, second, half))
+        path.addLine(to: offset(bottom, second, -half))
+        path.addLine(to: offset(tip, miter, -miterLength))
+        path.addLine(to: offset(top, first, -half))
+        path.closeSubpath()
+        return path
+    }
+
+    /// Draws a symbol Parhelion cannot draw yet as a ring.
     private func drawSymbolPlaceholder(in frame: CGRect, color: RGBA, into canvas: inout Canvas) {
         let side = min(frame.width, frame.height)
         let stroke = max(side * 0.09, 1)

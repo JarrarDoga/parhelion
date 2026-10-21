@@ -47,9 +47,10 @@ enum AgentTools {
             name: "tap",
             title: "Tap",
             description: """
-                Taps a button, or focuses a text field. Give exactly one of: id (a node \
-                identifier from get_view_tree), label (a button's exact text), or x and y \
-                (a point on the screen, in points).
+                Taps a button or navigation link, or focuses a text field. Give exactly one \
+                of: id (a node identifier from get_view_tree), label (the exact text of a \
+                button or navigation link; the back button's label is the previous title), \
+                or x and y (a point on the screen, in points).
                 """,
             inputSchema: #"""
                 {"type": "object", "properties": {
