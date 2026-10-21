@@ -67,4 +67,9 @@ may contain breaking changes.
   instead of 45 ms.
 - Build errors from `parhelion run` are plain text, without the compiler's color codes.
 
+### Fixed
+
+- The first click on an unfocused preview window reaches the app. Before, SDL used the click only
+  to focus the window.
+
 [Unreleased]: https://github.com/JarrarDoga/parhelion/commits/main

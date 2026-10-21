@@ -24,6 +24,9 @@ final class WindowHost {
     static let pointsPerWheelStep = 40.0
 
     init(title: String, width: Int, height: Int, zoom: Double) throws {
+        // Deliver the click that focuses the window, so the first click on
+        // an unfocused preview presses a button like every later click.
+        _ = SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1")
         guard SDL_Init(parhelion_init_video) else { throw SDLError.current("initialize video") }
         guard
             let window = SDL_CreateWindow(
