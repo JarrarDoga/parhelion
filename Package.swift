@@ -43,6 +43,11 @@ targets += [
         dependencies: ["SwiftUI"],
         path: "Examples/Counter"
     ),
+    .executableTarget(
+        name: "Scrolling",
+        dependencies: ["SwiftUI"],
+        path: "Examples/Scrolling"
+    ),
 ]
 #endif
 

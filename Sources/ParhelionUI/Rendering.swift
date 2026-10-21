@@ -110,9 +110,15 @@ struct TreeRenderer {
             break
         }
 
+        // A scroll view shows only the part of its content inside its bounds.
+        let outerClip = canvas.clipRect
+        if node.kind == "ScrollView" {
+            canvas.clipRect = outerClip.map { $0.intersection(frame) } ?? frame
+        }
         for child in node.children {
             draw(child, foreground: foreground, opacity: opacity, into: &canvas)
         }
+        canvas.clipRect = outerClip
     }
 
     /// Draws text wrapped the same way layout measured it, one line per

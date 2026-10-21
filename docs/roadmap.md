@@ -11,7 +11,8 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [x] `App`, `Scene`, `WindowGroup`, and a headless runner
 - [x] `import SwiftUI` source compatibility on Linux
 - [ ] `@Environment` and the environment values that modifiers read
-- [ ] `ForEach`, `Group`, and `AnyView`
+- [x] `ForEach`
+- [ ] `Group` and `AnyView`
 - [ ] `font`, `bold`, `frame`, and `background` modifiers
 - [ ] API documentation with DocC
 
@@ -24,6 +25,7 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [x] Hit testing: tap by screen position
 - [ ] Cache `sizeThatFits` results by node, modifier depth, and proposal, so that layout on every
       state change stays fast
+- [ ] Cache glyph outlines between frames
 - [x] A renderer: pure-Swift rasterization and PNG output (see [ADR 0004](adr/0004-pure-swift-renderer.md))
 - [x] `background` with a shape style
 - [x] A phone-sized window on Linux: `parhelion preview`
@@ -37,7 +39,8 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 
 ## 0.4: Scrolling and text input
 
-- [ ] `ScrollView` with momentum, driven by the mouse wheel, trackpad, or drag
+- [x] `ScrollView` with momentum, driven by the mouse wheel, trackpad, or drag
+- [x] A deterministic clock for momentum
 - [ ] `TextField` with keyboard input, focus, and selection
 - [ ] Keyboard navigation between controls
 
@@ -45,7 +48,7 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 
 - [ ] An MCP server: read the tree, tap, type, scroll, take a screenshot
 - [ ] Off-screen rendering, so another app can embed or stream the preview
-- [ ] A deterministic clock for animations and timers
+- [ ] Extend the deterministic clock to animations and timers
 
 ## 0.6: More of SwiftUI
 

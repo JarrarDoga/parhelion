@@ -3,6 +3,8 @@ import Foundation
 /// Builds the app for a run plan with `swift build`.
 public struct AppBuilder: Sendable {
     public let plan: RunPlan
+    /// `debug` or `release`, as for `swift build --configuration`.
+    public let configuration: String
 
     public struct Outcome: Sendable {
         public var succeeded: Bool
@@ -11,8 +13,9 @@ public struct AppBuilder: Sendable {
         public var duration: TimeInterval
     }
 
-    public init(plan: RunPlan) {
+    public init(plan: RunPlan, configuration: String = "debug") {
         self.plan = plan
+        self.configuration = configuration
     }
 
     /// Builds the product. Blocks until the build finishes.
@@ -22,7 +25,10 @@ public struct AppBuilder: Sendable {
             try plan.prepare()
             let result = try Shell.run(
                 "swift",
-                ["build", "--package-path", plan.buildPackagePath, "--product", plan.product],
+                [
+                    "build", "--package-path", plan.buildPackagePath, "--product", plan.product,
+                    "--configuration", configuration,
+                ],
                 captureOutput: true
             )
             return Outcome(
@@ -43,7 +49,10 @@ public struct AppBuilder: Sendable {
     public func executablePath() throws -> String {
         let result = try Shell.run(
             "swift",
-            ["build", "--package-path", plan.buildPackagePath, "--show-bin-path"],
+            [
+                "build", "--package-path", plan.buildPackagePath, "--show-bin-path",
+                "--configuration", configuration,
+            ],
             captureOutput: true
         )
         let directory = result.output.split(separator: "\n").last.map(String.init) ?? ""

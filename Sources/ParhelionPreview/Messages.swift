@@ -58,6 +58,10 @@ public enum HostMessage: Codable, Equatable, Sendable {
     case pointerMoved(x: Double, y: Double)
     /// The mouse button or finger was released.
     case pointerUp(x: Double, y: Double)
+    /// The mouse wheel or trackpad scrolled the content by `dx`, `dy` points
+    /// at the pointer position `x`, `y`. A positive `dy` scrolls toward the
+    /// end of the content.
+    case scroll(dx: Double, dy: Double, x: Double, y: Double)
     /// The host is closing; the app should exit.
     case close
 }

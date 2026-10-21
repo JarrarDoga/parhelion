@@ -24,6 +24,15 @@ enum Rasterizer {
     /// Rasterizes polygons given in pixel coordinates, clipped to a
     /// `clipWidth` × `clipHeight` target. Returns `nil` if nothing is visible.
     static func coverage(of polygons: [[CGPoint]], clipWidth: Int, clipHeight: Int) -> Coverage? {
+        coverage(of: polygons, clip: (0, 0, clipWidth, clipHeight))
+    }
+
+    /// Rasterizes polygons given in pixel coordinates, clipped to the pixel
+    /// rectangle from `(minX, minY)` up to, not including, `(maxX, maxY)`.
+    static func coverage(
+        of polygons: [[CGPoint]],
+        clip: (minX: Int, minY: Int, maxX: Int, maxY: Int)
+    ) -> Coverage? {
         var minX = Double.infinity
         var minY = Double.infinity
         var maxX = -Double.infinity
@@ -38,10 +47,10 @@ enum Rasterizer {
         }
         guard minX.isFinite, minY.isFinite, maxX.isFinite, maxY.isFinite else { return nil }
 
-        let originX = max(Int(minX.rounded(.down)), 0)
-        let originY = max(Int(minY.rounded(.down)), 0)
-        let endX = min(Int(maxX.rounded(.up)), clipWidth)
-        let endY = min(Int(maxY.rounded(.up)), clipHeight)
+        let originX = max(Int(minX.rounded(.down)), clip.minX)
+        let originY = max(Int(minY.rounded(.down)), clip.minY)
+        let endX = min(Int(maxX.rounded(.up)), clip.maxX)
+        let endY = min(Int(maxY.rounded(.up)), clip.maxY)
         guard endX > originX, endY > originY else { return nil }
 
         let width = endX - originX

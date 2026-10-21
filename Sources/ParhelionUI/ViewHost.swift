@@ -14,6 +14,8 @@ public enum InteractionError: Error, Equatable, Sendable {
     case ambiguousButton(label: String, matches: [NodeID])
     /// No node that responds to taps contains the given point.
     case nothingTappable(at: CGPoint)
+    /// The node is not a scroll view.
+    case notScrollable(NodeID)
 }
 
 /// Owns a view hierarchy: resolves it to a ``ViewNode`` tree, lays it out for
@@ -32,6 +34,10 @@ public enum InteractionError: Error, Equatable, Sendable {
 public final class ViewHost {
     private let rootView: any View
     private let layoutEngine: LayoutEngine
+    private let scrolling: ScrollLayout
+    /// The tree as evaluated, before layout. Scrolling lays it out again
+    /// without evaluating views.
+    private var resolvedRoot = ViewNode(id: "", kind: "Root")
     private var storage: [String: AnyObject] = [:]
     private var visitedKeys: Set<String> = []
     private var actions: [NodeID: @MainActor () -> Void] = [:]
@@ -46,6 +52,16 @@ public final class ViewHost {
     /// The device the tree is laid out for.
     public let device: Device
 
+    /// A number that increases whenever anything on screen changes: the
+    /// tree, the layout, a scroll position, or the pressed button. Clients
+    /// compare it to decide whether to draw a new frame.
+    public private(set) var revision = 0
+
+    /// The host's clock, in seconds. It advances only through
+    /// ``advanceTime(by:)``, so animations are deterministic: the same input
+    /// at the same times always produces the same frames.
+    public private(set) var time: TimeInterval = 0
+
     /// Creates a host for a view.
     ///
     /// - Parameter snapshot: State saved by ``stateSnapshot()``, for example by
@@ -55,7 +71,9 @@ public final class ViewHost {
     {
         self.rootView = rootView
         self.device = device
-        self.layoutEngine = LayoutEngine(device: device)
+        let scrolling = ScrollLayout()
+        self.scrolling = scrolling
+        self.layoutEngine = LayoutEngine(device: device, scrolling: scrolling)
         pendingState = snapshot.flatMap(Self.decodeSnapshot) ?? [:]
         evaluate()
     }
@@ -65,7 +83,9 @@ public final class ViewHost {
     ) {
         self.rootView = rootView
         self.device = device
-        self.layoutEngine = LayoutEngine(device: device)
+        let scrolling = ScrollLayout()
+        self.scrolling = scrolling
+        self.layoutEngine = LayoutEngine(device: device, scrolling: scrolling)
         pendingState = snapshot.flatMap(Self.decodeSnapshot) ?? [:]
         evaluate()
     }
@@ -133,39 +153,248 @@ public final class ViewHost {
     /// A press that starts on a button taps it only if the pointer is
     /// released over the same button, as on iOS. The renderer draws the
     /// pressed button dimmed.
-    public private(set) var pressedNodeID: NodeID?
-    private var pressStartedOn: NodeID?
-
-    /// Starts a press at a point on the screen.
-    public func pointerDown(at point: CGPoint) {
-        pressStartedOn = frontmostTappableNode(at: point, in: root)?.id
-        pressedNodeID = pressStartedOn
+    public private(set) var pressedNodeID: NodeID? {
+        didSet {
+            if pressedNodeID != oldValue { revision += 1 }
+        }
     }
 
-    /// Moves a press. The button stays pressed only while the pointer is
-    /// over it.
+    /// A press in progress.
+    private struct Press {
+        var start: CGPoint
+        var last: CGPoint
+        /// The button the press started on, until the press turns into a
+        /// scroll.
+        var button: NodeID?
+        /// The scroll view being dragged, once the press turns into a scroll.
+        var scrollView: NodeID?
+        /// Recent pointer positions, for the release velocity.
+        var samples: [(time: TimeInterval, point: CGPoint)]
+    }
+    private var press: Press?
+
+    /// Starts a press at a point on the screen. A press stops any scroll
+    /// momentum, as touching a scrolling list does on iOS.
+    public func pointerDown(at point: CGPoint) {
+        momentum.removeAll()
+        let button = frontmostTappableNode(at: point, in: root)?.id
+        press = Press(
+            start: point,
+            last: point,
+            button: button,
+            scrollView: nil,
+            samples: [(time, point)]
+        )
+        pressedNodeID = button
+    }
+
+    /// Moves a press.
+    ///
+    /// A button stays pressed only while the pointer is over it. If the
+    /// pointer moves more than a few points over a scroll view, the press
+    /// turns into a scroll: the button press is cancelled and the content
+    /// follows the pointer.
     public func pointerMoved(to point: CGPoint) {
-        guard let pressStartedOn else { return }
-        let current = frontmostTappableNode(at: point, in: root)?.id
-        pressedNodeID = current == pressStartedOn ? pressStartedOn : nil
+        guard var press else { return }
+        defer {
+            press.last = point
+            self.press = press
+        }
+        if press.scrollView == nil,
+            hypot(point.x - press.start.x, point.y - press.start.y) > LayoutDefaults.dragThreshold,
+            let scrollView = innermostScrollView(
+                at: press.start,
+                along: CGSize(width: point.x - press.start.x, height: point.y - press.start.y),
+                requireRoom: false
+            )
+        {
+            press.scrollView = scrollView
+            press.button = nil
+            pressedNodeID = nil
+        }
+        if let scrollView = press.scrollView {
+            applyScroll(
+                scrollView,
+                by: CGSize(width: press.last.x - point.x, height: press.last.y - point.y)
+            )
+            press.samples.append((time, point))
+            press.samples.removeAll { time - $0.time > 0.15 }
+        } else if let button = press.button {
+            pressedNodeID = frontmostTappableNode(at: point, in: root)?.id == button ? button : nil
+        }
     }
 
     /// Ends a press. If the pointer is over the button the press started on,
-    /// the button is tapped and the tree updates.
+    /// the button is tapped and the tree updates. If the press was a scroll
+    /// released while moving, the content keeps moving and slows down; call
+    /// ``advanceTime(by:)`` to animate it.
     ///
     /// - Returns: The identifier of the tapped button, or `nil` if the press
     ///   did not tap anything.
     @discardableResult
     public func pointerUp(at point: CGPoint) -> NodeID? {
-        defer {
-            pressStartedOn = nil
-            pressedNodeID = nil
+        guard let press else { return nil }
+        self.press = nil
+        pressedNodeID = nil
+
+        if let scrollView = press.scrollView {
+            startMomentum(scrollView, samples: press.samples + [(time, point)])
+            return nil
         }
-        guard let pressStartedOn,
-            frontmostTappableNode(at: point, in: root)?.id == pressStartedOn
+        guard let button = press.button,
+            frontmostTappableNode(at: point, in: root)?.id == button
         else { return nil }
-        try? tap(pressStartedOn)
-        return pressStartedOn
+        try? tap(button)
+        return button
+    }
+
+    // MARK: - Scrolling
+
+    /// Scroll velocities in points per second, for scroll views that are
+    /// still moving after a drag.
+    private var momentum: [NodeID: CGPoint] = [:]
+
+    /// Whether anything is still moving, so that a client should keep calling
+    /// ``advanceTime(by:)`` and drawing frames.
+    public var isAnimating: Bool { !momentum.isEmpty }
+
+    /// How far a scroll view's content is scrolled, or `nil` if the node is
+    /// not a scroll view.
+    public func scrollOffset(of id: NodeID) -> CGPoint? {
+        scrolling.metrics[id]?.offset
+    }
+
+    /// Scrolls the innermost scroll view at a point that can move in the
+    /// direction of `delta`, as a mouse wheel or trackpad does. A positive
+    /// height scrolls toward the end of the content.
+    ///
+    /// - Returns: Whether anything scrolled.
+    @discardableResult
+    public func scroll(by delta: CGSize, at point: CGPoint) -> Bool {
+        guard let scrollView = innermostScrollView(at: point, along: delta, requireRoom: true)
+        else { return false }
+        momentum[scrollView] = nil
+        applyScroll(scrollView, by: delta)
+        return true
+    }
+
+    /// Scrolls a scroll view to an offset, clamped to its content.
+    public func scroll(_ id: NodeID, to offset: CGPoint) throws(InteractionError) {
+        guard scrolling.metrics[id] != nil else {
+            throw root.node(withID: id) == nil ? .nodeNotFound(id) : .notScrollable(id)
+        }
+        momentum[id] = nil
+        scrolling.offsets[id] = offset
+        relayout()
+    }
+
+    /// Advances the host's clock, moving any scroll momentum forward.
+    public func advanceTime(by interval: TimeInterval) {
+        guard interval > 0 else { return }
+        time += interval
+        guard !momentum.isEmpty else { return }
+
+        // Fixed steps make the result the same however the time is split.
+        let step = 1.0 / 240
+        var remaining = interval
+        while remaining > 0, !momentum.isEmpty {
+            let dt = min(step, remaining)
+            remaining -= dt
+            for (id, velocity) in momentum {
+                guard let metrics = scrolling.metrics[id] else {
+                    momentum[id] = nil
+                    continue
+                }
+                let decay = pow(LayoutDefaults.scrollDecelerationRate, dt * 1000)
+                var velocity = CGPoint(x: velocity.x * decay, y: velocity.y * decay)
+                let current = scrolling.offsets[id] ?? metrics.offset
+                var offset = CGPoint(
+                    x: current.x + velocity.x * dt,
+                    y: current.y + velocity.y * dt
+                )
+                // Stop at the ends of the content.
+                if offset.x <= 0 || offset.x >= metrics.maxOffset.x { velocity.x = 0 }
+                if offset.y <= 0 || offset.y >= metrics.maxOffset.y { velocity.y = 0 }
+                offset.x = min(max(offset.x, 0), metrics.maxOffset.x)
+                offset.y = min(max(offset.y, 0), metrics.maxOffset.y)
+                scrolling.offsets[id] = offset
+                let speed = hypot(velocity.x, velocity.y)
+                momentum[id] = speed < LayoutDefaults.momentumStopSpeed ? nil : velocity
+            }
+        }
+        relayout()
+    }
+
+    private func applyScroll(_ id: NodeID, by delta: CGSize) {
+        guard let metrics = scrolling.metrics[id], let node = root.node(withID: id) else { return }
+        let axes = LayoutEngine.scrollAxes(of: node)
+        let current = scrolling.offsets[id] ?? metrics.offset
+        scrolling.offsets[id] = CGPoint(
+            x: current.x + (axes.horizontal ? delta.width : 0),
+            y: current.y + (axes.vertical ? delta.height : 0)
+        )
+        relayout()
+    }
+
+    private func startMomentum(
+        _ id: NodeID,
+        samples: [(time: TimeInterval, point: CGPoint)]
+    ) {
+        // Only the last moments before release count: a pointer that rested
+        // before it was lifted does not fling the content. The release usually
+        // repeats the last position, so measure up to the last movement.
+        guard let release = samples.last else { return }
+        var moving = samples.filter { release.time - $0.time <= 0.15 }
+        while moving.count > 1, moving[moving.count - 1].point == moving[moving.count - 2].point {
+            moving.removeLast()
+        }
+        guard let first = moving.first, let last = moving.last, last.time > first.time,
+            let node = root.node(withID: id)
+        else { return }
+        let axes = LayoutEngine.scrollAxes(of: node)
+        let dt = last.time - first.time
+        // The content moves opposite to the pointer.
+        let velocity = CGPoint(
+            x: axes.horizontal ? (first.point.x - last.point.x) / dt : 0,
+            y: axes.vertical ? (first.point.y - last.point.y) / dt : 0
+        )
+        if hypot(velocity.x, velocity.y) > LayoutDefaults.minimumFlingSpeed {
+            momentum[id] = velocity
+        }
+    }
+
+    /// The innermost scroll view containing `point` that scrolls along the
+    /// main direction of `delta`. With `requireRoom`, it must also have room
+    /// to move that way.
+    private func innermostScrollView(
+        at point: CGPoint, along delta: CGSize, requireRoom: Bool
+    )
+        -> NodeID?
+    {
+        var candidates: [ViewNode] = []
+        func collect(_ node: ViewNode) {
+            guard let frame = node.frame, frame.contains(point) else { return }
+            if node.kind == "ScrollView" { candidates.append(node) }
+            node.children.forEach(collect)
+        }
+        collect(root)
+
+        for node in candidates.reversed() {
+            guard let metrics = scrolling.metrics[node.id] else { continue }
+            let axes = LayoutEngine.scrollAxes(of: node)
+            let vertical = abs(delta.height) >= abs(delta.width)
+            if vertical, axes.vertical {
+                if !requireRoom { return node.id }
+                if delta.height > 0, metrics.offset.y < metrics.maxOffset.y { return node.id }
+                if delta.height < 0, metrics.offset.y > 0 { return node.id }
+            }
+            if !vertical, axes.horizontal {
+                if !requireRoom { return node.id }
+                if delta.width > 0, metrics.offset.x < metrics.maxOffset.x { return node.id }
+                if delta.width < 0, metrics.offset.x > 0 { return node.id }
+            }
+        }
+        return nil
     }
 
     /// Taps the one button whose label is exactly `label`.
@@ -218,10 +447,22 @@ public final class ViewHost {
         visitedKeys = []
         let evaluator = Evaluator(host: self)
         let children = evaluator.evaluate(rootView, at: ViewPath())
-        root = layoutEngine.layout(ViewNode(id: "", kind: "Root", children: children))
+        resolvedRoot = ViewNode(id: "", kind: "Root", children: children)
         actions = evaluator.actions
+        relayout()
         // State belongs to a structural position. When a view leaves the
         // tree, its state goes with it.
         storage = storage.filter { visitedKeys.contains($0.key) }
+    }
+
+    /// Lays out the evaluated tree again, for example after scrolling.
+    private func relayout() {
+        scrolling.metrics = [:]
+        root = layoutEngine.layout(resolvedRoot)
+        // Keep each offset clamped to its content, and forget the offsets of
+        // scroll views that left the tree.
+        scrolling.offsets = scrolling.metrics.mapValues(\.offset)
+        momentum = momentum.filter { scrolling.metrics[$0.key] != nil }
+        revision += 1
     }
 }
