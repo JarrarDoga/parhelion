@@ -14,16 +14,14 @@ public struct DeviceBezel: Sendable {
     static let border = 12.0
     /// Assumed: the width of the metal band around the phone, in points.
     static let band = 4.0
-    /// How far the side buttons stick out of the band, in points.
+    /// How far the side buttons stick out of the band, in points. The
+    /// window ends at the buttons.
     static let buttonDepth = 3.0
-    /// The space between the phone and the edge of the window, in points.
-    static let padding = 16.0
 
     /// The distance from the edge of the window to the edge of the screen,
     /// in points.
-    public static let margin = border + band + buttonDepth + padding
+    public static let margin = border + band + buttonDepth
 
-    static let backdrop = RGBA(red: 229, green: 229, blue: 234)
     static let bandColor = RGBA(red: 72, green: 72, blue: 74)
     static let buttonColor = RGBA(red: 99, green: 99, blue: 102)
 
@@ -63,9 +61,57 @@ public struct DeviceBezel: Sendable {
         (x - Self.margin, y - Self.margin)
     }
 
-    /// Draws the backdrop, the phone, and its buttons, with a transparent
-    /// hole the shape of the screen. The window draws it over the app's
-    /// frame, so it covers the frame's square corners.
+    /// A part of the app's frame and how opaque each of its pixels stays.
+    public struct FrameMask: Sendable {
+        /// The rectangle in the frame's pixels.
+        public var x: Int
+        public var y: Int
+        public var width: Int
+        public var height: Int
+        /// The opacity of each pixel in the rectangle, row by row.
+        public var alpha: [UInt8]
+        /// The pixels that are not fully opaque, by their index in the
+        /// rectangle, and their opacity.
+        public var faded: [(index: Int, alpha: UInt8)] {
+            alpha.indices.compactMap { alpha[$0] < 255 ? ($0, alpha[$0]) : nil }
+        }
+    }
+
+    /// The parts of a frame at `scale` pixels per point that lie outside
+    /// the phone's rounded body: the screen's square corners reach past it.
+    /// The window makes them transparent before it shows the frame.
+    public func frameMasks(scale: Double) -> [FrameMask] {
+        let bodyInset = Self.border + Self.band
+        // The body in the frame's coordinates, which start at the screen.
+        let body = CGRect(x: 0, y: 0, width: screenWidth, height: screenHeight)
+            .insetBy(dx: -bodyInset, dy: -bodyInset)
+        var canvas = Canvas(
+            width: screenWidth, height: screenHeight, scale: scale,
+            background: RGBA(red: 0, green: 0, blue: 0, alpha: 0))
+        canvas.fill(body, cornerRadius: screenCornerRadius + bodyInset, color: .white)
+        // The corner boxes reach as far as the body's curve can.
+        let side = min(
+            Int((screenCornerRadius * scale).rounded(.up)), canvas.width / 2, canvas.height / 2)
+        let origins = [
+            (0, 0), (canvas.width - side, 0), (0, canvas.height - side),
+            (canvas.width - side, canvas.height - side),
+        ]
+        return origins.map { x, y in
+            var alpha: [UInt8] = []
+            alpha.reserveCapacity(side * side)
+            for row in y..<(y + side) {
+                for column in x..<(x + side) {
+                    alpha.append(canvas.pixel(x: column, y: row).alpha)
+                }
+            }
+            return FrameMask(x: x, y: y, width: side, height: side, alpha: alpha)
+        }
+    }
+
+    /// Draws the phone and its buttons, with a transparent hole the shape
+    /// of the screen. Everything outside the phone is transparent too. The
+    /// window draws it over the app's frame, so it covers the frame's square
+    /// corners.
     public func image(scale: Double) -> Canvas {
         var canvas = Canvas(
             width: width, height: height, scale: scale,
@@ -82,11 +128,6 @@ public struct DeviceBezel: Sendable {
             path.addPath(Path(roundedRect: hole, cornerRadius: holeRadius, reversed: true))
             return path
         }
-
-        var backdrop = Path(CGRect(x: 0, y: 0, width: width, height: height))
-        backdrop.addPath(
-            Path(roundedRect: body, cornerRadius: screenCornerRadius + bodyInset, reversed: true))
-        canvas.fill(backdrop, color: Self.backdrop)
 
         func button(_ x: Double, _ spec: (top: Double, length: Double)) {
             canvas.fill(

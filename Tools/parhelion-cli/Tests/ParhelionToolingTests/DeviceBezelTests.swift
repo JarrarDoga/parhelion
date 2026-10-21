@@ -34,7 +34,7 @@ struct DeviceBezelTests {
         #expect(plain.x == 15 && plain.y == 20)
     }
 
-    @Test("The screen is a transparent hole, and the bezel covers its square corners")
+    @Test("The screen is a transparent hole, and so is everything outside the phone")
     func image() {
         let image = bezel.image(scale: 1)
         let margin = Int(DeviceBezel.margin)
@@ -42,15 +42,28 @@ struct DeviceBezelTests {
         // The middle of the screen and a point just inside a rounded corner.
         #expect(pixel(margin + 196, margin + 426).alpha == 0)
         #expect(pixel(margin + 20, margin + 20).alpha == 0)
-        // The screen's square corner is covered: it lies outside the phone's
-        // rounded body.
-        #expect(pixel(margin + 1, margin + 1) == DeviceBezel.backdrop)
         // Just outside the screen's curve, the black border shows.
         #expect(pixel(margin + 12, margin + 12) == .black)
-        // The window's corner shows the backdrop.
-        #expect(pixel(0, 0) == DeviceBezel.backdrop)
+        // Outside the phone's rounded body, at the window's corner, nothing
+        // is drawn.
+        #expect(pixel(0, 0).alpha == 0)
         // The metal band, halfway down the left side.
         let bandX = margin - Int(DeviceBezel.border) - Int(DeviceBezel.band) / 2
         #expect(pixel(bandX, margin + 700) == DeviceBezel.bandColor)
+    }
+
+    @Test("Only the frame's corners outside the phone's body are masked")
+    func frameMasks() throws {
+        let masks = bezel.frameMasks(scale: 2)
+        #expect(masks.count == 4)
+        let topLeft = try #require(masks.first)
+        #expect(topLeft.x == 0 && topLeft.y == 0 && topLeft.width == 110)
+        // The frame's very corner is outside the body, and a point on the
+        // screen's diagonal past the body's curve is inside it.
+        #expect(topLeft.alpha[0] == 0)
+        #expect(topLeft.alpha[40 * topLeft.width + 40] == 255)
+        let bottomRight = try #require(masks.last)
+        #expect(bottomRight.x == 786 - 110 && bottomRight.y == 1704 - 110)
+        #expect(bottomRight.alpha.last == 0)
     }
 }

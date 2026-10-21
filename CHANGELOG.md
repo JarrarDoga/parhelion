@@ -99,7 +99,8 @@ may contain breaking changes.
   Wi-Fi, and a full battery) and the home indicator with `.systemBars`, and adds the Dynamic Island
   or notch and the screen's rounded corners with `.screen`.
 - The preview window shows the screen inside a phone bezel with side buttons, like the iOS
-  Simulator. `--no-bezel` shows the screen alone.
+  Simulator, in a window that is transparent outside the phone. `--no-bezel` shows the screen
+  alone.
 - iPhone presets in `Device.all`, found by name with `Device.named(_:)`, and `--device` for
   `parhelion run`, `parhelion preview`, and `parhelion mcp`. Apps read the device from
   `PARHELION_DEVICE`.

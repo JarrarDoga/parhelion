@@ -23,6 +23,10 @@ final class WindowHost {
     /// The phone drawn around the screen, if any, and its texture.
     private let bezel: DeviceBezel?
     private var bezelTexture: UnsafeMutablePointer<SDL_Texture>?
+    /// The frame's corners outside the phone and their faded pixels, for
+    /// the frame width they were made for.
+    private var frameMasks:
+        (width: Int, masks: [(mask: DeviceBezel.FrameMask, faded: [(index: Int, alpha: UInt8)])])?
     private let wakeEventType: UInt32
 
     /// How far one mouse wheel step scrolls, in points.
@@ -46,7 +50,10 @@ final class WindowHost {
                 title,
                 Int32(width),
                 Int32(height),
+                // With a bezel, the window is transparent outside the phone's
+                // rounded corners, where the compositor supports it.
                 parhelion_window_high_pixel_density
+                    | (bezel == nil ? 0 : parhelion_window_transparent)
             )
         else {
             SDL_Quit()
@@ -199,11 +206,43 @@ final class WindowHost {
             )
             guard let texture else { throw SDLError.current("create a texture") }
             _ = SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR)
+            _ = SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND)
             textureSize = (frame.width, frame.height)
         }
         frame.pixels.withUnsafeBytes { bytes in
             _ = SDL_UpdateTexture(texture, nil, bytes.baseAddress, Int32(frame.width * 4))
         }
+        if let bezel {
+            // The screen's square corners reach past the phone's rounded
+            // body, where the window is transparent: fade them out.
+            if frameMasks?.width != frame.width {
+                let scale = Double(frame.width) / bezel.screenWidth
+                frameMasks = (
+                    frame.width, bezel.frameMasks(scale: scale).map { ($0, $0.faded) }
+                )
+            }
+            for (mask, faded) in frameMasks?.masks ?? [] {
+                // Copy the corner a row at a time, then fade its pixels.
+                var corner = [UInt8](repeating: 0, count: mask.width * mask.height * 4)
+                let rowBytes = mask.width * 4
+                for row in 0..<mask.height {
+                    let source = ((mask.y + row) * frame.width + mask.x) * 4
+                    corner.replaceSubrange(
+                        (row * rowBytes)..<((row + 1) * rowBytes),
+                        with: frame.pixels[source..<(source + rowBytes)])
+                }
+                for pixel in faded {
+                    let alpha = pixel.index * 4 + 3
+                    corner[alpha] = UInt8(UInt16(corner[alpha]) * UInt16(pixel.alpha) / 255)
+                }
+                var rect = SDL_Rect(
+                    x: Int32(mask.x), y: Int32(mask.y), w: Int32(mask.width), h: Int32(mask.height))
+                corner.withUnsafeBytes { bytes in
+                    _ = SDL_UpdateTexture(texture, &rect, bytes.baseAddress, Int32(rowBytes))
+                }
+            }
+        }
+        _ = SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0)
         _ = SDL_RenderClear(renderer)
         if let bezel, let bezelTexture {
             var outputWidth: Int32 = 0

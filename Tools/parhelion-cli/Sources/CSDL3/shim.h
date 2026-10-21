@@ -7,6 +7,7 @@
 // import. Constants give them names Swift can see.
 static const SDL_InitFlags parhelion_init_video = SDL_INIT_VIDEO;
 static const SDL_WindowFlags parhelion_window_high_pixel_density = SDL_WINDOW_HIGH_PIXEL_DENSITY;
+static const SDL_WindowFlags parhelion_window_transparent = SDL_WINDOW_TRANSPARENT;
 static const Uint8 parhelion_button_left = SDL_BUTTON_LEFT;
 static const SDL_MouseButtonFlags parhelion_button_left_mask = SDL_BUTTON_LMASK;
 static const SDL_Keymod parhelion_keymod_shift = SDL_KMOD_SHIFT;

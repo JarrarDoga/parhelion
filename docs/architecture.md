@@ -155,9 +155,10 @@ device for the system interface it draws over the tree.
   that over each frame: opaque runs are copied as whole words, and only the anti-aliased edges
   are blended.
 - **The bezel** exists only in the window. The window host draws the phone once, with a
-  transparent hole the shape of the screen, and draws it over each frame, so it also covers the
-  frame's square corners. Pointer positions are moved by the bezel's margin before they go to
-  the app.
+  transparent hole the shape of the screen, and draws it over each frame. The window ends at the
+  phone's side buttons and is transparent outside the phone where the compositor supports it, so
+  the host also fades out the frame's square corners where they reach past the phone's rounded
+  body. Pointer positions are moved by the bezel's margin before they go to the app.
 
 ### Scrolling and time
 
