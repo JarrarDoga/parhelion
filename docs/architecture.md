@@ -228,6 +228,29 @@ the evaluator installs a view's dynamic properties. Presented content and pushed
 `isPresented` and a `dismiss` action that sets their binding back or pops them. Other built-in
 values arrive with the modifiers that read them.
 
+### Animation
+
+`ViewHost.root` always holds final values: when a change animates, the tree, hit testing, and
+everything agents read show where views end up. The renderer draws `presentedRoot`, which is
+`root` with the animations in progress applied, the way Core Animation separates the model layer
+from the presentation layer ([ADR 0005](adr/0005-model-tree-and-presented-frames.md)).
+
+- **Starting.** After each layout, `AnimationEngine` compares what was on screen with the new
+  tree. A node whose position, size, or opacity changed animates if an `animation(_:value:)`
+  around it saw its value change, or else if the change happened inside `withAnimation` or a
+  navigation push or pop. Sheets and alerts always animate.
+- **Relative motion.** A position is animated relative to the node's parent, so content moving
+  with its parent needs no animation of its own, and a change that is not animated, such as a
+  scroll, still moves animated content correctly. Text keeps its final size while it moves, so
+  it does not rewrap.
+- **Transitions.** The topmost node of a new subtree enters with its transition, by default a
+  fade. The topmost node of a removed subtree is kept, as last drawn, until its transition ends.
+  Screens of a navigation stack slide across the stack; sheets move up from the bottom edge.
+- **Time.** Curves are evaluated at the host's `time`, so the frames depend only on the changes
+  and when they happened. `isAnimating` stays true until every animation has ended, and each
+  `advanceTime(by:)` call while one runs increases `revision`, so the preview session draws at
+  60 frames per second. Springs end when they settle within a thousandth of their target.
+
 ### Text input
 
 A `TextField` registers its binding with the evaluator, the way a `Button` registers its action.

@@ -52,14 +52,15 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
       commands and screenshots
 - [x] An agent and a person using the same app: `parhelion mcp --window`
 - [ ] A manual clock for agents, so that `wait` advances time instead of sleeping
-- [ ] Extend the deterministic clock to animations and timers
+- [x] Extend the deterministic clock to animations
+- [ ] Extend the deterministic clock to timers
 
 ## 0.6: More of SwiftUI
 
 - [x] `List` and `Section`
 - [x] `NavigationStack` and `NavigationLink`
 - [x] `sheet` and `alert`
-- [ ] Animations
+- [x] Animations
 
 ## Continuous: Fidelity
 

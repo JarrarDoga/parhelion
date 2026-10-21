@@ -15,6 +15,8 @@ struct ModifiedContent<Content: View>: View {
         case attribute(key: String, value: String)
         /// A layout change, appended to ``ViewNode/modifiers``.
         case layout(LayoutModifier)
+        /// An opacity, multiplied into the `opacity` attribute.
+        case opacity(Double)
     }
 
     let content: Content
@@ -32,6 +34,9 @@ extension ModifiedContent: PrimitiveView {
             switch change {
             case .attribute(let key, let value): node.attributes[key] = value
             case .layout(let modifier): node.modifiers.append(modifier)
+            case .opacity(let opacity):
+                let combined = node.opacity * opacity
+                node.attributes["opacity"] = formatPoints(CGFloat(combined))
             }
             return node
         }

@@ -84,12 +84,25 @@ may contain breaking changes.
   `dismiss` and `isPresented` values. `dismiss` closes a sheet or pops a pushed view.
 - `ViewHost.interactiveRoot`, the frontmost sheet or alert, and `InteractionError.covered` for
   a tap on a view behind one.
+- Animation: `withAnimation(_:_:)`, `animation(_:value:)`, and `Animation` with `default`,
+  `linear`, `easeIn`, `easeOut`, `easeInOut`, `timingCurve`, `spring`, `interactiveSpring`,
+  `smooth`, `snappy`, `bouncy`, `delay(_:)`, and `speed(_:)`. Animations run on the host's clock.
+- `transition(_:)` with `AnyTransition`: `opacity`, `identity`, `slide`, `move(edge:)`,
+  `offset`, `push(from:)`, `asymmetric(insertion:removal:)`, and `combined(with:)`.
+- Navigation pushes and pops slide the screens, and sheets and alerts animate in and out.
+- The `opacity(_:)` and `offset(x:y:)` modifiers.
+- `ViewHost.presentedRoot`, the tree as drawn while animations run. `root` keeps final values
+  (see ADR 0005).
+- Not yet supported: `scaleEffect`, `rotationEffect`, `matchedGeometryEffect`, the `scale`
+  transition, color interpolation, and repeating animations.
 
 ### Changed
 
 - Rectangles render through a fast path, so a full frame takes about 7 ms in a debug build
   instead of 45 ms.
 - Build errors from `parhelion run` are plain text, without the compiler's color codes.
+- A child outside its parent's bounds, such as a view moved by `offset`, receives taps, except
+  inside a scroll view.
 - Rounded rectangles fill their interiors as rectangles and rasterize only their corners, and a
   translucent fill blends once for each run of equal pixels. A screen with a sheet renders in
   16 ms in a debug build instead of 380 ms.

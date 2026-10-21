@@ -635,6 +635,7 @@ extension ViewHost {
     }
 
     func pushNavigation(_ entry: NavigationEntry, onto stack: NodeID, path: NavigationPathAccess?) {
+        animateNavigation(of: stack, .push)
         if case .value(let value) = entry, let path, (navigationState[stack] ?? []).isEmpty {
             path.set(path.get() + [value])
         } else {
@@ -645,6 +646,7 @@ extension ViewHost {
 
     /// Pops entries until `count` remain above the root view.
     func popNavigation(of stack: NodeID, path: NavigationPathAccess?, toCount count: Int) {
+        animateNavigation(of: stack, .pop)
         let values = path?.get() ?? []
         if count >= values.count {
             navigationState[stack] = Array(

@@ -120,6 +120,21 @@ enum LayoutDefaults {
     /// Assumed: the height of each button in an alert.
     static let alertButtonHeight: CGFloat = 44
 
+    /// Assumed: the duration of a timing-curve animation, such as
+    /// `.easeInOut`, when none is given.
+    static let animationDuration = 0.35
+
+    /// Assumed: the response of the spring that `Animation.default` uses.
+    static let defaultSpringResponse = 0.5
+
+    /// Assumed: the animation of a push or pop in a navigation stack, and of
+    /// a sheet or alert appearing and disappearing.
+    static let presentationAnimation = Animation.spring(response: 0.4, dampingFraction: 1)
+
+    /// Assumed: the fraction of the stack's width that the screen beneath a
+    /// pushed screen moves toward the leading edge.
+    static let navigationParallax: CGFloat = 0.3
+
     /// Assumed: the side of a symbol image relative to the font size, for
     /// each image scale. Parhelion has no SF Symbols, so every symbol is a
     /// square of this size.
