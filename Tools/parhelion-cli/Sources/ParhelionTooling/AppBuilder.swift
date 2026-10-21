@@ -63,7 +63,9 @@ public struct AppBuilder: Sendable {
     /// lines around them. Paths inside a runner package are replaced with
     /// the app's own source paths, so editors can open them.
     public func errorSummary(_ output: String) -> String {
-        var output = output
+        // The compiler colors its diagnostics even into a pipe. The summary
+        // goes to agents and logs, so it is plain text.
+        var output = output.replacing(/\x1B\[[0-9;]*[A-Za-z]/, with: "")
         if let runner = plan.runner {
             // Longest links first, so that no link is a prefix of a later one.
             for (link, destination) in runner.links.sorted(by: { $0.key.count > $1.key.count }) {

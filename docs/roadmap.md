@@ -47,8 +47,11 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 
 ## 0.5: Agent server
 
-- [ ] An MCP server: read the tree, tap, type, scroll, take a screenshot
-- [ ] Off-screen rendering, so another app can embed or stream the preview
+- [x] An MCP server: read the tree, tap, type, scroll, take a screenshot: `parhelion mcp`
+- [x] Off-screen rendering, so another app can embed or stream the preview: the socket protocol's
+      commands and screenshots
+- [x] An agent and a person using the same app: `parhelion mcp --window`
+- [ ] A manual clock for agents, so that `wait` advances time instead of sleeping
 - [ ] Extend the deterministic clock to animations and timers
 
 ## 0.6: More of SwiftUI

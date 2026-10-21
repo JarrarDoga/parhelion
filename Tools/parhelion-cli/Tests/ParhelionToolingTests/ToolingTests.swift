@@ -166,6 +166,15 @@ struct RunPlanTests {
         #expect(summary == "/work/MyApp/Sources/MyApp/ContentView.swift:3:5: error: oops")
     }
 
+    @Test("Build errors are plain text")
+    func errorColors() throws {
+        let package = try AppPackage.parse(Data(libraryAppJSON.utf8))
+        let plan = try RunPlan.make(for: package, at: "/work/MyApp", product: nil)
+        let output = "/work/MyApp/A.swift:1:1: \u{1B}[1;31merror: \u{1B}[1;39moops\u{1B}[0;0m"
+        #expect(
+            AppBuilder(plan: plan).errorSummary(output) == "/work/MyApp/A.swift:1:1: error: oops")
+    }
+
     @Test("Preparing a plan writes the manifest and links")
     func prepare() throws {
         let root = FileManager.default.temporaryDirectory

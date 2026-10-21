@@ -55,10 +55,16 @@ may contain breaking changes.
   `caretOffset`, and keyboard input in the preview window.
 - `Color.opacity(_:)`.
 - A `Form` example.
+- `parhelion mcp`, a Model Context Protocol server for coding agents. Its tools read the view tree,
+  take screenshots, tap, type, press keys, scroll, drag, wait, rebuild, and read the app's
+  output. `--window` shows the same app in a preview window.
+- `ViewHost.execute(_:)` and `drag(from:to:duration:)`, and command and reply messages in the
+  preview protocol.
 
 ### Changed
 
 - Rectangles render through a fast path, so a full frame takes about 7 ms in a debug build
   instead of 45 ms.
+- Build errors from `parhelion run` are plain text, without the compiler's color codes.
 
 [Unreleased]: https://github.com/JarrarDoga/parhelion/commits/main

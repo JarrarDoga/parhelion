@@ -68,3 +68,26 @@ struct PreviewChannelTests {
         #expect(try host.receiveAppMessage(timeout: 1) != nil)
     }
 }
+
+@Suite("Commands and replies")
+struct CommandReplyTests {
+    @Test("Commands and replies arrive intact")
+    func roundTrip() throws {
+        let (app, host) = try PreviewChannel.pair()
+        let commands: [PreviewCommand] = [
+            .inspect(json: true), .screenshot(scale: 2), .tapNode(id: "A/B"),
+            .tapButton(label: "Go"),
+            .tapPoint(x: 1, y: 2), .focus(id: nil), .typeText("hi"), .pressKey("tab"),
+            .scroll(dx: 0, dy: 5, x: 1, y: 1), .scrollTo(id: "S", x: 0, y: 9),
+            .drag(fromX: 0, fromY: 0, toX: 1, toY: 1, duration: 0.2),
+        ]
+        for (index, command) in commands.enumerated() {
+            try host.send(.command(id: index, command))
+            #expect(try app.receiveHostMessage(timeout: 1) == .command(id: index, command))
+        }
+        let reply = PreviewReply(
+            ok: true, message: "Done", png: Data([1, 2, 3]), revision: 4, isAnimating: true)
+        try app.send(.reply(id: 3, reply))
+        #expect(try host.receiveAppMessage(timeout: 1) == .reply(id: 3, reply))
+    }
+}
