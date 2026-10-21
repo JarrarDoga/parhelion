@@ -239,6 +239,33 @@ highlight, and releasing over the same button taps it. `ViewHost.pointerDown(at:
 
 The tool's logic lives in `ParhelionTooling`, a library with tests, separate from the SDL code.
 
+### The agent server
+
+`parhelion mcp` serves one app to a coding agent over the Model Context Protocol, on standard
+input and output:
+
+```text
+ agent  ◄── MCP, JSON-RPC lines ──►  parhelion mcp  ◄── commands, replies ──►  the app
+                                     (optional window)     Unix domain socket
+```
+
+1. It builds the app the way `parhelion run` does and starts it with the preview protocol, with
+   the app's output captured, because standard output carries the protocol.
+2. Each tool call becomes a `command` message with a request identifier. The app runs it on
+   `ViewHost` with `execute(_:)` and answers with a `reply`: whether it succeeded, a message for
+   the agent, an optional PNG, the screen's `revision`, and whether scrolling is still animating.
+3. `rebuild` builds again from the current sources. If the build succeeds, it restarts the app
+   with its state, as hot reload does. If the build fails, the old app keeps running and the
+   tool result is the compiler errors, as plain text with paths to the app's own files.
+
+A failed tool call is a result with `isError`, so the model reads the message and tries again.
+Only malformed requests are JSON-RPC errors. With `--window`, the same app also appears in a
+preview window: the protocol moves to a background thread, SDL keeps the main thread, and
+frames and mouse input flow as in `parhelion run`. A person and an agent then use one app.
+
+The screenshot tool is the off-screen rendering path: any process that speaks the socket
+protocol can request frames and send input without a window.
+
 ### Apps
 
 `App`, `Scene`, and `WindowGroup` mirror SwiftUI so an app's `@main` type compiles. Under
@@ -248,14 +275,5 @@ with `--png`.
 
 ## Planned layers
 
-- **Window.** A window host in `Tools/` shows frames that the app process renders off screen, and
-  sends mouse and keyboard input back over a local socket. Only the host depends on SDL3
-  ([ADR 0004](adr/0004-pure-swift-renderer.md)).
-- **Input.** The preview translates mouse and keyboard input into the touch model that SwiftUI
-  apps expect: a click is a tap, a drag is a touch drag, the mouse wheel and trackpad scroll, and
-  the keyboard types into the focused field. Hit testing uses the frames from layout.
-- **Agent server.** A process that exposes `ViewHost` over the Model Context Protocol (MCP), so
-  agents can read the tree, tap, type, scroll, take screenshots, and advance a deterministic
-  clock, either alongside a person in the same preview or without a window.
 - **Fidelity checks.** A macOS CI job that renders the same views with Apple's SwiftUI and
   compares the resolved trees and layouts with Parhelion's.

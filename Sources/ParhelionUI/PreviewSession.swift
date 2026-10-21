@@ -98,6 +98,8 @@ final class PreviewSession {
             host.typeText(text)
         case .key(let name):
             if let key = ViewHost.Key(rawValue: name) { host.press(key) }
+        case .command(let id, let command):
+            try channel.send(.reply(id: id, host.execute(command)))
         case .close:
             saveState()
             return false

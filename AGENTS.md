@@ -26,9 +26,12 @@ changing anything under `Sources/`.
   `SDL_VIDEODRIVER=offscreen Tools/parhelion-cli/.build/debug/parhelion preview --exit-after-first-frame .build/debug/Counter`.
 - Set `PARHELION_DEBUG=1` to trace events and messages in the host and the app.
 - `swift test --package-path Tools/parhelion-cli` tests package inspection, runner generation,
-  and file watching in `ParhelionTooling`.
+  file watching, and the MCP server in `ParhelionTooling`.
 - `parhelion run --exit-after-first-frame --package-path Tools/parhelion-cli/Fixtures/LibraryApp`
   checks an `xtool`-shaped app end to end.
+- `SDL_VIDEODRIVER=offscreen Scripts/mcp-session.py Tools/parhelion-cli/.build/debug/parhelion`
+  drives `parhelion mcp` the way an agent does and checks each answer, including a failed build
+  and state across a rebuild.
 - Never open a preview window on the user's desktop. Exporting `DISPLAY` is not enough: SDL3
   prefers Wayland when `WAYLAND_DISPLAY` is set. Use `SDL_VIDEODRIVER=offscreen`, or an isolated
   display with `WAYLAND_DISPLAY` unset and `SDL_VIDEODRIVER=x11`.

@@ -15,8 +15,8 @@ of guessing from a screenshot.
 > [!NOTE]
 > Parhelion is pre-alpha. Today it resolves, lays out, and draws views, keeps state, and runs apps
 > in a preview window that reloads when you save, where you tap, scroll, and type with your mouse
-> and keyboard. An agent server is the next milestone. See [Status](#status) and the
-> [roadmap](docs/roadmap.md).
+> and keyboard. Coding agents drive the same apps through an MCP server. See [Status](#status)
+> and the [roadmap](docs/roadmap.md).
 
 ## Why Parhelion
 
@@ -30,7 +30,7 @@ changed after an action.
   framework. The same package builds for both.
 - **A live preview.** Your app runs in a phone-sized window on your Linux desktop. Click to tap,
   scroll with the mouse wheel or by dragging, and type with the keyboard. Saving a file reloads
-  the app. *(Planned: see the roadmap.)*
+  the app.
 - **Made for agents.** The resolved view tree is plain `Codable` data with stable structural
   identifiers. The preview window, unit tests, and agents all drive the app through the same
   `ViewHost` API, with or without a window.
@@ -134,6 +134,29 @@ per second at the cost of slower rebuilds.
 The app draws its own frames and sends them to the window over a local socket, so the same app
 can also run with no window at all, for tests and agents.
 
+## Agents
+
+`parhelion mcp` serves your app to a coding agent over the Model Context Protocol. Register it
+with Claude Code from your app's directory:
+
+```console
+$ claude mcp add parhelion -- parhelion mcp --package-path .
+```
+
+The agent gets these tools:
+
+| Tool | What it does |
+| --- | --- |
+| `get_view_tree` | The screen as a tree of views with identifiers and frames, as an outline or JSON |
+| `screenshot` | A PNG of the screen |
+| `tap`, `type_text`, `press_key` | Tap by identifier, label, or position; type into text fields; Tab, Return, Backspace, and the caret keys |
+| `scroll`, `scroll_to`, `drag`, `wait` | Scroll like a mouse wheel, to an offset, or by dragging with momentum, and wait for it to settle |
+| `rebuild`, `app_output` | Rebuild after editing the code, keeping `@State`, with compiler errors on failure; read what the app printed |
+
+Each interaction reports the screen's revision, so the agent can tell whether it changed
+anything. Add `--window` to watch the app in a preview window and use it yourself while the agent
+works.
+
 ## Status
 
 | Area | Supported today |
@@ -145,10 +168,11 @@ can also run with no window at all, for tests and agents.
 | Layout | SwiftUI's propose-and-respond stack algorithm, text wrapping with the bundled Inter font, iPhone 16 screen and safe area |
 | Input | Tap by node, by button label, or by screen position; press, drag away to cancel, and release with the mouse; scroll by dragging with momentum, or with the mouse wheel and trackpad; type into text fields, with the caret keys, Backspace, Delete, and Tab between fields |
 | Window | `parhelion run` with hot reload that keeps `Codable` state, and `parhelion preview`; an SDL3 window host for Wayland and X11 |
+| Agents | `parhelion mcp`, with or without a window |
 | Rendering | Anti-aliased shapes and Inter text drawn in pure Swift at any scale, with PNG output; SF Symbols draw as placeholder rings |
 | App | `App`, `Scene`, `WindowGroup`, with a headless runner |
 
-Not yet available: text selection, fonts other than body text, lists and scrolling, navigation, the
+Not yet available: text selection, fonts other than body text, `List`, navigation, the
 environment, animation, and gestures other than tap. Layout constants that Parhelion assumes about
 SwiftUI, such as the default padding, are listed in `LayoutDefaults.swift` until a macOS CI job
 verifies them. The [roadmap](docs/roadmap.md) lists the

@@ -47,6 +47,58 @@ public struct PreviewFrame: Equatable, Sendable {
 public enum AppMessage: Equatable, Sendable {
     case hello(PreviewHello)
     case frame(PreviewFrame)
+    /// The answer to a ``HostMessage/command(id:_:)``.
+    case reply(id: Int, PreviewReply)
+}
+
+/// A request from a tool, such as an agent server, that the app answers
+/// with a ``PreviewReply``. Node identifiers are ``ViewNode`` IDs as text.
+public enum PreviewCommand: Codable, Equatable, Sendable {
+    /// The view tree, as an outline with identifiers and frames, or as JSON.
+    case inspect(json: Bool)
+    /// The screen as a PNG image at a number of pixels per point.
+    case screenshot(scale: Double)
+    /// Taps the node with an identifier.
+    case tapNode(id: String)
+    /// Taps the one button whose label is exactly `label`.
+    case tapButton(label: String)
+    /// Taps whatever is at a point on the screen.
+    case tapPoint(x: Double, y: Double)
+    /// Focuses a text field, or ends editing when `id` is `nil`.
+    case focus(id: String?)
+    /// Types text into the focused text field.
+    case typeText(String)
+    /// Presses an editing or focus key, by its `ViewHost.Key` name.
+    case pressKey(String)
+    /// Scrolls the scroll view at a point by `dx`, `dy` points.
+    case scroll(dx: Double, dy: Double, x: Double, y: Double)
+    /// Scrolls a scroll view to an offset.
+    case scrollTo(id: String, x: Double, y: Double)
+    /// Drags from one point to another over `duration` seconds, as a finger
+    /// would. A fast drag over a scroll view leaves it moving.
+    case drag(fromX: Double, fromY: Double, toX: Double, toY: Double, duration: Double)
+}
+
+/// The app's answer to a ``PreviewCommand``.
+public struct PreviewReply: Codable, Equatable, Sendable {
+    /// Whether the command succeeded.
+    public var ok: Bool
+    /// What happened, or the error.
+    public var message: String
+    /// The image, for screenshots.
+    public var png: Data?
+    /// The app's revision after the command.
+    public var revision: Int
+    /// Whether anything is still moving, such as scroll momentum.
+    public var isAnimating: Bool
+
+    public init(ok: Bool, message: String, png: Data? = nil, revision: Int, isAnimating: Bool) {
+        self.ok = ok
+        self.message = message
+        self.png = png
+        self.revision = revision
+        self.isAnimating = isAnimating
+    }
 }
 
 /// A message from the window host to the app. Positions are in points,
@@ -67,6 +119,8 @@ public enum HostMessage: Codable, Equatable, Sendable {
     /// An editing or focus key: `backspace`, `delete`, `left`, `right`,
     /// `home`, `end`, `tab`, `backTab`, `return`, or `escape`.
     case key(String)
+    /// A request that the app answers with ``AppMessage/reply(id:_:)``.
+    case command(id: Int, PreviewCommand)
     /// The host is closing; the app should exit.
     case close
 }
@@ -80,6 +134,13 @@ enum WireKind: UInt8 {
     case hello = 1
     case frame = 2
     case host = 3
+    case reply = 4
+}
+
+/// The envelope of a reply on the wire.
+private struct EncodedReply: Codable {
+    var id: Int
+    var reply: PreviewReply
 }
 
 enum MessageCoding {
@@ -87,6 +148,9 @@ enum MessageCoding {
         switch message {
         case .hello(let hello):
             return envelope(.hello, [UInt8](try JSONEncoder().encode(hello)))
+        case .reply(let id, let reply):
+            return envelope(
+                .reply, [UInt8](try JSONEncoder().encode(EncodedReply(id: id, reply: reply))))
         case .frame(let frame):
             var payload: [UInt8] = []
             payload.reserveCapacity(8 + frame.pixels.count)
@@ -105,6 +169,9 @@ enum MessageCoding {
         switch WireKind(rawValue: kind) {
         case .hello:
             return .hello(try JSONDecoder().decode(PreviewHello.self, from: Data(payload)))
+        case .reply:
+            let decoded = try JSONDecoder().decode(EncodedReply.self, from: Data(payload))
+            return .reply(id: decoded.id, decoded.reply)
         case .frame:
             guard payload.count >= 8 else { throw PreviewChannel.ChannelError.malformedMessage }
             let width = Int(payload.readBigEndian(at: 0))
