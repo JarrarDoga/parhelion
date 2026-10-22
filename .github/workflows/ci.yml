@@ -12,12 +12,30 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Every job runs on a self-hosted pool: one disposable container per job, one job
+# at a time. Its image is Debian 13 with SDL3, python3, and the Swift 6.3 and 6.4
+# toolchains under /opt/swift/<version>. No Swift is on PATH until a job selects
+# one.
+#
+# Each job's first step refuses pull requests from forks, before checkout, so
+# that code from outside the repository never runs on the pool. It fails the
+# required check instead of skipping the job, because branch protection treats
+# a skipped required check as passed.
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
-    container: swift:6.4-noble
+    runs-on: parhelion-optiplex
+    timeout-minutes: 15
     steps:
+      - name: Refuse pull requests from forks
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::error::Pull requests from forks do not run on the self-hosted runners."
+          exit 1
+      - name: Select Swift 6.4
+        run: echo /opt/swift/6.4/usr/bin >> "$GITHUB_PATH"
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
@@ -39,13 +57,22 @@ jobs:
 
   test:
     name: Test (Swift ${{ matrix.swift }})
-    runs-on: ubuntu-latest
-    container: swift:${{ matrix.swift }}-noble
+    runs-on: parhelion-optiplex
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         swift: ["6.3", "6.4"]
     steps:
+      - name: Refuse pull requests from forks
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::error::Pull requests from forks do not run on the self-hosted runners."
+          exit 1
+      - name: Select Swift ${{ matrix.swift }}
+        run: echo "/opt/swift/${{ matrix.swift }}/usr/bin" >> "$GITHUB_PATH"
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
@@ -65,15 +92,21 @@ jobs:
 
   window-host:
     name: Window host (Swift 6.4)
-    runs-on: ubuntu-latest
-    # SDL3 is packaged for Ubuntu 26.04 but not 24.04; see docs/adr/0004-pure-swift-renderer.md.
-    container: swift:6.4-resolute
+    runs-on: parhelion-optiplex
+    timeout-minutes: 30
     steps:
+      - name: Refuse pull requests from forks
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::error::Pull requests from forks do not run on the self-hosted runners."
+          exit 1
+      - name: Select Swift 6.4
+        run: echo /opt/swift/6.4/usr/bin >> "$GITHUB_PATH"
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Install SDL3 and Python
-        run: apt-get update && apt-get install -y --no-install-recommends libsdl3-dev python3
       - name: Build the parhelion tool
         run: swift build --package-path Tools/parhelion-cli --build-tests -Xswiftc -warnings-as-errors
       - name: Test the parhelion tool
