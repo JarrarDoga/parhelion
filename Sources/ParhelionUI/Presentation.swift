@@ -123,7 +123,37 @@ extension View {
     /// Sets the heights a sheet can rest at. Parhelion shows the sheet at the
     /// smallest one.
     public func presentationDetents(_ detents: Set<PresentationDetent>) -> some View {
-        PresentationOptionView(content: self, detents: detents)
+        PresentationOptionView(content: self, option: .detents(detents))
+    }
+
+    /// Sets whether a sheet shows a grabber at its top. With `.automatic`,
+    /// it shows one when it has more than one detent.
+    public func presentationDragIndicator(_ visibility: Visibility) -> some View {
+        PresentationOptionView(content: self, option: .dragIndicator(visibility))
+    }
+}
+
+/// Whether a part of the interface is shown, mirroring SwiftUI's
+/// `Visibility`.
+public enum Visibility: String, CaseIterable, Hashable, Sendable {
+    /// Shown or hidden as the system chooses.
+    case automatic
+    /// Shown.
+    case visible
+    /// Hidden.
+    case hidden
+}
+
+struct IsInSheetKey: EnvironmentKey {
+    static var defaultValue: Bool { false }
+}
+
+extension EnvironmentValues {
+    /// Whether the view is in a sheet, whose navigation bar leaves room
+    /// above its buttons.
+    var isInSheet: Bool {
+        get { self[IsInSheetKey.self] }
+        set { self[IsInSheetKey.self] = newValue }
     }
 }
 
@@ -150,11 +180,13 @@ extension PresentingView: PrimitiveView {
         let nodes = evaluator.evaluate(content, at: path)
         guard let identity, let view = presented() else { return nodes }
         let ownPath = path.appending(identity)
-        let environment = evaluator.environment.presenting(dismiss: dismiss)
         let kind = kind
+        var environment = evaluator.environment.presenting(dismiss: dismiss)
+        environment.isInSheet = kind == "Sheet"
         evaluator.registerPresentation(
             Presentation(id: ownPath.id, dismiss: dismiss, onDismiss: onDismiss) { evaluator in
                 evaluator.presentationDetents = []
+                evaluator.presentationDragIndicator = .automatic
                 let children = evaluator.withEnvironment({ $0 = environment }) {
                     evaluator.evaluate(view, at: ownPath)
                 }
@@ -162,6 +194,9 @@ extension PresentingView: PrimitiveView {
                 if !evaluator.presentationDetents.isEmpty {
                     attributes["detents"] = evaluator.presentationDetents.map(\.name).sorted()
                         .joined(separator: ",")
+                }
+                if evaluator.presentationDragIndicator != .automatic {
+                    attributes["dragIndicator"] = evaluator.presentationDragIndicator.rawValue
                 }
                 return ViewNode(
                     id: ownPath.id, kind: kind, attributes: attributes, children: children)
@@ -171,12 +206,17 @@ extension PresentingView: PrimitiveView {
     }
 }
 
-/// A view that sets the detents of the sheet it is in.
+/// A view that sets the detents or the grabber of the sheet it is in.
 struct PresentationOptionView<Content: View>: View {
     typealias Body = Never
 
+    enum Option {
+        case detents(Set<PresentationDetent>)
+        case dragIndicator(Visibility)
+    }
+
     let content: Content
-    let detents: Set<PresentationDetent>
+    let option: Option
 
     var body: Never {
         fatalError("PresentationOptionView is a primitive view and has no body.")
@@ -185,7 +225,12 @@ struct PresentationOptionView<Content: View>: View {
 
 extension PresentationOptionView: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
-        evaluator.presentationDetents.formUnion(detents)
+        switch option {
+        case .detents(let detents):
+            evaluator.presentationDetents.formUnion(detents)
+        case .dragIndicator(let visibility):
+            evaluator.presentationDragIndicator = visibility
+        }
         return evaluator.evaluate(content, at: path)
     }
 }
@@ -273,7 +318,12 @@ extension AlertView: PrimitiveView {
         let ownPath = path.appending("alert")
         let isPresented = isPresented
         let dismiss: @MainActor () -> Void = { isPresented.wrappedValue = false }
-        let environment = evaluator.environment.presenting(dismiss: dismiss)
+        var environment = evaluator.environment.presenting(dismiss: dismiss)
+        // An alert draws its buttons as capsules, whatever style is set
+        // around it.
+        environment.buttonContext = .alert
+        environment.buttonStyle = .builtIn(.automatic)
+        environment.isInSheet = false
         let title = title
         let message = message
         evaluator.registerPresentation(
@@ -312,9 +362,11 @@ extension AlertView: PrimitiveView {
                             buttons.append(button)
                         }
                     }
+                    // Assumed: the title is semibold 17 points, which is
+                    // `headline`, in the iOS 27 UI Kit.
                     let titleNode = ViewNode(
                         id: ownPath.appending("title").id, kind: "Text",
-                        attributes: ["text": title])
+                        attributes: ["text": title, "font": Font.headline.resolved().attribute])
                     let messageNodes =
                         message.map { evaluator.evaluate($0, at: ownPath.appending("message")) }
                         ?? []

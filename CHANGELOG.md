@@ -145,6 +145,15 @@ may contain breaking changes.
   `PreviewClock`, and `PreviewTimeline` in `ParhelionPreview`.
 - `parhelion run` prints its build mode, the modules each rebuild compiled, and the time from a
   change to the new app's first frame, split into build and restart.
+- Button styles: `buttonStyle(_:)` with `.automatic`, `.plain`, `.borderless`, `.bordered`,
+  `.borderedProminent`, `.glass`, and `.glassProminent`, and custom `ButtonStyle` types, whose
+  `makeBody(configuration:)` replaces the label. Bordered and glass buttons are capsules 34
+  points tall with 12 points of padding; `controlSize(_:)` makes them smaller or larger. A button
+  records its style as a `buttonStyle` attribute.
+- `tint(_:)`, which colors buttons' labels and prominent buttons' fills.
+- `presentationDragIndicator(_:)` and `Visibility`. A sheet with several detents, or one that asks
+  for it, shows a grabber.
+- `ViewNode.label` returns a node's `label` attribute when it has one.
 
 ### Changed
 
@@ -186,6 +195,22 @@ may contain breaking changes.
   0.75 s, and falls back to checking twice a second where inotify is not available.
 - The preview channel reads each message straight into its final array, without the 64 KB reads
   and repeated copies it made before.
+- Controls follow iOS 27's Liquid Glass, approximated with the new drawing primitives: a soft
+  shadow, a blur of what is behind (skipped over a flat color), a tint, and bright and dark edges.
+  - Toolbar items sit on 44-point glass circles and capsules, 16 points from the screen's edges
+    and 12 apart, with medium near-black labels instead of blue ones. Adjacent items share a
+    capsule, and a `.confirmationAction` button is blue prominent glass.
+  - The back button is a chevron on a glass circle, without the previous title. Its `label`
+    attribute is that title, so `tapButton(labeled:)` and agents still find it by the title.
+  - Alerts are 300 points wide, with continuous 34-point corners, a left-aligned semibold title and
+    gray message, and capsule buttons: two side by side, more stacked. The screen behind dims
+    blue-gray.
+  - Sheets start at the top of the safe area, with continuous 38-point corners and a shadow, and
+    their navigation bar leaves 16 points above its buttons. Sheets at a partial detent are
+    inset glass with four rounded corners.
+- List sections have continuous corners.
+- The `Counter` example uses `.bordered` and `.borderedProminent` buttons, and the README shows
+  the `Tasks` example's screens.
 
 ### Fixed
 

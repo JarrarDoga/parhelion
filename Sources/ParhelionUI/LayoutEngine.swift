@@ -86,15 +86,20 @@ struct LayoutEngine {
             node.frame = frame
             node.children = placeAlert(node, in: frame)
         case "Sheet":
-            let top =
-                sheetTop(detents: node.attributes["detents"])
-                + (scrolling.presentationOffsets[node.id] ?? 0)
-            let frame = CGRect(x: 0, y: top, width: screen.width, height: screen.maxY - top)
+            let rest = sheetTop(detents: node.attributes["detents"])
+            let top = rest + (scrolling.presentationOffsets[node.id] ?? 0)
+            // A sheet below its large detent is inset from the sides and the
+            // bottom of the screen.
+            let isPartial = rest > safeArea.minY + LayoutDefaults.sheetTopInset + 0.5
+            let inset = isPartial ? LayoutDefaults.partialSheetInset : 0
+            let frame = CGRect(
+                x: inset, y: top, width: max(screen.width - 2 * inset, 0),
+                height: max(screen.maxY - inset - top, 0))
             node.frame = frame
             // The sheet's content stays above the home indicator.
             let content = CGRect(
                 x: frame.minX, y: frame.minY, width: frame.width,
-                height: max(frame.height - device.safeAreaInsets.bottom, 0))
+                height: max(frame.height - max(device.safeAreaInsets.bottom - inset, 0), 0))
             node.children = placeCentered(node.children, id: node.id, in: content)
         default:
             node.frame = screen
@@ -127,10 +132,12 @@ struct LayoutEngine {
         var content: [(node: ViewNode, size: CGSize)]
         var buttons: [ViewNode]
         var buttonsInRow: Bool
+        var buttonsHeight: CGFloat
     }
 
-    /// Stacks an alert's title and message, centered, above its buttons. Two
-    /// buttons share a row; otherwise each has its own.
+    /// Stacks an alert's title and message at its leading edge, above its
+    /// capsule buttons: two buttons side by side, and otherwise one above
+    /// another.
     private func alertLayout(_ node: ViewNode) -> AlertLayout {
         let insets = LayoutDefaults.alertContentInsets
         let width = LayoutDefaults.alertWidth
@@ -147,14 +154,18 @@ struct LayoutEngine {
             content.reduce(0) { $0 + $1.1.height }
             + LayoutDefaults.alertContentSpacing * CGFloat(max(content.count - 1, 0))
         let buttonsInRow = buttons.count == 2
-        let buttonRows = buttonsInRow ? 1 : buttons.count
+        let rows = CGFloat(buttonsInRow ? 1 : buttons.count)
+        let buttonsHeight =
+            LayoutDefaults.alertButtonHeight * rows
+            + LayoutDefaults.alertStackedButtonSpacing * max(rows - 1, 0)
         let height =
-            insets.vertical + contentHeight + LayoutDefaults.alertButtonHeight * CGFloat(buttonRows)
+            insets.vertical + contentHeight + buttonsHeight + LayoutDefaults.alertButtonInset
         return AlertLayout(
             size: CGSize(width: width, height: height),
             content: content,
             buttons: buttons,
-            buttonsInRow: buttonsInRow
+            buttonsInRow: buttonsInRow,
+            buttonsHeight: buttonsHeight
         )
     }
 
@@ -165,24 +176,27 @@ struct LayoutEngine {
         var y = frame.minY + insets.top
         for (child, size) in layout.content {
             let rect = CGRect(
-                x: frame.midX - size.width / 2, y: y, width: size.width, height: size.height)
+                x: frame.minX + insets.leading, y: y, width: size.width, height: size.height)
             placed[child.id] = place(child, in: rect, parentAxis: nil)
             y += size.height + LayoutDefaults.alertContentSpacing
         }
-        // Each button fills its cell, so the whole cell responds to taps.
-        let buttonHeight = LayoutDefaults.alertButtonHeight
-        var buttonTop =
-            frame.maxY - buttonHeight * CGFloat(layout.buttonsInRow ? 1 : layout.buttons.count)
+        // Each button fills its capsule, so the whole capsule responds to
+        // taps.
+        let inset = LayoutDefaults.alertButtonInset
+        let height = LayoutDefaults.alertButtonHeight
+        let width = frame.width - 2 * inset
+        var top = frame.maxY - inset - layout.buttonsHeight
         for (index, button) in layout.buttons.enumerated() {
             let cell: CGRect
             if layout.buttonsInRow {
-                let half = frame.width / 2
+                let spacing = LayoutDefaults.alertButtonSpacing
+                let half = (width - spacing) / 2
                 cell = CGRect(
-                    x: frame.minX + half * CGFloat(index), y: buttonTop, width: half,
-                    height: buttonHeight)
+                    x: frame.minX + inset + (half + spacing) * CGFloat(index), y: top,
+                    width: half, height: height)
             } else {
-                cell = CGRect(x: frame.minX, y: buttonTop, width: frame.width, height: buttonHeight)
-                buttonTop += buttonHeight
+                cell = CGRect(x: frame.minX + inset, y: top, width: width, height: height)
+                top += height + LayoutDefaults.alertStackedButtonSpacing
             }
             placed[button.id] = place(button, in: cell, parentAxis: nil)
         }
@@ -372,9 +386,12 @@ struct LayoutEngine {
             }
             return CGSize(width: proposal.width ?? width, height: Self.navigationBarHeight(node))
         case "ToolbarItemGroup":
-            return stackLayout(
-                node, proposal, axis: .horizontal, spacing: LayoutDefaults.toolbarItemSpacing
-            ).size
+            if node.attributes["placement"] == "principal" {
+                return stackLayout(node, proposal, axis: .horizontal).size
+            }
+            return CGSize(
+                width: toolbarItemWidths(node).reduce(0, +),
+                height: LayoutDefaults.toolbarButtonSize)
         case "SectionHeader", "SectionFooter":
             let insets = Self.sectionLabelInsets(node)
             let size = overlaySize(node.children, proposal.inset(by: insets))
@@ -383,14 +400,41 @@ struct LayoutEngine {
                 height: size.height + insets.vertical
             )
         case "Button", "NavigationLink":
-            // Assumed: several views in a button label stack vertically.
-            if node.children.count == 1 {
-                return sizeThatFits(node.children[0], proposal, parentAxis: nil)
+            // A bordered or glass button is a capsule around its label.
+            if let metrics = Self.capsuleMetrics(node) {
+                let label = labelSize(
+                    node,
+                    ProposedSize(
+                        width: proposal.width.map { max($0 - 2 * metrics.padding, 0) },
+                        height: nil))
+                return CGSize(
+                    width: label.width + 2 * metrics.padding,
+                    height: max(label.height, metrics.height))
             }
-            return stackLayout(node, proposal, axis: .vertical).size
+            return labelSize(node, proposal)
         default:
             return overlaySize(node.children, proposal)
         }
+    }
+
+    /// The size of a button's or link's label.
+    private func labelSize(_ node: ViewNode, _ proposal: ProposedSize) -> CGSize {
+        // Assumed: several views in a button label stack vertically.
+        if node.children.count == 1 {
+            return sizeThatFits(node.children[0], proposal, parentAxis: nil)
+        }
+        return stackLayout(node, proposal, axis: .vertical).size
+    }
+
+    /// The height, padding, and font size of a button whose style draws a
+    /// capsule, or `nil` for other nodes.
+    static func capsuleMetrics(_ node: ViewNode) -> LayoutDefaults.ControlMetrics? {
+        guard node.kind == "Button",
+            let style = BuiltInButtonStyle(rawValue: node.attributes["buttonStyle"] ?? ""),
+            style.drawsShape
+        else { return nil }
+        let size = node.attributes["controlSize"].flatMap(ControlSize.init) ?? .regular
+        return LayoutDefaults.controlMetrics(size, glass: style.isGlass)
     }
 
     private func overlaySize(_ children: [ViewNode], _ proposal: ProposedSize) -> CGSize {
@@ -582,9 +626,17 @@ struct LayoutEngine {
                 let size = sizeThatFits(child, ProposedSize(content.size), parentAxis: nil)
                 return place(child, in: align(size, in: content, .leading), parentAxis: nil)
             }
-        case "Button" where node.children.count > 1,
-            "NavigationLink" where node.children.count > 1:
-            node.children = placeStack(node, in: rect, axis: .vertical)
+        case "Button", "NavigationLink":
+            // The label is centered in the button, inside a capsule's
+            // padding.
+            let padding = Self.capsuleMetrics(node)?.padding ?? 0
+            let content = rect.insetBy(dx: min(padding, rect.width / 2), dy: 0)
+            let label = align(labelSize(node, ProposedSize(content.size)), in: content, .center)
+            if node.children.count > 1 {
+                node.children = placeStack(node, in: label, axis: .vertical)
+            } else {
+                node.children = node.children.map { place($0, in: label, parentAxis: nil) }
+            }
         case "NavigationStack":
             let bar = node.children.first { $0.kind == "NavigationBar" }
             let barRect = CGRect(
@@ -599,10 +651,26 @@ struct LayoutEngine {
                 + placeCentered(content, id: node.id, in: contentRect)
         case "NavigationBar":
             node.children = placeNavigationBar(
-                node.children, in: rect, largeTitle: node.attributes["titleDisplayMode"] == "large")
+                node.children, in: rect, largeTitle: node.attributes["titleDisplayMode"] == "large",
+                topInset: Self.navigationBarTopInset(node))
+        case "ToolbarItemGroup" where node.attributes["placement"] == "principal":
+            node.children = placeStack(node, in: rect, axis: .horizontal)
         case "ToolbarItemGroup":
-            node.children = placeStack(
-                node, in: rect, axis: .horizontal, spacing: LayoutDefaults.toolbarItemSpacing)
+            // Each item fills its part of the group's capsule, so the whole
+            // capsule responds to taps.
+            var x = rect.minX
+            for (index, width) in toolbarItemWidths(node).enumerated() {
+                let child = node.children[index]
+                let cell = CGRect(x: x, y: rect.minY, width: width, height: rect.height)
+                if child.kind == "Button" || child.kind == "NavigationLink" {
+                    node.children[index] = place(child, in: cell, parentAxis: nil)
+                } else {
+                    let size = sizeThatFits(child, ProposedSize(cell.size), parentAxis: nil)
+                    node.children[index] = place(
+                        child, in: align(size, in: cell, .center), parentAxis: nil)
+                }
+                x += width
+            }
         case "ZStack":
             let alignment = Alignment(name: node.attributes["alignment"]) ?? .center
             node.children = node.children.map { child in
@@ -655,52 +723,99 @@ struct LayoutEngine {
     // MARK: - Navigation
 
     /// The height of a navigation bar, which depends on how it displays its
-    /// title.
+    /// title and whether it is in a sheet.
     static func navigationBarHeight(_ bar: ViewNode?) -> CGFloat {
-        bar?.attributes["titleDisplayMode"] == "large"
+        let height =
+            bar?.attributes["titleDisplayMode"] == "large"
             ? LayoutDefaults.largeTitleNavigationBarHeight : LayoutDefaults.navigationBarHeight
+        return height + (bar.map(navigationBarTopInset) ?? 0)
     }
 
-    /// Places the leading and trailing item groups at the edges of the bar's
-    /// top row, and an inline title, or the principal items, in the middle of
+    /// The space above a navigation bar's row of buttons: the top of a
+    /// sheet's toolbar, or none.
+    static func navigationBarTopInset(_ bar: ViewNode) -> CGFloat {
+        bar.attributes["presentation"] == "sheet" ? LayoutDefaults.sheetToolbarTopInset : 0
+    }
+
+    /// The width of each item in a group of toolbar items: a symbol is a
+    /// 44-point circle on its own and shares a capsule with its neighbors,
+    /// and anything else is padded at both ends.
+    private func toolbarItemWidths(_ node: ViewNode) -> [CGFloat] {
+        node.children.map { child in
+            if Self.isSymbolItem(child) {
+                return node.children.count == 1
+                    ? LayoutDefaults.toolbarButtonSize : LayoutDefaults.toolbarGroupedSymbolWidth
+            }
+            let unlimited = ProposedSize(width: nil, height: nil)
+            let content =
+                child.kind == "Button" || child.kind == "NavigationLink"
+                ? labelSize(child, unlimited) : sizeThatFits(child, unlimited, parentAxis: nil)
+            return max(
+                content.width + 2 * LayoutDefaults.toolbarTextButtonPadding,
+                LayoutDefaults.toolbarButtonSize)
+        }
+    }
+
+    /// Whether a toolbar item shows only a symbol: a symbol image, or a
+    /// button or link whose label is one.
+    static func isSymbolItem(_ node: ViewNode) -> Bool {
+        func isSymbol(_ node: ViewNode) -> Bool {
+            node.kind == "Image" && node.attributes["systemName"] != nil
+        }
+        if node.kind == "Button" || node.kind == "NavigationLink" {
+            return node.children.count == 1 && isSymbol(node.children[0])
+        }
+        return isSymbol(node)
+    }
+
+    /// Places the back button and the leading item groups along the leading
+    /// edge of the bar's top row, the trailing groups along its trailing
+    /// edge, and an inline title, or the principal items, in the middle of
     /// the row. A large title goes below the row, at the leading edge.
     private func placeNavigationBar(
-        _ children: [ViewNode], in rect: CGRect, largeTitle: Bool
+        _ children: [ViewNode], in rect: CGRect, largeTitle: Bool, topInset: CGFloat
     ) -> [ViewNode] {
         // Items center in the top row, not in the whole bar.
         let row = CGRect(
-            x: rect.minX, y: rect.minY, width: rect.width,
-            height: min(LayoutDefaults.navigationBarRowHeight, rect.height))
+            x: rect.minX, y: rect.minY + topInset, width: rect.width,
+            height: min(LayoutDefaults.navigationBarRowHeight, max(rect.height - topInset, 0)))
         func size(_ child: ViewNode, width: CGFloat? = nil) -> CGSize {
-            sizeThatFits(child, ProposedSize(width: width, height: row.height), parentAxis: nil)
+            // The back button is a glass circle.
+            if child.kind == "Button" {
+                let side = LayoutDefaults.toolbarButtonSize
+                return CGSize(width: side, height: side)
+            }
+            return sizeThatFits(
+                child, ProposedSize(width: width, height: row.height), parentAxis: nil)
         }
         func centered(_ size: CGSize, x: CGFloat) -> CGRect {
             CGRect(origin: CGPoint(x: x, y: row.minY + (row.height - size.height) / 2), size: size)
         }
         let margin = LayoutDefaults.navigationBarMargin
-        // The title stays centered, so it gets the width between the wider
-        // of the two side groups and its mirror image.
-        var sideExtent: CGFloat = 0
+        let spacing = LayoutDefaults.toolbarGroupSpacing
         var placed: [ViewNode?] = Array(repeating: nil, count: children.count)
-        for (index, child) in children.enumerated() {
-            switch child.attributes["placement"] {
-            case "leading":
-                let isBack = child.children.first?.id.rawValue.hasSuffix("/bar/back") == true
-                let inset = isBack ? LayoutDefaults.backButtonMargin : margin
-                let childSize = size(child)
-                placed[index] = place(
-                    child, in: centered(childSize, x: rect.minX + inset), parentAxis: nil)
-                sideExtent = max(sideExtent, inset + childSize.width + margin)
-            case "trailing":
-                let childSize = size(child)
-                placed[index] = place(
-                    child, in: centered(childSize, x: rect.maxX - margin - childSize.width),
-                    parentAxis: nil)
-                sideExtent = max(sideExtent, margin + childSize.width + margin)
-            default:
-                break
-            }
+        // Separate glass items are a fixed distance apart, from each edge
+        // inward.
+        var leadingX = rect.minX + margin
+        for (index, child) in children.enumerated()
+        where child.kind == "Button" || child.attributes["placement"] == "leading" {
+            let childSize = size(child)
+            placed[index] = place(child, in: centered(childSize, x: leadingX), parentAxis: nil)
+            leadingX += childSize.width + spacing
         }
+        var trailingX = rect.maxX - margin
+        for (index, child) in children.enumerated().reversed()
+        where child.attributes["placement"] == "trailing" {
+            let childSize = size(child)
+            trailingX -= childSize.width
+            placed[index] = place(child, in: centered(childSize, x: trailingX), parentAxis: nil)
+            trailingX -= spacing
+        }
+        // The title stays centered, so it gets the width between the wider
+        // of the two sides and its mirror image.
+        let leadingExtent = leadingX - rect.minX - margin
+        let trailingExtent = rect.maxX - margin - trailingX
+        let sideExtent = max(leadingExtent, trailingExtent) + margin
         for (index, child) in children.enumerated() where placed[index] == nil {
             if largeTitle, child.kind == "Text" {
                 let width = max(rect.width - 2 * margin, 0)
@@ -709,7 +824,7 @@ struct LayoutEngine {
                     child,
                     in: CGRect(
                         origin: CGPoint(
-                            x: rect.minX + margin, y: rect.minY + LayoutDefaults.largeTitleTop),
+                            x: rect.minX + margin, y: row.minY + LayoutDefaults.largeTitleTop),
                         size: titleSize),
                     parentAxis: nil)
                 continue

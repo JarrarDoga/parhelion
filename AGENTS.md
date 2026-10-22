@@ -9,7 +9,7 @@ changing anything under `Sources/`.
 - `swift build` and `swift test` work from the repository root. Swift 6.3 or later is required.
 - `swift run HelloParhelion` prints the resolved tree of the example app. Add `--frames`, `--ids`,
   or `--json`, or `--png PATH` to draw it. `swift run Counter` is an interactive example.
-- `PARHELION_BENCHMARK=1 swift test --filter "renderTiming|canvasTiming|primitiveTiming"` prints layout and render
+- `PARHELION_BENCHMARK=1 swift test --filter "renderTiming|canvasTiming|primitiveTiming|glassTiming"` prints layout and render
   timings. Add `-c release -Xswiftc -enable-testing` for optimized numbers.
 - To check rendering, write a PNG with `--png` and look at it. Never open windows on the user's
   desktop from a shell; the window host is for the user to run.

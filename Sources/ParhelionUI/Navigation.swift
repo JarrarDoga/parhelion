@@ -38,8 +38,9 @@ public struct NavigationPath: Equatable {
 /// navigation bar, mirroring SwiftUI's `NavigationStack`.
 ///
 /// Only the top view is on screen. The bar shows the top view's
-/// ``View/navigationTitle(_:)``, its toolbar items, and a back button whose
-/// label is the previous view's title. The root view's title is large, below
+/// ``View/navigationTitle(_:)``, its toolbar items on glass, and a back
+/// button: a chevron on a glass circle, whose `label` attribute is the
+/// previous view's title. The root view's title is large, below
 /// the row of buttons, and pushed views keep the display mode of the view
 /// beneath them unless they set one with
 /// ``View/navigationBarTitleDisplayMode(_:)``.
@@ -295,13 +296,15 @@ extension NavigationOptionView: PrimitiveView {
 /// Where a toolbar item goes, mirroring SwiftUI's `ToolbarItemPlacement`.
 ///
 /// Parhelion places items in the navigation bar: leading, trailing, or in
-/// place of the title.
+/// place of the title. A confirmation action's buttons take the
+/// ``PrimitiveButtonStyle/glassProminent`` style, as on iOS 26 and later.
 public struct ToolbarItemPlacement: Sendable, Equatable {
     enum Position: Sendable {
         case leading, principal, trailing
     }
 
     let position: Position
+    var isProminent = false
 
     public static let automatic = ToolbarItemPlacement(position: .trailing)
     public static let principal = ToolbarItemPlacement(position: .principal)
@@ -310,7 +313,8 @@ public struct ToolbarItemPlacement: Sendable, Equatable {
     public static let navigationBarLeading = ToolbarItemPlacement(position: .leading)
     public static let navigationBarTrailing = ToolbarItemPlacement(position: .trailing)
     public static let primaryAction = ToolbarItemPlacement(position: .trailing)
-    public static let confirmationAction = ToolbarItemPlacement(position: .trailing)
+    public static let confirmationAction = ToolbarItemPlacement(
+        position: .trailing, isProminent: true)
     public static let destructiveAction = ToolbarItemPlacement(position: .trailing)
     public static let cancellationAction = ToolbarItemPlacement(position: .leading)
 }
@@ -479,8 +483,16 @@ extension ToolbarView: PrimitiveView {
         guard let navigation = evaluator.navigation else { return nodes }
         let toolbarPath = path.appending("toolbar")
         for (index, item) in items.enumerated() {
-            let itemNodes = evaluator.evaluate(item.view, at: toolbarPath.appending(String(index)))
-            navigation.screen.toolbarItems.append((item.placement.position, itemNodes))
+            let placement = item.placement
+            let itemNodes = evaluator.withEnvironment({ environment in
+                // Items at the ends of the bar sit on glass, and a
+                // confirmation action's buttons are prominent.
+                if placement.position != .principal { environment.buttonContext = .toolbar }
+                if placement.isProminent { environment.buttonStyle = .builtIn(.glassProminent) }
+            }) {
+                evaluator.evaluate(item.view, at: toolbarPath.appending(String(index)))
+            }
+            navigation.screen.toolbarItems.append((placement.position, itemNodes))
         }
         return nodes
     }
@@ -581,47 +593,56 @@ extension NavigationStack: PrimitiveView {
             }
         }
         let barPath = ownPath.appending("bar")
-        var leading: [ViewNode] = []
+        var barChildren: [ViewNode] = []
         if screens.count > 1, !top.screen.backButtonHidden {
+            // The back button is a chevron on a glass circle, without the
+            // previous title, as on iOS 26 and later. Its `label` attribute
+            // is that title, so taps by label still find it.
             let backPath = barPath.appending("back")
             let count = screens.count - 2
             evaluator.registerAction(
                 { [weak host] in host?.popNavigation(of: id, path: pathAccess, toCount: count) },
                 for: backPath.id
             )
-            let previousTitle = screens[screens.count - 2].screen.title
-            let label = ViewNode(
-                id: backPath.appending("HStack").id,
-                kind: "HStack",
-                attributes: ["spacing": formatPoints(LayoutDefaults.backButtonSpacing)],
-                children: [
-                    ViewNode(
-                        id: backPath.appending("Image").id, kind: "Image",
-                        attributes: ["systemName": "chevron.backward"]),
-                    ViewNode(
-                        id: backPath.appending("Text").id, kind: "Text",
-                        attributes: ["text": previousTitle ?? "Back"]),
-                ]
-            )
-            leading.append(ViewNode(id: backPath.id, kind: "Button", children: [label]))
+            let chevron = ViewNode(
+                id: backPath.appending("Image").id, kind: "Image",
+                attributes: ["systemName": "chevron.backward"],
+                // A little left of center, which looks centered.
+                modifiers: [
+                    .offset(CGSize(width: -LayoutDefaults.backChevronOpticalOffset, height: 0))
+                ])
+            barChildren.append(
+                ViewNode(
+                    id: backPath.id, kind: "Button",
+                    attributes: ["label": screens[screens.count - 2].screen.title ?? "Back"],
+                    children: [chevron]))
         }
         func items(_ position: ToolbarItemPlacement.Position) -> [ViewNode] {
             top.screen.toolbarItems.filter { $0.position == position }.flatMap(\.nodes)
         }
-        leading += items(.leading)
-
-        var barChildren: [ViewNode] = []
-        func group(_ name: String, _ nodes: [ViewNode]) {
+        func group(_ name: String, _ nodes: [ViewNode], prominent: Bool = false) {
             guard !nodes.isEmpty else { return }
+            var attributes = ["placement": name]
+            if prominent { attributes["glass"] = "prominent" }
             barChildren.append(
                 ViewNode(
-                    id: barPath.appending(name).id,
+                    id: barPath.appending(prominent ? name + "Prominent" : name).id,
                     kind: "ToolbarItemGroup",
-                    attributes: ["placement": name],
+                    attributes: attributes,
                     children: nodes
                 ))
         }
-        group("leading", leading)
+        // Adjacent items share a glass capsule, and prominent buttons have
+        // their own, nearer the edge of the screen.
+        func groups(_ name: String, _ nodes: [ViewNode]) {
+            let isProminent: (ViewNode) -> Bool = {
+                BuiltInButtonStyle(rawValue: $0.attributes["buttonStyle"] ?? "")?.isProminent
+                    == true
+            }
+            group(name, nodes.filter { !isProminent($0) })
+            group(name, nodes.filter(isProminent), prominent: true)
+        }
+        groups("leading", items(.leading))
         let principal = items(.principal)
         // A large title needs a title: principal items and a bar without a
         // title use the inline layout.
@@ -636,10 +657,13 @@ extension NavigationStack: PrimitiveView {
                     id: barPath.appending("title").id, kind: "Text",
                     attributes: ["text": title, "font": font.resolved().attribute]))
         }
-        group("trailing", items(.trailing))
+        groups("trailing", items(.trailing))
 
+        var barAttributes = ["titleDisplayMode": displayMode]
+        // A sheet's bar has room above its buttons.
+        if evaluator.environment.isInSheet { barAttributes["presentation"] = "sheet" }
         let bar = ViewNode(
-            id: barPath.id, kind: "NavigationBar", attributes: ["titleDisplayMode": displayMode],
+            id: barPath.id, kind: "NavigationBar", attributes: barAttributes,
             children: barChildren)
         return [ViewNode(id: id, kind: "NavigationStack", children: [bar] + top.nodes)]
     }

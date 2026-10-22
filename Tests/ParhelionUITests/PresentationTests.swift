@@ -114,8 +114,8 @@ struct PresentationTests {
         #expect(sheet.id == "SheetHost/sheet")
         #expect(texts(sheet) == ["Count: 0", "Presented", "Increment", "Close"])
         #expect(host.interactiveRoot.id == sheet.id)
-        // Below the safe area's top, and down to the bottom of the screen.
-        #expect(sheet.frame == CGRect(x: 0, y: 30, width: 300, height: 370))
+        // From the safe area's top down to the bottom of the screen.
+        #expect(sheet.frame == CGRect(x: 0, y: 20, width: 300, height: 380))
     }
 
     @Test("Only the sheet receives input while it is presented")
@@ -150,10 +150,10 @@ struct PresentationTests {
         let host = ViewHost(SheetHost(log: Log()), device: screen)
         try host.tapButton(labeled: "Show")
         host.drag(from: CGPoint(x: 150, y: 60), to: CGPoint(x: 150, y: 120), duration: 0.2)
-        #expect(host.root.children.last?.frame?.minY == 30)
+        #expect(host.root.children.last?.frame?.minY == 20)
         host.pointerDown(at: CGPoint(x: 150, y: 60))
         host.pointerMoved(to: CGPoint(x: 150, y: 100))
-        #expect(host.root.children.last?.frame?.minY == 70)
+        #expect(host.root.children.last?.frame?.minY == 60)
         host.pointerMoved(to: CGPoint(x: 150, y: 220))
         host.pointerUp(at: CGPoint(x: 150, y: 220))
         #expect(host.root.children.map(\.kind) == ["VStack"])
@@ -202,18 +202,18 @@ struct PresentationTests {
         #expect(
             alert.outline() == """
                 Alert
-                ├─ Text "Delete the file?"
+                ├─ Text "Delete the file?" font=headline
                 ├─ Text "You cannot undo this."
                 ├─ Button role=cancel
-                │  └─ Text "Cancel"
+                │  └─ Text "Cancel" font=body.medium
                 └─ Button role=destructive
-                   └─ Text "Delete"
+                   └─ Text "Delete" font=body.medium
                 """)
         let frame = try #require(alert.frame)
-        #expect(frame.width == 270)
+        #expect(frame.width == 300)
         #expect(abs(frame.midY - 200) < 0.01)
         let cancel = try #require(alert.children[2].frame)
-        #expect(cancel.width == 135 && cancel.height == 44)
+        #expect(cancel.width == 132 && cancel.height == 48)
     }
 
     @Test("An alert's button runs its action, then dismisses the alert")
