@@ -45,8 +45,12 @@ final class FrameLoop {
             pacer.reset()
         }
         pacer.setRefreshPeriod(window.refreshPeriod)
+        // An app that exited mid-animation still says it animates; without
+        // this, the loop would present at the refresh rate until a reload.
+        let live = app.flatMap { $0.isDisconnected ? nil : $0 }
+        if app != nil, live == nil, pacer.outstandingTarget != nil { pacer.reset() }
         let ticking =
-            app.map { $0.usesHostClock && ($0.isAnimating || pacer.outstandingTarget != nil) }
+            live.map { $0.usesHostClock && ($0.isAnimating || pacer.outstandingTarget != nil) }
             ?? false
 
         var events: [WindowHost.Event] = []
@@ -117,10 +121,12 @@ final class FrameLoop {
                     PreviewClock.milliseconds(now - lastPresent),
                     presentedFrame ? "" : ", same frame"))
         }
-        pacer.notePresented(at: now)
+        // Only paced presents tell whether vsync waits: presents for input
+        // arrive at the pointer's rate.
+        if ticking { pacer.notePresented(at: now) }
         lastPresent = now
 
-        if let app, app.usesHostClock, app.isAnimating, pacer.shouldTick(now: now) {
+        if let app = live, app.usesHostClock, app.isAnimating, pacer.shouldTick(now: now) {
             let target = pacer.targetTime(afterPresentAt: now)
             app.send(.tick(PreviewTick(targetTime: target, refreshPeriod: pacer.refreshPeriod)))
             pacer.noteTickSent(target: target, at: now)
