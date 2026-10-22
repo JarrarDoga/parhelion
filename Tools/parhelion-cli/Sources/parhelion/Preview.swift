@@ -118,19 +118,14 @@ struct Preview: ParsableCommand {
         wakeBox.set(host.waker)
         print("Previewing \(app.hello.appName). Close the window to quit.")
 
+        let loop = FrameLoop(window: host)
         while true {
-            switch host.nextEvent(timeout: 0.25) {
-            case .close?:
+            switch try loop.step(app: app, idleTimeout: 0.25) {
+            case .close:
                 app.close()
                 return
-            case .input(let message)?:
-                app.send(message)
-            case nil:
-                break
-            }
-            if let frame = app.takeFrame() {
-                try host.present(frame)
-                if window.exitAfterFirstFrame {
+            case .running(let presentedFrame):
+                if presentedFrame, window.exitAfterFirstFrame {
                     app.close()
                     return
                 }

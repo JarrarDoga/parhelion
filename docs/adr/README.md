@@ -11,6 +11,7 @@ marked *Superseded* and links to the record that replaces it.
 | [0003](0003-no-swiftpm-resources.md) | Ship no SwiftPM resources | Accepted |
 | [0004](0004-pure-swift-renderer.md) | Draw in pure Swift, show frames in a separate window host | Accepted |
 | [0005](0005-model-tree-and-presented-frames.md) | The view tree holds final values; animation affects only what is drawn | Accepted |
+| [0006](0006-host-clock-and-shared-frames.md) | The window host owns the frame clock, and frames travel through shared memory | Accepted |
 
 To add a record, copy the structure of an existing one, use the next number, and add it to this
 table in the same pull request as the change it describes.

@@ -88,27 +88,22 @@ struct Run: ParsableCommand {
         let title = WindowOptions.title(for: app!.hello)
         print("Running \(app!.hello.appName). Save a file to reload. Close the window to quit.")
 
+        let loop = FrameLoop(window: host)
         let rebuild = BackgroundBuild()
         var lastCheck = Date()
         var reportedExit = false
         while true {
-            switch host.nextEvent(timeout: 0.25) {
-            case .close?:
+            switch try loop.step(app: app, idleTimeout: 0.25) {
+            case .close:
                 app?.close()
                 return
-            case .input(let message)?:
-                app?.send(message)
-            case nil:
-                break
-            }
-
-            if let frame = app?.takeFrame() {
-                try host.present(frame)
-                if window.exitAfterFirstFrame {
+            case .running(let presentedFrame):
+                if presentedFrame, window.exitAfterFirstFrame {
                     app?.close()
                     return
                 }
             }
+
             if let current = app, current.isDisconnected, !reportedExit {
                 reportedExit = true
                 print("The app exited. Save a file to rebuild and start it again.")
