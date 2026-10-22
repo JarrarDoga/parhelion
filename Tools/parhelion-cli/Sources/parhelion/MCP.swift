@@ -157,7 +157,7 @@ final class AgentController: @unchecked Sendable {
     /// Builds and starts the app. A failed build leaves the server running so
     /// that the agent can read the errors and fix them.
     func start() {
-        log("Building \(plan.product)...")
+        log("Building \(plan.product): \(builder.modeDescription)...")
         _ = buildAndLaunch()
     }
 
