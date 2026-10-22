@@ -76,7 +76,10 @@ extension List: PrimitiveView {
             implicitCount += 1
             looseRows = []
         }
-        for node in evaluator.evaluate(content, at: ownPath) {
+        let content = evaluator.withEnvironment({ $0.isInList = true }) {
+            evaluator.evaluate(self.content, at: ownPath)
+        }
+        for node in content {
             if node.kind == "Section" {
                 closeImplicitSection()
                 sections.append(node)
@@ -113,8 +116,9 @@ extension List: PrimitiveView {
 /// mirroring SwiftUI's `Section`.
 ///
 /// In a ``List``, a section draws its rows together in one group, with the
-/// header above and the footer below. Elsewhere, it stacks its header,
-/// content, and footer vertically.
+/// header above and the footer below, and gives the header and footer the
+/// list's fonts. Elsewhere, it stacks its header, content, and footer
+/// vertically.
 public struct Section<Parent: View, Content: View, Footer: View>: View {
     public typealias Body = Never
 
@@ -188,19 +192,42 @@ extension Section: PrimitiveView {
         let ownPath = path.appending("Section")
         var children: [ViewNode] = []
         let headerPath = ownPath.appending("header")
-        let headerNodes = evaluator.evaluate(header, at: headerPath)
+        // In a list, headers and footers have their own fonts, which a font
+        // set inside them overrides.
+        let inList = evaluator.environment.isInList
+        func labelFont(_ font: Font) -> (inout EnvironmentValues) -> Void {
+            { if inList { $0.font = font } }
+        }
+        let headerNodes = evaluator.withEnvironment(labelFont(LayoutDefaults.listHeaderFont)) {
+            evaluator.evaluate(header, at: headerPath)
+        }
         if !headerNodes.isEmpty {
             children.append(
                 ViewNode(id: headerPath.id, kind: "SectionHeader", children: headerNodes))
         }
         children += evaluator.evaluate(content, at: ownPath)
         let footerPath = ownPath.appending("footer")
-        let footerNodes = evaluator.evaluate(footer, at: footerPath)
+        let footerNodes = evaluator.withEnvironment(labelFont(LayoutDefaults.listFooterFont)) {
+            evaluator.evaluate(footer, at: footerPath)
+        }
         if !footerNodes.isEmpty {
             children.append(
                 ViewNode(id: footerPath.id, kind: "SectionFooter", children: footerNodes))
         }
         return [ViewNode(id: ownPath.id, kind: "Section", children: children)]
+    }
+}
+
+struct IsInListKey: EnvironmentKey {
+    static var defaultValue: Bool { false }
+}
+
+extension EnvironmentValues {
+    /// Whether the view is in a ``List``, where sections style their headers
+    /// and footers.
+    var isInList: Bool {
+        get { self[IsInListKey.self] }
+        set { self[IsInListKey.self] = newValue }
     }
 }
 

@@ -143,6 +143,10 @@ may contain breaking changes.
 - Named colors use iOS 27's values: blue, the default tint, is 0,136,255 instead of 0,122,255,
   and red, orange, mint, teal, cyan, indigo, purple, and brown changed too. List separators are
   black at 12% opacity.
+- Inset grouped lists follow the iOS 27 UI Kit: sections have a corner radius of 26, rows are
+  52 points tall with 16-point side insets, separators stop 16 points short of the trailing
+  edge, headers are semibold 17-point text in a 42-point block, footers are 13-point text, and
+  sections are 20 points apart. The disclosure indicator is slightly larger and thinner.
 
 ### Fixed
 

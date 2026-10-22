@@ -195,11 +195,15 @@ momentum, and `scroll(_:to:)` work the same way. Evaluation shapes the tree:
 - Rows outside a `Section` are grouped into sections of their own, one for each run of
   consecutive rows, so a list's children are always `Section` nodes.
 - A section's header and footer become `SectionHeader` and `SectionFooter` nodes around its rows.
+  Inside a list, they are evaluated with the list's fonts in the environment, semibold 17 points
+  for headers and 13 points for footers, so a font set inside them still wins.
 - Each row gets a `listRow` layout modifier, its outermost. The row fills the width it is
-  offered, is at least 44 points tall, and places its content at the leading edge inside the
-  row insets. The bounds recorded for the modifier are the row's cell.
+  offered, is at least 52 points tall, and places its content at the leading edge inside the
+  row insets, 15 points above and below and 16 at the sides. The bounds recorded for the
+  modifier are the row's cell.
 
-The renderer draws each section's cells as one rounded group and a separator between rows. Hit
+The renderer draws each section's cells as one rounded group, with a corner radius of 26 in the
+inset grouped style, and a separator between rows, inset 16 points from both sides. Hit
 testing uses a row's cell instead of its frame, so a button row responds to taps across its whole
 width, and a pressed button row highlights its cell. `listStyle(_:)` records a `listStyle`
 attribute that layout and drawing read.

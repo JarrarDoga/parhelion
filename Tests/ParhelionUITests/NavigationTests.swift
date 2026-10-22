@@ -312,7 +312,8 @@ struct NavigationTests {
             Issue.record("The link has no listRow modifier.")
             return
         }
-        #expect(insets.trailing == 39)
+        // The 16-point inset, the 7.5-point chevron, and 12 points between.
+        #expect(insets.trailing == 35.5)
         let cell = try #require(link.listRowFrame)
         try host.tap(at: CGPoint(x: cell.maxX - 10, y: cell.midY))
         #expect(texts(host).contains("Detail"))

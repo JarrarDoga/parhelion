@@ -252,17 +252,24 @@ struct TreeRenderer {
                         height: size.height
                     )
                     canvas.fill(
-                        Self.chevron(in: indicator, pointingLeft: false, thickness: 2),
+                        Self.chevron(
+                            in: indicator, pointingLeft: false,
+                            thickness: LayoutDefaults.disclosureIndicatorThickness),
                         color: paint(ColorPalette.color(named: "tertiary"))
                     )
                 }
                 guard index < rows.count - 1 else { continue }
+                // Assumed: a separator spans the row's content, inset on both
+                // sides, as in the iOS 27 UI Kit. A navigation link's trailing
+                // inset includes its disclosure indicator, so the trailing
+                // end uses the list's own inset.
                 let thickness = LayoutDefaults.listSeparatorThickness
                 canvas.fill(
                     CGRect(
                         x: cell.minX + insets.leading,
                         y: cell.maxY - thickness,
-                        width: cell.width - insets.leading,
+                        width: max(
+                            cell.width - insets.leading - LayoutDefaults.listRowInsets.trailing, 0),
                         height: thickness
                     ),
                     color: paint(ColorPalette.separator)

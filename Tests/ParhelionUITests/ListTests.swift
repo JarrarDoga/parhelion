@@ -36,12 +36,12 @@ struct ListTests {
         #expect(
             host.root.outline() == """
                 Root
-                └─ List contentOffset=0, 0 contentSize=300 × 271
+                └─ List contentOffset=0, 0 contentSize=300 × 258
                    ├─ Section
                    │  └─ Text "One" listRow
                    ├─ Section
                    │  ├─ SectionHeader
-                   │  │  └─ Text "Fruit"
+                   │  │  └─ Text "Fruit" font=headline
                    │  └─ Text "Apple" listRow
                    └─ Section
                       └─ Text "Two" listRow
@@ -91,15 +91,18 @@ struct ListTests {
         #expect(list.frame == CGRect(x: 0, y: 0, width: 300, height: 400))
         let row = list.children[0].children[0]
         let cell = try #require(row.listRowFrame)
-        // 20 points of content inset, 16 points of margin on each side.
-        #expect(cell == CGRect(x: 16, y: 20, width: 268, height: 44))
-        // The text sits at the leading inset, centered vertically.
+        // No content inset above a first section without a header, and 16
+        // points of margin on each side. A line of body text and 15 points
+        // above and below it make a 52-point row.
+        #expect(cell == CGRect(x: 16, y: 0, width: 268, height: 52))
+        // The text sits at the 16-point leading inset, centered vertically.
         let frame = try #require(row.frame)
-        #expect(frame.minX == 36)
+        #expect(frame.minX == 32)
+        #expect(frame.minY == 15)
         #expect(abs(frame.midY - cell.midY) < 0.01)
     }
 
-    @Test("A row is at least 44 points tall, and grows with its content")
+    @Test("A row is at least 52 points tall, and grows with its content")
     func rowHeight() throws {
         let host = ViewHost(
             List {
@@ -109,8 +112,12 @@ struct ListTests {
             device: screen
         )
         let rows = host.root.children[0].children[0].children
-        #expect(try #require(rows[0].listRowFrame).height == 44)
-        #expect(try #require(rows[1].listRowFrame).height == 82)
+        #expect(try #require(rows[0].listRowFrame).height == 52)
+        // 60 points of content and 15 points above and below.
+        #expect(try #require(rows[1].listRowFrame).height == 90)
+        let icon = ViewHost(List { Color.red.frame(width: 10, height: 10) }, device: screen)
+        let iconRow = icon.root.children[0].children[0].children[0]
+        #expect(try #require(iconRow.listRowFrame).height == 52)
     }
 
     @Test("A button row responds to taps across its whole cell")
@@ -146,7 +153,7 @@ struct ListTests {
         let list = host.root.children[0]
         #expect(list.attributes["listStyle"] == "plain")
         let cell = try #require(list.children[0].children[0].listRowFrame)
-        #expect(cell == CGRect(x: 0, y: 0, width: 300, height: 44))
+        #expect(cell == CGRect(x: 0, y: 0, width: 300, height: 52))
     }
 
     @Test("A grouped list draws a gray background and white rows")
@@ -165,6 +172,115 @@ struct ListTests {
         #expect(components(frame.color(at: CGPoint(x: 250, y: 42))) == [209, 209, 214, 255])
     }
 
+    @Test("Headers are semibold 17 points, footers 13 points, and fonts inside them win")
+    func headerAndFooterFonts() {
+        let host = ViewHost(
+            List {
+                Section {
+                    Text("Row")
+                } header: {
+                    Text("Header")
+                } footer: {
+                    Text("Footer")
+                }
+                Section {
+                    Text("Row")
+                } header: {
+                    Text("Custom").font(.caption)
+                }
+            },
+            device: screen
+        )
+        #expect(
+            host.root.outline() == """
+                Root
+                └─ List contentOffset=0, 0 contentSize=300 × 252
+                   ├─ Section
+                   │  ├─ SectionHeader
+                   │  │  └─ Text "Header" font=headline
+                   │  ├─ Text "Row" listRow
+                   │  └─ SectionFooter
+                   │     └─ Text "Footer" font=system(13)
+                   └─ Section
+                      ├─ SectionHeader
+                      │  └─ Text "Custom" font=caption
+                      └─ Text "Row" listRow
+                """)
+    }
+
+    @Test("Headers, footers, and sections are spaced as in the iOS 27 UI Kit")
+    func headerAndFooterLayout() throws {
+        let host = ViewHost(
+            List {
+                Section {
+                    Text("Row")
+                } header: {
+                    Text("Header")
+                } footer: {
+                    Text("Footer")
+                }
+                Section("Next") {
+                    Text("Row")
+                }
+            },
+            device: screen
+        )
+        let sections = host.root.children[0].children
+        let header = sections[0].children[0]
+        let headerText = try #require(header.children[0].frame)
+        // A 42-point header block: 10 above a 22-point line and 10 below.
+        let headerFrame = try #require(header.frame)
+        #expect(headerFrame.origin == CGPoint(x: 16, y: 0) && headerFrame.height == 42)
+        #expect(headerText.origin == CGPoint(x: 32, y: 10))
+        let cell = try #require(sections[0].children[1].listRowFrame)
+        #expect(cell.minY == 42)
+        // A 30-point footer block: 8 below the cells, a 16-point line, and 6.
+        let footer = sections[0].children[2]
+        let footerFrame = try #require(footer.frame)
+        #expect(footerFrame.origin == CGPoint(x: 16, y: 94) && footerFrame.height == 30)
+        #expect(try #require(footer.children[0].frame).origin == CGPoint(x: 32, y: 102))
+        // 20 points from the footer to the next section's header.
+        #expect(try #require(sections[1].children[0].frame).minY == 144)
+    }
+
+    @Test("Sections are rounded with radius 26, and separators are inset on both sides")
+    func sectionDrawing() throws {
+        let host = ViewHost(
+            NavigationStack {
+                List {
+                    NavigationLink("One") { Text("Detail") }
+                    NavigationLink("Two") { Text("Detail") }
+                }
+                .navigationBarTitleDisplayMode(.inline)
+            },
+            device: screen
+        )
+        let rows = host.root.children[0].children[1].children[0].children
+        let cell = try #require(rows[0].listRowFrame)
+        #expect(cell == CGRect(x: 16, y: 54, width: 268, height: 52))
+        let frame = host.render(scale: 3)
+        func gray(_ x: CGFloat, _ y: CGFloat) -> UInt8 { frame.color(at: CGPoint(x: x, y: y)).red }
+        // Outside the corner's arc, 4 points in from both edges, the list's
+        // background shows; a radius of 10 would cover it.
+        #expect(gray(cell.minX + 4, cell.minY + 4) == 242)
+        #expect(gray(cell.minX + 13, cell.minY + 13) == 255)
+        // The separator, black at 12%, runs from 16 points inside the cell's
+        // leading edge to 16 points inside its trailing edge.
+        let separatorY = cell.maxY - 0.1
+        #expect(gray(cell.minX + 17, separatorY) == 224)
+        #expect(gray(cell.maxX - 17, separatorY) == 224)
+        #expect(gray(cell.minX + 15, separatorY) == 255)
+        #expect(gray(cell.maxX - 15, separatorY) == 255)
+        // The disclosure chevron ends at the trailing inset, in the tertiary
+        // label color.
+        var inkXs: [CGFloat] = []
+        for x in stride(from: cell.maxX - 30, to: cell.maxX, by: 1.0 / 3) {
+            if gray(x, cell.midY) < 230 { inkXs.append(x) }
+        }
+        let rightmost = try #require(inkXs.max())
+        #expect(abs(rightmost - (cell.maxX - 16)) < 1)
+    }
+
     @Test("Outside a list, a section stacks its parts vertically")
     func sectionOutsideList() throws {
         let host = ViewHost(
@@ -174,6 +290,8 @@ struct ListTests {
             device: screen
         )
         let section = host.root.children[0]
+        // Only a list gives the header its font.
+        #expect(section.children[0].children.first?.attributes["font"] == nil)
         let header = try #require(section.children[0].frame)
         let row = try #require(section.children[1].frame)
         #expect(row.minY >= header.maxY)
