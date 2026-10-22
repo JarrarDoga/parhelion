@@ -495,9 +495,18 @@ struct TreeRenderer {
                 x: frame.minX, y: frame.minY, width: frame.width,
                 height: min(
                     frame.height, radius + max(CGFloat(shadow.blur) * 1.5 - shadow.offset, 0)))
+            // The shadow is drawn only where it can show: above the sheet and
+            // beside its corners.
+            let reach = CGFloat(shadow.blur) * 1.5
+            let visible = CGRect(
+                x: frame.minX - reach, y: frame.minY - reach, width: frame.width + 2 * reach,
+                height: reach + radius * 1.53)
+            let outerClip = canvas.clipRect
+            canvas.clipRect = outerClip.map { $0.intersection(visible) } ?? visible
             canvas.drawShadow(
                 of: strip, cornerRadius: radius, style: .continuous, color: paint(shadow.color),
                 offset: CGSize(width: 0, height: shadow.offset), blur: shadow.blur)
+            canvas.clipRect = outerClip
             // Only the top corners are rounded; the bottom ones are off
             // screen.
             canvas.fill(
