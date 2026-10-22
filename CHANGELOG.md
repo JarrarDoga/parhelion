@@ -140,6 +140,9 @@ may contain breaking changes.
 - The navigation bar follows the iOS 27 UI Kit: 54 points tall with an inline title, which is
   semibold, and 105 points with a large title. Its buttons and inline title center in the top
   44 points instead of the whole bar.
+- Named colors use iOS 27's values: blue, the default tint, is 0,136,255 instead of 0,122,255,
+  and red, orange, mint, teal, cyan, indigo, purple, and brown changed too. List separators are
+  black at 12% opacity.
 
 ### Fixed
 

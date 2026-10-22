@@ -150,7 +150,7 @@ struct TextFieldTests {
 
         try host.focus(fieldIDs(host)[0])
         let focused = host.render(scale: 2).color(at: caretPoint)
-        #expect([focused.red, focused.green, focused.blue] == [0, 122, 255])
+        #expect([focused.red, focused.green, focused.blue] == [0, 136, 255])
 
         // The placeholder draws in a light gray, not black.
         var darkest: UInt8 = 255

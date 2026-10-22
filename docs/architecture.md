@@ -140,7 +140,7 @@ device for the system interface it draws over the tree.
   TrueType outlines, flattens curves, and fills paths with exact-area anti-aliasing. There is no
   GPU and no system font library, so the same tree produces the same pixels on every machine
   ([ADR 0004](adr/0004-pure-swift-renderer.md)).
-- **Colors** come from `ColorPalette`, which maps SwiftUI's named colors and styles to iOS's
+- **Colors** come from `ColorPalette`, which maps SwiftUI's named colors and styles to iOS 27's
   light-appearance system colors. A `foregroundStyle` applies to the node and its descendants, and
   button labels take the tint color unless they set their own style.
 - **Backgrounds** fill the bounds at their position in the modifier chain. Each node records those
