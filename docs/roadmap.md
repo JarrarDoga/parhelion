@@ -13,7 +13,7 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [ ] `@Environment` and the environment values that modifiers read
 - [x] `ForEach`
 - [ ] `Group` and `AnyView`
-- [ ] `font`, `bold`, `frame`, and `background` modifiers
+- [x] `font`, `bold`, `frame`, and `background` modifiers
 - [ ] API documentation with DocC
 
 ## 0.2: Preview window
@@ -66,6 +66,10 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 
 - [x] Device chrome: the status bar, the Dynamic Island, the home indicator, rounded screen
       corners, a phone bezel in the window, and iPhone presets with `--device`
+- [x] iOS 27 typography with Inter in four weights, system colors, large navigation titles, and
+      inset grouped list metrics
+- [ ] iOS 27 Liquid Glass: toolbar and back buttons, alerts, sheets, and button styles
+- [ ] Letter spacing, to bring Inter's widths closer to San Francisco's
 - [ ] CI on macOS and on Linux arm64
 - [ ] Verify each constant in `LayoutDefaults.swift` against Apple's SwiftUI
 - [ ] Symbol images: substitute an open-source icon set for SF Symbols

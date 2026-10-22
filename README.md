@@ -168,17 +168,17 @@ works.
 | Views | `Text`, `Image`, `Button`, `TextField`, `VStack`, `HStack`, `ZStack`, `Spacer`, `Color`, `ScrollView`, `List`, `Section`, `ForEach`, `NavigationStack`, `NavigationLink`, `EmptyView`; sheets, full-screen covers, and alerts |
 | Builders | Multiple children, `if`/`else`, optional content |
 | State | `@State` and `@Binding`, with SwiftUI's structural identity and lifetime rules; `@Environment` with `dismiss`, `isPresented`, and custom keys |
-| Modifiers | `padding`, `frame` (fixed and flexible), `background`, `foregroundStyle`, `imageScale`, `listStyle`, `navigationTitle`, `navigationDestination`, `toolbar`, `opacity`, `offset`, `animation`, `transition`, and `Color.opacity` |
+| Modifiers | `padding`, `frame` (fixed and flexible), `background`, `foregroundStyle`, `font`, `fontWeight`, `bold`, `imageScale`, `listStyle`, `navigationTitle`, `navigationBarTitleDisplayMode`, `navigationDestination`, `toolbar`, `opacity`, `offset`, `animation`, `transition`, and `Color.opacity` |
 | Animation | `withAnimation` and `animation(_:value:)` with timing curves and springs on a deterministic clock; opacity, move, slide, offset, and push transitions; animated navigation and presentations |
-| Layout | SwiftUI's propose-and-respond stack algorithm, text wrapping with the bundled Inter font, the screens and safe areas of nine iPhones from iPhone 16 to iPhone 17 Pro Max |
+| Layout | SwiftUI's propose-and-respond stack algorithm, iOS text styles and text wrapping with the bundled Inter font in four weights, large and inline navigation titles, the screens and safe areas of nine iPhones from iPhone 16 to iPhone 17 Pro Max |
 | Input | Tap by node, by button label, or by screen position; press, drag away to cancel, and release with the mouse; scroll by dragging with momentum, or with the mouse wheel and trackpad; type into text fields, with the caret keys, Backspace, Delete, and Tab between fields |
 | Window | `parhelion run` with hot reload that keeps `Codable` state, and `parhelion preview`; an SDL3 window host for Wayland and X11 that shows the screen in a phone bezel |
 | Agents | `parhelion mcp`, with or without a window |
-| Rendering | Anti-aliased shapes and Inter text drawn in pure Swift at any scale, with PNG output; the status bar, Dynamic Island or notch, home indicator, and rounded screen corners; SF Symbols draw as placeholder rings |
+| Rendering | Anti-aliased shapes and Inter text drawn in pure Swift at any scale, with PNG output; iOS 27's system colors and inset grouped lists; the status bar, Dynamic Island or notch, home indicator, and rounded screen corners; SF Symbols draw as placeholder rings |
 | App | `App`, `Scene`, `WindowGroup`, with a headless runner |
 
-Not yet available: text selection, fonts other than body text, large navigation titles, most
-built-in environment values, scale and rotation effects, repeating animations, animation, and gestures other than tap. Layout constants that Parhelion assumes about
+Not yet available: text selection, letter spacing, iOS 27's Liquid Glass toolbar buttons, alerts,
+and sheets, button styles, most built-in environment values, scale and rotation effects, repeating animations, animation, and gestures other than tap. Layout constants that Parhelion assumes about
 SwiftUI, such as the default padding, are listed in `LayoutDefaults.swift` until a macOS CI job
 verifies them. The [roadmap](docs/roadmap.md) lists the
 order of work.
