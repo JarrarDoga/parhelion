@@ -99,7 +99,8 @@ struct PreviewSessionTests {
             hello
                 == PreviewHello(
                     appName: "Counter", screenWidth: 50, screenHeight: 50, scale: 1,
-                    deviceName: "Test", displayCornerRadius: 0))
+                    deviceName: "Test", displayCornerRadius: 0,
+                    capabilities: PreviewCapability.all))
 
         var frames: [PreviewFrame] = []
         while case .frame(let frame)? = try hostEnd.receiveAppMessage(timeout: 0.2) {

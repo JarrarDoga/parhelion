@@ -8,14 +8,29 @@ var products: [Product] = [
     .library(name: "ParhelionPreview", targets: ["ParhelionPreview"]),
 ]
 
+// `parhelion run` and `parhelion mcp` set PARHELION_OPTIMIZE_FRAMEWORK=1 so that a
+// debug build compiles Parhelion's own modules with optimization while the app stays
+// at -Onone: rendering is about ten times faster and app edits rebuild as fast as
+// before. SwiftPM rejects unsafe flags in a dependency pinned to a version, even
+// behind a condition, so the flag exists only while the variable is set, and the
+// tool sets it only for root, path, branch, and revision dependencies. Ordinary
+// builds never see it.
+let frameworkSettings: [SwiftSetting] =
+    Context.environment["PARHELION_OPTIMIZE_FRAMEWORK"] == "1"
+    ? [.unsafeFlags(["-O"], .when(platforms: [.linux], configuration: .debug))] : []
+
 var targets: [Target] = [
     // ParhelionUI must not declare SwiftPM resources: xtool packages the resource
     // bundles of every target in an app's graph, including targets that are
     // excluded on iOS, and fails when they were not built. Font metrics are
     // embedded as generated source instead; see Scripts/embed-font.sh.
-    .target(name: "ParhelionRender"),
-    .target(name: "ParhelionPreview"),
-    .target(name: "ParhelionUI", dependencies: ["ParhelionRender", "ParhelionPreview"]),
+    .target(name: "ParhelionRender", swiftSettings: frameworkSettings),
+    .target(name: "ParhelionPreview", swiftSettings: frameworkSettings),
+    .target(
+        name: "ParhelionUI",
+        dependencies: ["ParhelionRender", "ParhelionPreview"],
+        swiftSettings: frameworkSettings
+    ),
     .testTarget(name: "ParhelionRenderTests", dependencies: ["ParhelionRender"]),
     .testTarget(name: "ParhelionPreviewTests", dependencies: ["ParhelionPreview"]),
     .testTarget(
@@ -31,7 +46,7 @@ var targets: [Target] = [
 #if os(Linux)
 products.append(.library(name: "SwiftUI", targets: ["SwiftUI"]))
 targets += [
-    .target(name: "SwiftUI", dependencies: ["ParhelionUI"]),
+    .target(name: "SwiftUI", dependencies: ["ParhelionUI"], swiftSettings: frameworkSettings),
     .testTarget(name: "SourceCompatibilityTests", dependencies: ["SwiftUI"]),
     .executableTarget(
         name: "HelloParhelion",

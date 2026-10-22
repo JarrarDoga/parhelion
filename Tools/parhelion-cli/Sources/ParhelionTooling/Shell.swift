@@ -9,15 +9,21 @@ public enum Shell {
     }
 
     /// Runs a program found on `PATH` and waits for it to finish.
+    /// `environment` adds to or replaces variables of this process's
+    /// environment.
     public static func run(
         _ program: String,
         _ arguments: [String],
         captureOutput: Bool,
-        currentDirectory: String? = nil
+        currentDirectory: String? = nil,
+        environment: [String: String] = [:]
     ) throws -> Result {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = [program] + arguments
+        if !environment.isEmpty {
+            process.environment = ProcessInfo.processInfo.environment.merging(environment) { $1 }
+        }
         if let currentDirectory {
             process.currentDirectoryURL = URL(fileURLWithPath: currentDirectory)
         }

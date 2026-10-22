@@ -11,6 +11,22 @@ public struct RunPlan: Equatable, Sendable {
     public var watchRoot: String
     /// A generated runner package, when the app is a library.
     public var runner: Runner?
+    /// How a debug build gets an optimized Parhelion.
+    public var optimization: FrameworkOptimization = .frameworkOnly
+
+    /// How `parhelion run` makes a debug build render at release speed.
+    public enum FrameworkOptimization: Equatable, Sendable {
+        /// Parhelion's modules are optimized through the
+        /// `PARHELION_OPTIMIZE_FRAMEWORK` variable that its manifest reads,
+        /// and the app stays at `-Onone`. Possible when Parhelion is the root
+        /// package or a path, branch, or revision dependency.
+        case frameworkOnly
+        /// Everything, the app included, is built with `-Xswiftc -O`. Used
+        /// when Parhelion is pinned to a version, because SwiftPM rejects
+        /// unsafe flags in such a dependency, or when the package does not
+        /// say where Parhelion comes from.
+        case wholeBuild
+    }
 
     public struct Runner: Equatable, Sendable {
         public var directory: String
@@ -80,9 +96,11 @@ public struct RunPlan: Equatable, Sendable {
             throw PlanError.noApp
         }
 
+        let optimization = frameworkOptimization(for: package)
         if chosen.isExecutable {
             return RunPlan(
-                buildPackagePath: root, product: chosen.name, watchRoot: root, runner: nil)
+                buildPackagePath: root, product: chosen.name, watchRoot: root, runner: nil,
+                optimization: optimization)
         }
         guard
             let appTarget = chosen.targets.first.flatMap({ name in
@@ -97,8 +115,51 @@ public struct RunPlan: Equatable, Sendable {
             buildPackagePath: directory,
             product: appTarget.name,
             watchRoot: root,
-            runner: runner
+            runner: runner,
+            optimization: optimization
         )
+    }
+
+    /// The products whose package is Parhelion.
+    static let parhelionProducts: Set<String> = [
+        "SwiftUI", "ParhelionUI", "ParhelionRender", "ParhelionPreview",
+    ]
+
+    /// Chooses how to optimize Parhelion from where the package gets it.
+    public static func frameworkOptimization(for package: AppPackage) -> FrameworkOptimization {
+        // Parhelion itself, such as its examples.
+        if package.products.contains(where: { $0.name == "ParhelionUI" }) { return .frameworkOnly }
+        var names: Set<String> = []
+        for target in package.targets {
+            for case .product(let name, let packageName, _) in target.dependencies
+            where parhelionProducts.contains(name) {
+                names.insert(packageName.lowercased())
+            }
+        }
+        var found = false
+        for dependency in package.dependencies {
+            switch dependency {
+            case .fileSystem(let name, _):
+                guard names.contains(name.lowercased()) else { continue }
+                found = true
+            case .sourceControl(let url, let requirement):
+                guard names.contains(identity(ofURL: url)) else { continue }
+                found = true
+                switch requirement {
+                case .range, .exact: return .wholeBuild
+                case .branch, .revision: break
+                }
+            }
+        }
+        return found ? .frameworkOnly : .wholeBuild
+    }
+
+    /// SwiftPM's identity for a package at a URL: its last path component,
+    /// without `.git`, in lowercase.
+    static func identity(ofURL url: String) -> String {
+        var name = url.split(separator: "/").last.map(String.init) ?? url
+        if name.hasSuffix(".git") { name.removeLast(4) }
+        return name.lowercased()
     }
 
     /// Writes the runner package, if there is one.

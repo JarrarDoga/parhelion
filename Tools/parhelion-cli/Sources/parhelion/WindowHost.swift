@@ -7,12 +7,19 @@ import ParhelionTooling
 
 /// The preview window: it shows frames and turns mouse events into input
 /// messages. SDL runs on the main thread only.
+///
+/// Showing a frame has two steps, so that ``FrameLoop`` can time them:
+/// ``upload(_:)`` copies the pixels into the window's texture, and
+/// ``present()`` draws the texture and, with vsync, waits for the display
+/// to refresh.
 final class WindowHost {
     enum Event {
         /// The user closed the window.
         case close
         /// Input to forward to the app.
         case input(HostMessage)
+        /// The window needs drawing again, as after it was uncovered.
+        case redraw
     }
 
     private let window: OpaquePointer
@@ -23,11 +30,15 @@ final class WindowHost {
     /// The phone drawn around the screen, if any, and its texture.
     private let bezel: DeviceBezel?
     private var bezelTexture: UnsafeMutablePointer<SDL_Texture>?
-    /// The frame's corners outside the phone and their faded pixels, for
-    /// the frame width they were made for.
-    private var frameMasks:
-        (width: Int, masks: [(mask: DeviceBezel.FrameMask, faded: [(index: Int, alpha: UInt8)])])?
+    /// The frame's corners outside the phone, made once for the frame width
+    /// they fit, with a buffer each to fade a frame's corner in.
+    private var cornerFades: (width: Int, fades: [CornerFade])?
     private let wakeEventType: UInt32
+
+    /// Whether SDL accepted vsync, so that presenting waits for the display.
+    let hasVSync: Bool
+    /// The refresh period of the display the window is on, in nanoseconds.
+    private(set) var refreshPeriod = FramePacer.defaultRefreshPeriod
 
     /// How far one mouse wheel step scrolls, in points.
     static let pointsPerWheelStep = 40.0
@@ -68,12 +79,21 @@ final class WindowHost {
         self.renderer = renderer
         self.zoom = zoom
         self.bezel = bezel
+        // Present in step with the display. Drivers may refuse; then the
+        // frame loop waits for each refresh itself.
+        hasVSync = SDL_SetRenderVSync(renderer, 1)
         wakeEventType = SDL_RegisterEvents(1)
         // Deliver typed text, after keyboard layouts and input methods.
         _ = SDL_StartTextInput(window)
         if let bezel {
             bezelTexture = try Self.makeTexture(renderer, from: bezel.image(scale: scale))
         }
+        readRefreshPeriod()
+        let rendererName = SDL_GetRendererName(renderer).map { String(cString: $0) } ?? "unknown"
+        debugLog(
+            String(
+                format: "renderer %@, vsync %@, refresh %.3f Hz", rendererName,
+                hasVSync ? "on" : "refused", 1e9 / Double(refreshPeriod)))
     }
 
     deinit {
@@ -84,7 +104,7 @@ final class WindowHost {
         SDL_Quit()
     }
 
-    /// A function other threads can call to wake ``nextEvent(timeout:)``.
+    /// A function other threads can call to wake ``events(waitingUpTo:)``.
     var waker: @Sendable () -> Void {
         let type = wakeEventType
         return {
@@ -98,17 +118,50 @@ final class WindowHost {
         _ = SDL_SetWindowTitle(window, title)
     }
 
-    /// Waits up to `timeout` seconds for an event that matters to the
-    /// preview. Returns `nil` on timeout or when woken.
-    func nextEvent(timeout: Double) -> Event? {
+    /// Reads the refresh rate of the display the window is on.
+    private func readRefreshPeriod() {
+        let display = SDL_GetDisplayForWindow(window)
+        guard display != 0, let mode = SDL_GetCurrentDisplayMode(display) else { return }
+        let period = FramePacer.refreshPeriod(
+            numerator: mode.pointee.refresh_rate_numerator,
+            denominator: mode.pointee.refresh_rate_denominator,
+            rate: mode.pointee.refresh_rate)
+        if period != refreshPeriod {
+            refreshPeriod = period
+            debugLog(String(format: "display refresh %.3f Hz", 1e9 / Double(period)))
+        }
+    }
+
+    /// The events that matter to the preview: waits up to `timeout` seconds
+    /// for the first event, or until woken, then takes every event already
+    /// queued without waiting. A timeout of 0 does not wait.
+    func events(waitingUpTo timeout: Double) -> [Event] {
+        var result: [Event] = []
         var event = SDL_Event()
-        guard SDL_WaitEventTimeout(&event, Int32(timeout * 1000)) else { return nil }
+        let milliseconds = Int32(min(max(timeout, 0) * 1000, Double(Int32.max)).rounded(.up))
+        var available =
+            milliseconds > 0 ? SDL_WaitEventTimeout(&event, milliseconds) : SDL_PollEvent(&event)
+        while available {
+            if let translated = translate(event) { result.append(translated) }
+            available = SDL_PollEvent(&event)
+        }
+        return result
+    }
+
+    /// The preview's meaning of an SDL event, if it has one.
+    private func translate(_ event: SDL_Event) -> Event? {
         func point(_ x: Float, _ y: Float) -> (x: Double, y: Double) {
             screenPoint(windowX: Double(x), windowY: Double(y), zoom: zoom, bezel: bezel)
         }
         switch event.type {
         case SDL_EVENT_QUIT.rawValue, SDL_EVENT_WINDOW_CLOSE_REQUESTED.rawValue:
             return .close
+        case SDL_EVENT_WINDOW_EXPOSED.rawValue:
+            return .redraw
+        case SDL_EVENT_WINDOW_DISPLAY_CHANGED.rawValue,
+            SDL_EVENT_DISPLAY_CURRENT_MODE_CHANGED.rawValue:
+            readRefreshPeriod()
+            return .redraw
         case SDL_EVENT_MOUSE_BUTTON_DOWN.rawValue where event.button.button == parhelion_button_left:
             let position = point(event.button.x, event.button.y)
             debugLog("mouse down at \(position)")
@@ -185,14 +238,12 @@ final class WindowHost {
         return texture
     }
 
-    /// Shows a frame, scaled to fill the window or, with a bezel, the
-    /// screen inside it.
-    func present(_ frame: PreviewFrame) throws {
-        let clock = ContinuousClock()
-        let start = clock.now
-        defer {
-            debugLog("presented a \(frame.width) × \(frame.height) frame in \(clock.now - start)")
-        }
+    /// Copies a frame's pixels into the window's texture, from the frame's
+    /// own array or straight from its shared-memory slot. Only the frame's
+    /// damaged rectangle is copied. Returns `false` for a frame without
+    /// pixels.
+    @discardableResult
+    func upload(_ frame: ReceivedFrame) throws -> Bool {
         if texture == nil || textureSize != (frame.width, frame.height) {
             if let texture { SDL_DestroyTexture(texture) }
             // ABGR8888 is a packed 32-bit format; on little-endian machines its
@@ -209,67 +260,127 @@ final class WindowHost {
             _ = SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND)
             textureSize = (frame.width, frame.height)
         }
-        frame.pixels.withUnsafeBytes { bytes in
-            _ = SDL_UpdateTexture(texture, nil, bytes.baseAddress, Int32(frame.width * 4))
-        }
-        if let bezel {
+        let damage = frame.clampedDamage
+        prepareCornerFades(frameWidth: frame.width)
+        return frame.withPixels { pixels in
+            var rect = SDL_Rect(
+                x: Int32(damage.x), y: Int32(damage.y), w: Int32(damage.width),
+                h: Int32(damage.height))
+            let start = pixels.baseAddress! + (damage.y * frame.width + damage.x) * 4
+            // SDL_UpdateTexture straight from the slot measured faster than
+            // SDL_LockTexture with the OpenGL renderer, which stages locked
+            // pixels in a buffer of its own and copies them again on unlock.
+            _ = SDL_UpdateTexture(texture, &rect, start, Int32(frame.width * 4))
             // The screen's square corners reach past the phone's rounded
             // body, where the window is transparent: fade them out.
-            if frameMasks?.width != frame.width {
-                let scale = Double(frame.width) / bezel.screenWidth
-                frameMasks = (
-                    frame.width, bezel.frameMasks(scale: scale).map { ($0, $0.faded) }
-                )
-            }
-            for (mask, faded) in frameMasks?.masks ?? [] {
-                // Copy the corner a row at a time, then fade its pixels.
-                var corner = [UInt8](repeating: 0, count: mask.width * mask.height * 4)
-                let rowBytes = mask.width * 4
-                for row in 0..<mask.height {
-                    let source = ((mask.y + row) * frame.width + mask.x) * 4
-                    corner.replaceSubrange(
-                        (row * rowBytes)..<((row + 1) * rowBytes),
-                        with: frame.pixels[source..<(source + rowBytes)])
-                }
-                for pixel in faded {
-                    let alpha = pixel.index * 4 + 3
-                    corner[alpha] = UInt8(UInt16(corner[alpha]) * UInt16(pixel.alpha) / 255)
-                }
-                var rect = SDL_Rect(
-                    x: Int32(mask.x), y: Int32(mask.y), w: Int32(mask.width), h: Int32(mask.height))
-                corner.withUnsafeBytes { bytes in
-                    _ = SDL_UpdateTexture(texture, &rect, bytes.baseAddress, Int32(rowBytes))
-                }
+            guard cornerFades != nil else { return }
+            for index in cornerFades!.fades.indices
+            where cornerFades!.fades[index].intersects(damage) {
+                cornerFades!.fades[index].fade(from: pixels, frameWidth: frame.width)
+                cornerFades!.fades[index].upload(to: texture)
             }
         }
+    }
+
+    /// Makes the corner fades for frames `frameWidth` pixels wide, the first
+    /// time a frame of that width arrives.
+    private func prepareCornerFades(frameWidth: Int) {
+        guard let bezel, cornerFades?.width != frameWidth else { return }
+        let scale = Double(frameWidth) / bezel.screenWidth
+        cornerFades = (frameWidth, bezel.frameMasks(scale: scale).map(CornerFade.init))
+    }
+
+    /// Draws the texture, scaled to fill the window or, with a bezel, the
+    /// screen inside it, and shows it. With vsync, this waits until the
+    /// display refreshes.
+    func present() {
         _ = SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0)
         _ = SDL_RenderClear(renderer)
-        if let bezel, let bezelTexture {
-            var outputWidth: Int32 = 0
-            var outputHeight: Int32 = 0
-            _ = SDL_GetCurrentRenderOutputSize(renderer, &outputWidth, &outputHeight)
-            let scaleX = Double(outputWidth) / bezel.width
-            let scaleY = Double(outputHeight) / bezel.height
-            var screen = SDL_FRect(
-                x: Float(DeviceBezel.margin * scaleX),
-                y: Float(DeviceBezel.margin * scaleY),
-                w: Float(bezel.screenWidth * scaleX),
-                h: Float(bezel.screenHeight * scaleY)
-            )
-            _ = SDL_RenderTexture(renderer, texture, nil, &screen)
-            _ = SDL_RenderTexture(renderer, bezelTexture, nil, nil)
-        } else {
-            _ = SDL_RenderTexture(renderer, texture, nil, nil)
+        if let texture {
+            if let bezel, let bezelTexture {
+                var outputWidth: Int32 = 0
+                var outputHeight: Int32 = 0
+                _ = SDL_GetCurrentRenderOutputSize(renderer, &outputWidth, &outputHeight)
+                let scaleX = Double(outputWidth) / bezel.width
+                let scaleY = Double(outputHeight) / bezel.height
+                var screen = SDL_FRect(
+                    x: Float(DeviceBezel.margin * scaleX),
+                    y: Float(DeviceBezel.margin * scaleY),
+                    w: Float(bezel.screenWidth * scaleX),
+                    h: Float(bezel.screenHeight * scaleY)
+                )
+                _ = SDL_RenderTexture(renderer, texture, nil, &screen)
+                _ = SDL_RenderTexture(renderer, bezelTexture, nil, nil)
+            } else {
+                _ = SDL_RenderTexture(renderer, texture, nil, nil)
+            }
         }
         _ = SDL_RenderPresent(renderer)
     }
 }
 
+/// One corner of the frame that reaches past the phone's rounded body, and
+/// a buffer it is faded in. The buffer is made once and reused for every
+/// frame.
+struct CornerFade {
+    let x: Int
+    let y: Int
+    let width: Int
+    let height: Int
+    /// The pixels that are not fully opaque, by their index in the corner,
+    /// and their opacity.
+    let faded: [(index: Int, alpha: UInt8)]
+    private var buffer: [UInt8]
+
+    init(_ mask: DeviceBezel.FrameMask) {
+        x = mask.x
+        y = mask.y
+        width = mask.width
+        height = mask.height
+        faded = mask.faded
+        buffer = [UInt8](repeating: 0, count: mask.width * mask.height * 4)
+    }
+
+    /// Whether the corner overlaps a rectangle of the frame.
+    func intersects(_ rect: PixelRect) -> Bool {
+        x < rect.x + rect.width && rect.x < x + width && y < rect.y + rect.height
+            && rect.y < y + height
+    }
+
+    /// Copies the corner out of a frame and fades its pixels.
+    mutating func fade(from pixels: UnsafeRawBufferPointer, frameWidth: Int) {
+        let rowBytes = width * 4
+        let (x, y, height, faded) = (x, y, height, faded)
+        buffer.withUnsafeMutableBytes { corner in
+            for row in 0..<height {
+                let source = pixels.baseAddress! + ((y + row) * frameWidth + x) * 4
+                (corner.baseAddress! + row * rowBytes).copyMemory(from: source, byteCount: rowBytes)
+            }
+            for pixel in faded {
+                let alpha = pixel.index * 4 + 3
+                corner[alpha] = UInt8(UInt16(corner[alpha]) * UInt16(pixel.alpha) / 255)
+            }
+        }
+    }
+
+    /// Copies the faded corner into the texture.
+    func upload(to texture: UnsafeMutablePointer<SDL_Texture>?) {
+        var rect = SDL_Rect(x: Int32(x), y: Int32(y), w: Int32(width), h: Int32(height))
+        buffer.withUnsafeBytes { bytes in
+            _ = SDL_UpdateTexture(texture, &rect, bytes.baseAddress, Int32(width * 4))
+        }
+    }
+}
+
 /// Prints a trace line to standard error when `PARHELION_DEBUG` is set.
 func debugLog(_ message: @autoclosure () -> String) {
-    guard ProcessInfo.processInfo.environment["PARHELION_DEBUG"] != nil else { return }
+    guard isDebugLogging else { return }
     FileHandle.standardError.write(Data("parhelion: \(message())\n".utf8))
 }
+
+/// Whether `PARHELION_DEBUG` is set, read once: the frame loop logs every
+/// present.
+let isDebugLogging = ProcessInfo.processInfo.environment["PARHELION_DEBUG"] != nil
 
 struct SDLError: Error, CustomStringConvertible {
     let description: String

@@ -10,6 +10,20 @@ import ParhelionPreview
 /// The session draws a new frame after every message that changes what is
 /// on screen, then waits for the next message. It ends when the host sends
 /// ``HostMessage/close`` or the connection drops.
+///
+/// How it paces animation depends on the host:
+///
+/// - A host that welcomes ``PreviewCapability/hostClock`` sends a tick after
+///   each display refresh. The session moves the clock to the tick's target
+///   time, the moment the frame will be on screen, and draws once for it.
+///   While the host ticks, input changes state but waits for the next tick
+///   to be drawn, so each refresh gets exactly one frame.
+/// - With an older host, or when ticks stop arriving, the session keeps its
+///   own schedule of 60 frames per second on a fixed grid, and moves the
+///   clock to the current time before each frame.
+///
+/// With ``PreviewCapability/sharedFrames``, frames go into slots of a
+/// ``SharedFrameBuffer`` and only their slot numbers cross the socket.
 @MainActor
 final class PreviewSession {
     let host: ViewHost
@@ -17,11 +31,46 @@ final class PreviewSession {
     let scale: Double
     let appName: String
 
+    /// How many frames the shared memory holds: one the host is copying, one
+    /// waiting for it, and one to draw the next frame into.
+    static let slotCount = 3
+    /// The interval of the session's own schedule, for hosts that do not
+    /// tick.
+    static let ownFrameInterval: UInt64 = 16_666_667
+    /// How long the session waits for a tick while animating before it
+    /// draws on its own schedule instead.
+    static let tickTimeout: UInt64 = 100_000_000
+
     init(host: ViewHost, channel: PreviewChannel, scale: Double, appName: String) {
         self.host = host
         self.channel = channel
         self.scale = scale
         self.appName = appName
+    }
+
+    /// The moment the app's clock shows.
+    private var timeline = PreviewTimeline(start: PreviewClock.now())
+    /// The revision of the last frame sent, so unchanged screens are not
+    /// sent again.
+    private var sentRevision = -1
+    /// Whether the last frame told the host that something is moving.
+    private var sentAnimating = false
+    /// When the last tick arrived, or when the session started expecting
+    /// ticks.
+    private var lastTickArrival: UInt64 = 0
+    /// When the next frame of the session's own schedule is due.
+    private var nextOwnFrame: UInt64 = 0
+    /// The capabilities the host welcomed, or `nil` before a welcome.
+    private var welcomed: Set<String>?
+    private var sharedFrames: SharedFrameBuffer?
+    private var sharedFramesFailed = false
+    private var slots = SlotPool(count: 0)
+
+    /// Whether the host is ticking: it welcomed the host clock, the last
+    /// frame said something moves, and a tick arrived recently.
+    private func hostIsTicking(at now: UInt64) -> Bool {
+        welcomed?.contains(PreviewCapability.hostClock) == true && sentAnimating
+            && now &- lastTickArrival < Self.tickTimeout
     }
 
     func run() throws {
@@ -33,56 +82,79 @@ final class PreviewSession {
                     screenHeight: Double(host.device.screenSize.height),
                     scale: scale,
                     deviceName: host.device.name,
-                    displayCornerRadius: Double(host.device.displayCornerRadius)
+                    displayCornerRadius: Double(host.device.displayCornerRadius),
+                    capabilities: PreviewCapability.all
                 )
             )
         )
-        try sendFrame()
-        lastTick = ContinuousClock.now
+        try sendFrame(target: 0)
         while true {
-            // While something is moving, wake in time for the next frame at
-            // 60 frames per second; otherwise sleep until the host sends
-            // something. Drawing time counts toward the frame interval.
-            var timeout: Double?
-            if host.isAnimating {
-                let sinceFrame = ContinuousClock.now - lastFrameTime
-                let elapsed =
-                    Double(sinceFrame.components.seconds)
-                    + Double(sinceFrame.components.attoseconds) / 1e18
-                timeout = max(1.0 / 60 - elapsed, 0)
-            }
             let message: HostMessage?
             do {
-                message = try channel.receiveHostMessage(timeout: timeout)
+                message = try channel.receiveHostMessage(timeout: waitTimeout())
             } catch PreviewChannel.ChannelError.closed {
                 return
             }
-            tick()
-            if let message {
-                guard try handle(message) else { return }
+            let now = PreviewClock.now()
+            guard let message else {
+                // The session's own schedule: the host does not tick, or its
+                // ticks stopped arriving.
+                scheduleOwnFrame(after: now)
+                host.advanceTime(by: timeline.advance(to: now))
+                if host.revision != sentRevision || sentAnimating != host.isAnimating {
+                    try sendFrame(target: 0)
+                }
+                continue
             }
-            if host.revision != sentRevision {
-                try sendFrame()
+            if case .tick = message {
+                guard try handle(message) else { return }
+                continue
+            }
+            // A change starts at the time it happens, unless the host is
+            // ticking, in which case the clock already shows the next frame.
+            let ticking = hostIsTicking(at: now)
+            if !ticking { host.advanceTime(by: timeline.advance(to: now)) }
+            guard try handle(message) else { return }
+            if host.revision != sentRevision, !ticking {
+                try sendFrame(target: 0)
             }
         }
     }
 
-    private var lastTick = ContinuousClock.now
-    private var lastFrameTime = ContinuousClock.now
-    private var sentRevision = -1
+    /// How long to wait for the next message: until the next tick is
+    /// overdue while the host ticks, until the next frame of the session's
+    /// own schedule while something moves, and otherwise indefinitely.
+    private func waitTimeout() -> Double? {
+        let now = PreviewClock.now()
+        if hostIsTicking(at: now) {
+            return PreviewClock.seconds(lastTickArrival + Self.tickTimeout - now)
+        }
+        guard host.isAnimating || sentAnimating else { return nil }
+        if nextOwnFrame <= now { scheduleOwnFrame(after: now) }
+        return PreviewClock.seconds(nextOwnFrame - now)
+    }
 
-    /// Advances the host's clock by the real time since the last tick.
-    private func tick() {
-        let now = ContinuousClock.now
-        let elapsed = now - lastTick
-        lastTick = now
-        host.advanceTime(
-            by: Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
-        )
+    /// Moves the session's own schedule one interval on, or restarts it
+    /// from `now` if it fell behind.
+    private func scheduleOwnFrame(after now: UInt64) {
+        nextOwnFrame += Self.ownFrameInterval
+        if nextOwnFrame <= now { nextOwnFrame = now + Self.ownFrameInterval }
     }
 
     /// Applies one message. Returns `false` when the session should end.
     func handle(_ message: HostMessage) throws -> Bool {
+        switch message {
+        case .tick(let tick):
+            lastTickArrival = PreviewClock.now()
+            host.advanceTime(by: timeline.advance(to: tick.targetTime))
+            try answer(tick)
+            return true
+        case .releaseSlot(let slot):
+            if !slots.release(slot) { debugLog("ignored a release of slot \(slot)") }
+            return true
+        default:
+            break
+        }
         debugLog("received \(message)")
         switch message {
         case .pointerDown(let x, let y):
@@ -102,11 +174,38 @@ final class PreviewSession {
             if let key = ViewHost.Key(rawValue: name) { host.press(key) }
         case .command(let id, let command):
             try channel.send(.reply(id: id, host.execute(command)))
+        case .welcome(let welcome):
+            welcomed = Set(welcome.capabilities)
         case .close:
             saveState()
             return false
+        case .tick, .releaseSlot:
+            break
         }
         return true
+    }
+
+    /// Answers a tick with a frame drawn for its target time, or, if
+    /// nothing changed, with a frame update that only reports whether the
+    /// app is still animating, so the host knows whether to keep ticking.
+    private func answer(_ tick: PreviewTick) throws {
+        if host.revision != sentRevision {
+            try sendFrame(target: tick.targetTime)
+            return
+        }
+        let size = host.device.screenSize
+        sentAnimating = host.isAnimating
+        try channel.send(
+            .frameUpdate(
+                PreviewFrameUpdate(
+                    width: Int((Double(size.width) * scale).rounded()),
+                    height: Int((Double(size.height) * scale).rounded()),
+                    isAnimating: sentAnimating,
+                    targetTime: tick.targetTime,
+                    pixels: .unchanged
+                )
+            )
+        )
     }
 
     /// Where the session saves state when the host closes it, so that the
@@ -120,23 +219,83 @@ final class PreviewSession {
         try? host.stateSnapshot().write(to: URL(fileURLWithPath: path))
     }
 
-    private func sendFrame() throws {
+    /// Draws the screen and sends it: as a plain frame to a host that did
+    /// not welcome the app, and otherwise as a frame update, in a shared
+    /// slot when one is free. `target` is the tick the frame answers, or 0.
+    private func sendFrame(target: UInt64) throws {
         sentRevision = host.revision
-        lastFrameTime = ContinuousClock.now
-        let clock = ContinuousClock()
-        let start = clock.now
+        let start = PreviewClock.now()
         let frame = host.render(scale: scale, chrome: .screen)
-        let rendered = clock.now
-        try channel.send(
-            .frame(
-                PreviewFrame(
-                    width: frame.pixelWidth,
-                    height: frame.pixelHeight,
-                    pixels: frame.pixels
+        let rendered = PreviewClock.now()
+        let animating = host.isAnimating
+        var route = "copied"
+        if let welcomed {
+            let pixels: PreviewFrameUpdate.Pixels
+            if welcomed.contains(PreviewCapability.sharedFrames),
+                let buffer = try sharedBuffer(byteCount: frame.pixels.count),
+                let slot = slots.acquire()
+            {
+                buffer.write(frame.pixels, toSlot: slot)
+                pixels = .slot(slot)
+                route = String(
+                    format: "slot %d, copy %.3f ms", slot,
+                    PreviewClock.milliseconds(PreviewClock.now() - rendered))
+            } else {
+                pixels = .inline(frame.pixels)
+            }
+            try channel.send(
+                .frameUpdate(
+                    PreviewFrameUpdate(
+                        width: frame.pixelWidth,
+                        height: frame.pixelHeight,
+                        isAnimating: animating,
+                        targetTime: target,
+                        pixels: pixels
+                    )
                 )
             )
-        )
-        debugLog("frame: render \(rendered - start), send \(clock.now - rendered)")
+        } else {
+            try channel.send(
+                .frame(
+                    PreviewFrame(
+                        width: frame.pixelWidth,
+                        height: frame.pixelHeight,
+                        pixels: frame.pixels
+                    )
+                )
+            )
+        }
+        let sent = PreviewClock.now()
+        // The host starts ticking when it sees the first frame that moves.
+        if animating, !sentAnimating { lastTickArrival = sent }
+        sentAnimating = animating
+        debugLog(
+            String(
+                format: "frame: render %.3f ms, transport %.3f ms (%@)%@",
+                PreviewClock.milliseconds(rendered - start),
+                PreviewClock.milliseconds(sent - rendered), route,
+                animating ? ", animating" : ""))
+    }
+
+    /// The shared memory for frames of `byteCount` bytes, created and
+    /// announced to the host the first time. Returns `nil`, and the frames
+    /// travel inline, if the memory cannot be created or a frame does not
+    /// fit.
+    private func sharedBuffer(byteCount: Int) throws -> SharedFrameBuffer? {
+        if let sharedFrames { return sharedFrames.slotSize >= byteCount ? sharedFrames : nil }
+        guard !sharedFramesFailed else { return nil }
+        do {
+            let buffer = try SharedFrameBuffer.create(
+                slotCount: Self.slotCount, slotSize: byteCount)
+            try channel.send(.sharedMemory(buffer.announcement))
+            sharedFrames = buffer
+            slots = SlotPool(count: Self.slotCount)
+            return buffer
+        } catch let error as SharedFrameBuffer.SharedMemoryError {
+            sharedFramesFailed = true
+            debugLog("shared memory is not available (\(error)); copying frames instead")
+            return nil
+        }
     }
 }
 

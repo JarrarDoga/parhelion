@@ -51,7 +51,9 @@ struct MCP: ParsableCommand {
             plan: plan,
             builder: AppBuilder(plan: plan, configuration: configuration.rawValue),
             scale: window ? 2 : 1,
-            device: device
+            device: device,
+            // Without a window, nobody shows frames or keeps time.
+            capabilities: window ? PreviewCapability.all : []
         )
         controller.start()
 
@@ -79,39 +81,38 @@ struct MCP: ParsableCommand {
             serve()
             controller.shutdown()
         }.start()
-        var host: WindowHost?
+        var loop: FrameLoop?
         while !controller.isFinished {
             guard let app = controller.currentApp else {
                 Thread.sleep(forTimeInterval: 0.1)
                 continue
             }
-            if host == nil {
-                host = try WindowOptions(scale: 2, zoom: zoom, bezel: bezel)
+            if loop == nil {
+                let host = try WindowOptions(scale: 2, zoom: zoom, bezel: bezel, device: device)
                     .openWindow(for: app.hello)
-                controller.setWaker(host!.waker)
+                controller.setWaker(host.waker)
+                loop = FrameLoop(window: host)
             }
-            guard let host else { continue }
-            switch host.nextEvent(timeout: 0.05) {
-            case .close?:
+            if case .close = try loop?.step(app: app, idleTimeout: 0.05) {
                 // Closing the window ends the session for the agent too.
                 controller.shutdown()
                 return
-            case .input(let message)?:
-                app.send(message)
-            case nil:
-                break
             }
-            if let frame = app.takeFrame() { try host.present(frame) }
         }
     }
 }
 
 extension WindowOptions {
-    init(scale: Double, zoom: Double, bezel: Bool) {
+    /// Options for a window that `parhelion mcp --window` opens. Every
+    /// property is set, because reading an option that was neither parsed
+    /// nor assigned stops the program.
+    init(scale: Double, zoom: Double, bezel: Bool, device: String?) {
         self.init()
         self.scale = scale
         self.zoom = zoom
         self.bezel = bezel
+        self.device = device
+        self.exitAfterFirstFrame = false
     }
 }
 
@@ -122,6 +123,7 @@ final class AgentController: @unchecked Sendable {
     private let builder: AppBuilder
     private let scale: Double
     private let device: String?
+    private let capabilities: [String]
     private let lock = NSLock()
     private var app: AppConnection?
     private var lastFailure: String?
@@ -133,11 +135,15 @@ final class AgentController: @unchecked Sendable {
         .appendingPathComponent("parhelion-\(ProcessInfo.processInfo.processIdentifier).state.json")
         .path
 
-    init(plan: RunPlan, builder: AppBuilder, scale: Double, device: String?) throws {
+    init(
+        plan: RunPlan, builder: AppBuilder, scale: Double, device: String?,
+        capabilities: [String]
+    ) throws {
         self.plan = plan
         self.builder = builder
         self.scale = scale
         self.device = device
+        self.capabilities = capabilities
         listener = try PreviewListener(path: socketPath)
     }
 
@@ -151,7 +157,7 @@ final class AgentController: @unchecked Sendable {
     /// Builds and starts the app. A failed build leaves the server running so
     /// that the agent can read the errors and fix them.
     func start() {
-        log("Building \(plan.product)...")
+        log("Building \(plan.product): \(builder.modeDescription)...")
         _ = buildAndLaunch()
     }
 
@@ -192,6 +198,7 @@ final class AgentController: @unchecked Sendable {
                 environment: environment,
                 listener: listener,
                 captureOutput: true,
+                capabilities: capabilities,
                 wake: { [waker] in waker.wake() }
             )
             lock.withLock {

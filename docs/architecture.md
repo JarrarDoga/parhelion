@@ -190,8 +190,9 @@ evaluating views, and the renderer clips the content to the scroll view's bounds
 Momentum runs on the host's own clock, which advances only through `advanceTime(by:)`, in fixed
 steps. The same input at the same times always produces the same frames, however the time is
 split, so tests and agents can step animations exactly. The preview session advances the clock
-by real time and draws at 60 frames per second while anything moves. `ViewHost.revision`
-increases whenever the screen changes, and the session sends a frame only then.
+to the moment each frame will be on screen and draws once per display refresh while anything
+moves (see *The preview window*). `ViewHost.revision` increases whenever the screen changes, and
+the session sends a frame only then.
 
 ### Lists
 
@@ -288,8 +289,9 @@ from the presentation layer ([ADR 0005](adr/0005-model-tree-and-presented-frames
   Screens of a navigation stack slide across the stack; sheets move up from the bottom edge.
 - **Time.** Curves are evaluated at the host's `time`, so the frames depend only on the changes
   and when they happened. `isAnimating` stays true until every animation has ended, and each
-  `advanceTime(by:)` call while one runs increases `revision`, so the preview session draws at
-  60 frames per second. Springs end when they settle within a thousandth of their target.
+  `advanceTime(by:)` call while one runs increases `revision`, so the preview session draws a
+  frame for every display refresh. Springs end when they settle within a thousandth of their
+  target.
 
 ### Text input
 
@@ -339,8 +341,36 @@ The window is a separate process ([ADR 0004](adr/0004-pure-swift-renderer.md)):
    changes. Closing the window sends `close`, and the app exits.
 
 Messages are length-prefixed: a 4-byte length, a 1-byte kind, and a payload. Control messages are
-JSON; frames are binary RGBA. Set `PARHELION_DEBUG=1` to trace events and messages in both
-processes.
+JSON; frames, ticks, and slot releases are binary. The receiver reads the 5-byte header, then
+exactly the payload, straight into the array the message keeps. Set `PARHELION_DEBUG=1` to trace
+events, messages, render, transport, upload, and present times in both processes.
+
+**Capabilities.** The hello lists the optional parts of the protocol the app supports, and a host
+that supports them too answers with `welcome`. Only then does either side use them, so apps and
+hosts from before a capability keep working with newer ones
+([ADR 0006](adr/0006-host-clock-and-shared-frames.md)):
+
+- **`hostClock`: the host owns the clock.** The window host turns on vsync and reads the
+  display's refresh rate, again when the window moves to another display. While the app reports
+  that something moves, the host presents once per refresh and, after each present, sends a
+  `tick` whose target is the moment the next frame will be on screen. Times are nanoseconds of
+  `CLOCK_MONOTONIC`, which both processes share (`PreviewClock`). The app advances its clock to
+  the target and draws once; input that arrives in between changes state and is drawn on the next
+  tick. The host waits for that frame until shortly before the refresh, so a frame that misses
+  it is shown one refresh later and the previous frame stays up meanwhile. An app too slow for
+  every refresh is shown every second, third, or later refresh, evenly (`FramePacer`). If vsync
+  is refused or presents return without waiting, the host waits for each refresh itself. When
+  nothing moves, the host blocks on window events and the app on the socket.
+- **`sharedFrames`: frames in shared memory.** The app creates an anonymous file with three
+  frame-sized slots and passes its descriptor to the host once, with `SCM_RIGHTS`. A frame is then
+  a `frameUpdate` message that names a slot, the damaged rectangle, whether the app is animating,
+  and the tick it answers. The host uploads from the slot and sends `releaseSlot`. Without a free
+  slot, the pixels travel in the message.
+
+An app that is not welcomed sends plain frames and keeps its own schedule: 60 frames per second
+on a fixed grid, with the clock moved to the current time before each frame. A welcomed app
+returns to that schedule if ticks stop for 100 ms. Agent screenshots are separate from frames:
+they are PNG data in command replies.
 
 Pointer input follows iOS: a press on a button highlights it, moving off the button cancels the
 highlight, and releasing over the same button taps it. `ViewHost.pointerDown(at:)`,
@@ -355,15 +385,28 @@ highlight, and releasing over the same button taps it. `ViewHost.pointerDown(at:
    package generated in `.build/parhelion-runner`: an executable target whose source directory
    is a symbolic link to the app's target, with the same dependencies. The app's `@main` type
    becomes the entry point.
-2. It builds, starts the app with `parhelion preview`'s protocol, and polls the package's Swift
-   files for changes twice a second.
+2. It builds, starts the app with `parhelion preview`'s protocol, and watches the package's
+   Swift files with inotify, one watch per source directory, so a save is seen within a
+   millisecond. Where inotify is missing or out of watches, it compares modification times twice
+   a second instead.
 3. On a change, it rebuilds on a background thread while the window keeps showing the running
    app. If the build fails, it prints the errors, with runner paths mapped back to the app's
    files, and leaves the app running.
 4. If the build succeeds, it sends `close`. The app writes `ViewHost.stateSnapshot()` to the file
    named in `PARHELION_PREVIEW_STATE` and exits. The host starts the new build with the same
    variable, and the new `ViewHost` restores each `Codable` state whose structural position and
-   type still match.
+   type still match. When the new app's first frame is on screen, the tool prints the time from
+   the change, split into build and restart.
+
+**Build mode.** A debug build compiles the app at `-Onone`, so an edit rebuilds incrementally in
+about a second, and Parhelion's own modules optimized, so a frame renders in about 2 ms instead of
+15. Parhelion's manifest adds `-O` to its targets in debug builds on Linux only while
+`PARHELION_OPTIMIZE_FRAMEWORK=1` is set, and `AppBuilder` sets it. SwiftPM rejects unsafe flags in
+a dependency pinned to a version, so for such apps the tool builds everything with
+`-Xswiftc -O` instead, which optimizes the app too. Builds go to `.build/parhelion` in the package
+that is built, so turning the variable on or off and the user's own `swift build` never
+invalidate each other's products. `-c release` builds everything optimized, in the same
+directory. The tool prints which mode it uses, and the modules each rebuild compiled.
 
 The tool's logic lives in `ParhelionTooling`, a library with tests, separate from the SDL code.
 
