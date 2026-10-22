@@ -123,21 +123,29 @@ extension Canvas {
         let table = (0...steps).map {
             gradient.color(at: first + span * Double($0) / Double(steps))
         }
+        let scaledSteps = Double(steps)
         pixels.withUnsafeMutableBufferPointer { bytes in
             coverage.values.withUnsafeBufferPointer { values in
-                for row in 0..<coverage.height {
-                    let y = Double(coverage.originY + row) + 0.5
-                    let rowStart = ((coverage.originY + row) * width + coverage.originX) * 4
-                    let valueStart = row * coverage.width
-                    for column in 0..<coverage.width {
-                        let amount = values[valueStart + column]
-                        guard amount > 0 else { continue }
-                        let x = Double(coverage.originX + column) + 0.5
-                        let location = (x - startX) * stepX + (y - startY) * stepY
-                        let position = span > 0 ? (location - first) / span : 0
-                        let index = Int((min(max(position, 0), 1) * Double(steps)).rounded())
-                        Self.blend(
-                            table[index], amount, mode, into: bytes, at: rowStart + column * 4)
+                table.withUnsafeBufferPointer { table in
+                    for row in 0..<coverage.height {
+                        let y = Double(coverage.originY + row) + 0.5
+                        let rowStart = ((coverage.originY + row) * width + coverage.originX) * 4
+                        let valueStart = row * coverage.width
+                        func color(atColumn column: Int) -> RGBA {
+                            let x = Double(coverage.originX + column) + 0.5
+                            let location = (x - startX) * stepX + (y - startY) * stepY
+                            let position = span > 0 ? (location - first) / span : 0
+                            return table[Int(min(max(position, 0), 1) * scaledSteps + 0.5)]
+                        }
+                        // A vertical gradient has one color per row.
+                        let rowColor = stepX == 0 ? color(atColumn: 0) : nil
+                        for column in 0..<coverage.width {
+                            let amount = values[valueStart &+ column]
+                            guard amount > 0 else { continue }
+                            Self.blendQuickly(
+                                rowColor ?? color(atColumn: column), amount, mode, into: bytes,
+                                at: rowStart &+ column &* 4)
+                        }
                     }
                 }
             }

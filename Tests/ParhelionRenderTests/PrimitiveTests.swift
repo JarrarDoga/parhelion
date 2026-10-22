@@ -165,6 +165,102 @@ struct ContinuousCornerTests {
     }
 }
 
+@Suite("Shadows")
+struct ShadowTests {
+    @Test("A shadow is centered on its offset and symmetric")
+    func centered() {
+        var canvas = Canvas(width: 64, height: 64, scale: 1)
+        canvas.drawShadow(
+            of: CGRect(x: 24, y: 24, width: 16, height: 16), cornerRadius: 4, color: .black,
+            offset: CGSize(width: 4, height: -2), blur: 8, drawsUnderShape: true)
+        // The shadow's center is at (36, 30), between pixels 35 and 36 and
+        // between rows 29 and 30.
+        var total = 0
+        var sumX = 0
+        var sumY = 0
+        for y in 0..<64 {
+            for x in 0..<64 {
+                let value = darkness(canvas, x, y)
+                total += value
+                sumX += value * x
+                sumY += value * y
+                if 71 - x < 64 { #expect(abs(value - darkness(canvas, 71 - x, y)) <= 1) }
+            }
+        }
+        #expect(abs(Double(sumX) / Double(total) + 0.5 - 36) < 0.1)
+        #expect(abs(Double(sumY) / Double(total) + 0.5 - 30) < 0.1)
+        #expect(darkness(canvas, 35, 29) > 200)
+    }
+
+    @Test("A shadow fades with distance and leaves pixels past its reach untouched")
+    func reach() {
+        for blur in [4.0, 20.0] {
+            var canvas = Canvas(width: 64, height: 64, scale: 1)
+            canvas.drawShadow(
+                of: Path(CGRect(x: 26, y: 26, width: 12, height: 12)), color: .black, blur: blur)
+            let reach = BlurKernel(sigma: blur / 2).pixelReach
+            for x in 38..<min(38 + reach, 63) {
+                #expect(darkness(canvas, x, 32) >= darkness(canvas, x + 1, 32))
+            }
+            #expect(darkness(canvas, 38, 32) > darkness(canvas, 44, 32))
+            for y in 0..<64 {
+                for x in 0..<64
+                where x < 26 - reach || x >= 38 + reach || y < 26 - reach || y >= 38 + reach {
+                    #expect(canvas.pixel(x: x, y: y) == .white)
+                }
+            }
+        }
+        // A small blur reaches exactly its boxes' radii.
+        #expect(BlurKernel(sigma: 2).factor == 1)
+        #expect(BlurKernel(sigma: 2).pixelReach == 4)
+    }
+
+    @Test("By default a shadow is cut away under its shape")
+    func knockout() {
+        var canvas = Canvas(width: 48, height: 48, scale: 1)
+        canvas.drawShadow(
+            of: CGRect(x: 16, y: 16, width: 16, height: 16), cornerRadius: 0,
+            color: RGBA(red: 0, green: 0, blue: 0, alpha: 128), blur: 6)
+        #expect(canvas.pixel(x: 24, y: 24) == .white)
+        #expect(canvas.pixel(x: 16, y: 16) == .white)
+        #expect(darkness(canvas, 15, 24) > 30)
+        var under = Canvas(width: 48, height: 48, scale: 1)
+        under.drawShadow(
+            of: CGRect(x: 16, y: 16, width: 16, height: 16), cornerRadius: 0,
+            color: RGBA(red: 0, green: 0, blue: 0, alpha: 128), blur: 6, drawsUnderShape: true)
+        #expect(darkness(under, 24, 24) > 120)
+        // Outside the shape both agree.
+        #expect(under.pixel(x: 10, y: 24) == canvas.pixel(x: 10, y: 24))
+    }
+
+    @Test("A shadow stays inside the clip, even when its shape is outside it")
+    func clip() {
+        var canvas = Canvas(width: 48, height: 48, scale: 1)
+        canvas.clipRect = CGRect(x: 0, y: 0, width: 24, height: 48)
+        canvas.drawShadow(
+            of: Path(CGRect(x: 28, y: 16, width: 16, height: 16)), color: .black, blur: 12)
+        #expect(darkness(canvas, 23, 24) > 0)
+        for y in 0..<48 {
+            for x in 24..<48 { #expect(canvas.pixel(x: x, y: y) == .white) }
+        }
+    }
+
+    @Test("A wide, downsampled shadow is still symmetric and smooth")
+    func downsampled() {
+        var canvas = Canvas(width: 64, height: 64, scale: 2)
+        canvas.drawShadow(
+            of: CGRect(x: 22, y: 22, width: 20, height: 20), cornerRadius: 10, color: .black,
+            blur: 24, drawsUnderShape: true)
+        #expect(BlurKernel(sigma: 24).factor > 1)
+        for x in 0..<64 {
+            #expect(abs(darkness(canvas, x, 64) - darkness(canvas, 127 - x, 64)) <= 2)
+        }
+        for x in 64..<127 {
+            #expect(darkness(canvas, x, 64) >= darkness(canvas, x + 1, 64))
+        }
+    }
+}
+
 @Suite("Rings")
 struct RingTests {
     @Test("A ring lies inside, centered on, or outside the edge")
@@ -361,5 +457,80 @@ struct BlendModeTests {
         canvas.fill(
             CGRect(x: 0, y: 0, width: 1, height: 1), color: RGBA(red: 10, green: 20, blue: 30))
         #expect(canvas.pixel(x: 0, y: 0) == RGBA(red: 10, green: 20, blue: 30))
+    }
+}
+
+@Suite("Region blur")
+struct RegionBlurTests {
+    @Test("Blurring a flat color leaves it exactly as it was", arguments: [3.0, 10.0, 40.0])
+    func flat(radius: Double) {
+        let color = RGBA(red: 12, green: 200, blue: 77)
+        var canvas = Canvas(width: 48, height: 40, scale: 1, background: color)
+        let original = canvas
+        canvas.blur(
+            CGRect(x: 4.5, y: 3, width: 30, height: 30), cornerRadius: 12, style: .continuous,
+            radius: radius)
+        canvas.blur(CGRect(x: 0, y: 0, width: 48, height: 40), radius: radius, saturation: 1)
+        #expect(canvas.pixels == original.pixels)
+    }
+
+    @Test("Blurring spreads an edge symmetrically", arguments: [4.0, 30.0])
+    func edge(radius: Double) {
+        var canvas = Canvas(width: 64, height: 8, scale: 1, background: .black)
+        canvas.fill(CGRect(x: 32, y: 0, width: 32, height: 8), color: .white)
+        canvas.blur(CGRect(x: 0, y: 0, width: 64, height: 8), radius: radius)
+        for x in 0..<32 {
+            let left = Int(canvas.pixel(x: 31 - x, y: 4).red)
+            let right = Int(canvas.pixel(x: 32 + x, y: 4).red)
+            #expect(abs(left + right - 255) <= 2)
+            #expect(left <= Int(canvas.pixel(x: 32 - x, y: 4).red))
+        }
+        #expect(canvas.pixel(x: 31, y: 4).red > 40)
+        #expect(canvas.pixel(x: 0, y: 0) == canvas.pixel(x: 0, y: 7))
+    }
+
+    @Test("A blur changes only pixels inside its shape and the clip")
+    func clip() {
+        var canvas = Canvas(width: 40, height: 40, scale: 1)
+        for x in stride(from: 0, to: 40, by: 2) {
+            canvas.fill(CGRect(x: Double(x), y: 0, width: 1, height: 40), color: .black)
+        }
+        let original = canvas
+        canvas.clipRect = CGRect(x: 0, y: 0, width: 20, height: 40)
+        canvas.blur(CGRect(x: 10, y: 10, width: 20, height: 20), cornerRadius: 6, radius: 6)
+        for y in 0..<40 {
+            for x in 0..<40 where x >= 20 || x < 10 || y < 10 || y >= 30 {
+                #expect(canvas.pixel(x: x, y: y) == original.pixel(x: x, y: y))
+            }
+        }
+        // Inside, the stripes blur to gray; the rounded corner pixel is
+        // left alone.
+        #expect((100...155).contains(canvas.pixel(x: 15, y: 20).red))
+        #expect(canvas.pixel(x: 10, y: 10) == original.pixel(x: 10, y: 10))
+    }
+
+    @Test("Saturation 1 is the identity, 0 is gray, and 2 moves away from gray")
+    func saturation() {
+        let color = RGBA(red: 200, green: 120, blue: 60)
+        var canvas = Canvas(width: 8, height: 8, scale: 1, background: color)
+        canvas.fill(
+            CGRect(x: 0, y: 0, width: 4, height: 8), color: RGBA(red: 10, green: 90, blue: 250))
+        let original = canvas
+        canvas.blur(CGRect(x: 0, y: 0, width: 8, height: 8), radius: 0, saturation: 1)
+        #expect(canvas.pixels == original.pixels)
+
+        var gray = original
+        gray.blur(CGRect(x: 0, y: 0, width: 8, height: 8), radius: 0, saturation: 0)
+        let pixel = gray.pixel(x: 6, y: 3)
+        #expect(
+            abs(Int(pixel.red) - Int(pixel.green)) <= 1
+                && abs(Int(pixel.green) - Int(pixel.blue)) <= 1)
+        // 0.2126 R + 0.7152 G + 0.0722 B, as CSS's matrix rounds it.
+        #expect(abs(Int(pixel.red) - 133) <= 1)
+
+        var vivid = original
+        vivid.blur(CGRect(x: 0, y: 0, width: 8, height: 8), radius: 0, saturation: 2)
+        let saturated = vivid.pixel(x: 6, y: 3)
+        #expect(saturated.red > color.red && saturated.blue < color.blue)
     }
 }
