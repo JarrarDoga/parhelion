@@ -169,5 +169,6 @@ may contain breaking changes.
 
 - The first click on an unfocused preview window reaches the app. Before, SDL used the click only
   to focus the window.
+- `parhelion mcp --window` opens its window instead of stopping with an argument parser error.
 
 [Unreleased]: https://github.com/JarrarDoga/parhelion/commits/main

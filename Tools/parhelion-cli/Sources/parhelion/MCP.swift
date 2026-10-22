@@ -86,7 +86,7 @@ struct MCP: ParsableCommand {
                 continue
             }
             if host == nil {
-                host = try WindowOptions(scale: 2, zoom: zoom, bezel: bezel)
+                host = try WindowOptions(scale: 2, zoom: zoom, bezel: bezel, device: device)
                     .openWindow(for: app.hello)
                 controller.setWaker(host!.waker)
             }
@@ -107,11 +107,16 @@ struct MCP: ParsableCommand {
 }
 
 extension WindowOptions {
-    init(scale: Double, zoom: Double, bezel: Bool) {
+    /// Options for a window that `parhelion mcp --window` opens. Every
+    /// property is set, because reading an option that was neither parsed
+    /// nor assigned stops the program.
+    init(scale: Double, zoom: Double, bezel: Bool, device: String?) {
         self.init()
         self.scale = scale
         self.zoom = zoom
         self.bezel = bezel
+        self.device = device
+        self.exitAfterFirstFrame = false
     }
 }
 
