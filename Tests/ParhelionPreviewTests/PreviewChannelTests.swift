@@ -16,6 +16,15 @@ struct PreviewChannelTests {
         #expect(try host.receiveAppMessage(timeout: 1) == .frame(frame))
     }
 
+    @Test("A hello from an app that predates device names still decodes")
+    func olderHello() throws {
+        let json = #"{"appName":"Old","screenWidth":393,"screenHeight":852,"scale":2}"#
+        let hello = try JSONDecoder().decode(PreviewHello.self, from: Data(json.utf8))
+        #expect(
+            hello == PreviewHello(appName: "Old", screenWidth: 393, screenHeight: 852, scale: 2))
+        #expect(hello.deviceName == nil && hello.displayCornerRadius == nil)
+    }
+
     @Test("Host messages arrive intact and in order")
     func hostMessages() throws {
         let (app, host) = try PreviewChannel.pair()

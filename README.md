@@ -72,7 +72,7 @@ Parhelion draws the screen itself. This image of the `Counter` example came from
 `swift run Counter --png docs/images/counter.png`:
 
 <p align="center">
-  <img src="docs/images/counter.png" alt="The Counter example rendered by Parhelion: a count label, red Decrease and blue Increase buttons, and a Reset button." width="240">
+  <img src="docs/images/counter.png" alt="The Counter example rendered by Parhelion under an iOS status bar: a count label, red Decrease and blue Increase buttons, a Reset button, and the home indicator." width="240">
 </p>
 
 The bundled `HelloParhelion` example is the app that `xtool new` generates, copied without changes:
@@ -127,7 +127,11 @@ It runs a package's executable product, or, for apps created with `xtool new`, t
 `@main` type, through a small generated runner package. To open an already-built executable
 without watching, use `parhelion preview .build/debug/Counter`.
 
-`--zoom` changes the window size, and `--scale` changes the pixels per point the app renders at.
+The window shows the screen inside a phone, like the iOS Simulator, with the status bar, the
+Dynamic Island, and the home indicator. `--device` picks the iPhone to simulate: iPhone 16 (the
+default), 16 Plus, 16 Pro, 16 Pro Max, 16e, 17, 17 Pro, 17 Pro Max, or Air, as in
+`parhelion run --device "iPhone 17 Pro"`. `--no-bezel` shows the screen without the phone around
+it. `--zoom` changes the window size, and `--scale` changes the pixels per point the app renders at.
 `parhelion run -c release` builds with optimizations, which makes scrolling animate at 60 frames
 per second at the cost of slower rebuilds.
 
@@ -148,7 +152,7 @@ The agent gets these tools:
 | Tool | What it does |
 | --- | --- |
 | `get_view_tree` | The screen as a tree of views with identifiers and frames, as an outline or JSON |
-| `screenshot` | A PNG of the screen |
+| `screenshot` | A PNG of the screen, with the status bar and the home indicator |
 | `tap`, `type_text`, `press_key` | Tap by identifier, label, or position; type into text fields; Tab, Return, Backspace, and the caret keys |
 | `scroll`, `scroll_to`, `drag`, `wait` | Scroll like a mouse wheel, to an offset, or by dragging with momentum, and wait for it to settle |
 | `rebuild`, `app_output` | Rebuild after editing the code, keeping `@State`, with compiler errors on failure; read what the app printed |
@@ -166,11 +170,11 @@ works.
 | State | `@State` and `@Binding`, with SwiftUI's structural identity and lifetime rules; `@Environment` with `dismiss`, `isPresented`, and custom keys |
 | Modifiers | `padding`, `frame` (fixed and flexible), `background`, `foregroundStyle`, `imageScale`, `listStyle`, `navigationTitle`, `navigationDestination`, `toolbar`, `opacity`, `offset`, `animation`, `transition`, and `Color.opacity` |
 | Animation | `withAnimation` and `animation(_:value:)` with timing curves and springs on a deterministic clock; opacity, move, slide, offset, and push transitions; animated navigation and presentations |
-| Layout | SwiftUI's propose-and-respond stack algorithm, text wrapping with the bundled Inter font, iPhone 16 screen and safe area |
+| Layout | SwiftUI's propose-and-respond stack algorithm, text wrapping with the bundled Inter font, the screens and safe areas of nine iPhones from iPhone 16 to iPhone 17 Pro Max |
 | Input | Tap by node, by button label, or by screen position; press, drag away to cancel, and release with the mouse; scroll by dragging with momentum, or with the mouse wheel and trackpad; type into text fields, with the caret keys, Backspace, Delete, and Tab between fields |
-| Window | `parhelion run` with hot reload that keeps `Codable` state, and `parhelion preview`; an SDL3 window host for Wayland and X11 |
+| Window | `parhelion run` with hot reload that keeps `Codable` state, and `parhelion preview`; an SDL3 window host for Wayland and X11 that shows the screen in a phone bezel |
 | Agents | `parhelion mcp`, with or without a window |
-| Rendering | Anti-aliased shapes and Inter text drawn in pure Swift at any scale, with PNG output; SF Symbols draw as placeholder rings |
+| Rendering | Anti-aliased shapes and Inter text drawn in pure Swift at any scale, with PNG output; the status bar, Dynamic Island or notch, home indicator, and rounded screen corners; SF Symbols draw as placeholder rings |
 | App | `App`, `Scene`, `WindowGroup`, with a headless runner |
 
 Not yet available: text selection, fonts other than body text, large navigation titles, most

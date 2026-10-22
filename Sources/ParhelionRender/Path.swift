@@ -76,6 +76,19 @@ public struct Path: Sendable {
         closeSubpath()
     }
 
+    /// A rectangle with rounded corners. A reversed one runs the other way
+    /// around, so adding it inside another shape cuts a hole.
+    public init(roundedRect rect: CGRect, cornerRadius: CGFloat, reversed: Bool) {
+        let path = Path(roundedRect: rect, cornerRadius: cornerRadius)
+        // Mirroring the shape top to bottom reverses its direction and, since
+        // the shape is symmetric, leaves it where it was.
+        self =
+            reversed
+            ? path.applying(
+                scaleX: 1, scaleY: -1, translateX: 0, translateY: Double(rect.minY + rect.maxY))
+            : path
+    }
+
     /// A rectangle with rounded corners.
     public init(roundedRect rect: CGRect, cornerRadius: CGFloat) {
         let radius = min(cornerRadius, rect.width / 2, rect.height / 2)

@@ -31,7 +31,9 @@ final class PreviewSession {
                     appName: appName,
                     screenWidth: Double(host.device.screenSize.width),
                     screenHeight: Double(host.device.screenSize.height),
-                    scale: scale
+                    scale: scale,
+                    deviceName: host.device.name,
+                    displayCornerRadius: Double(host.device.displayCornerRadius)
                 )
             )
         )
@@ -123,7 +125,7 @@ final class PreviewSession {
         lastFrameTime = ContinuousClock.now
         let clock = ContinuousClock()
         let start = clock.now
-        let frame = host.render(scale: scale)
+        let frame = host.render(scale: scale, chrome: .screen)
         let rendered = clock.now
         try channel.send(
             .frame(
@@ -152,13 +154,16 @@ extension PreviewSession {
         let environment = ProcessInfo.processInfo.environment
         guard let socketPath = environment[previewSocketEnvironmentKey] else { return false }
         let scale = environment["PARHELION_PREVIEW_SCALE"].flatMap(Double.init) ?? 2
+        // Before connecting, so that a window host sees an unknown device
+        // name as the app exiting, with the message in its output.
+        let device = simulatedDevice()
         do {
             let channel = try PreviewChannel.connect(to: socketPath)
             let savedState = stateFilePath.flatMap {
                 FileManager.default.contents(atPath: $0)
             }
             let session = PreviewSession(
-                host: ViewHost(anyRootView: content, restoring: savedState),
+                host: ViewHost(anyRootView: content, device: device, restoring: savedState),
                 channel: channel,
                 scale: scale,
                 appName: appName

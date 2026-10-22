@@ -95,8 +95,25 @@ may contain breaking changes.
   (see ADR 0005).
 - Not yet supported: `scaleEffect`, `rotationEffect`, `matchedGeometryEffect`, the `scale`
   transition, color interpolation, and repeating animations.
+- Device chrome: `ViewHost.render(scale:chrome:)` draws the iOS 27 status bar (the clock, signal,
+  Wi-Fi, and a full battery) and the home indicator with `.systemBars`, and adds the Dynamic Island
+  or notch and the screen's rounded corners with `.screen`.
+- The preview window shows the screen inside a phone bezel with side buttons, like the iOS
+  Simulator, in a window that is transparent outside the phone. `--no-bezel` shows the screen
+  alone.
+- iPhone presets in `Device.all`, found by name with `Device.named(_:)`, and `--device` for
+  `parhelion run`, `parhelion preview`, and `parhelion mcp`. Apps read the device from
+  `PARHELION_DEVICE`.
+- `Device.displayCornerRadius`, `Device.sensorHousing`, and `Device.homeIndicatorWidth`.
+- Inter SemiBold, for the status bar's clock, and `TrueTypeFont.capHeight`.
+- `CanvasOverlay`, a drawing kept to blend over many canvases, `Canvas.fill(_:clippedTo:color:)`,
+  and `Path(roundedRect:cornerRadius:reversed:)` in `ParhelionRender`.
+- `parhelion mcp` includes the app's last output when the app exits before it connects.
 
 ### Changed
+
+- Screenshots from `parhelion mcp` and `--png` images show the status bar and the home indicator,
+  as Simulator screenshots do.
 
 - Rectangles render through a fast path, so a full frame takes about 7 ms in a debug build
   instead of 45 ms.

@@ -52,8 +52,8 @@ changing anything under `Sources/`.
   It needs xtool with the iOS SDK, so CI cannot run it.
 - Never add SwiftPM `resources:` to a target. They break iOS builds of apps that depend on
   Parhelion; see `docs/adr/0003-no-swiftpm-resources.md`.
-- `Sources/ParhelionRender/InterRegularFontData.swift` is generated. To change the font, replace
-  `Fonts/Inter-Regular.ttf` and run
+- `Sources/ParhelionRender/Inter*FontData.swift` are generated. To change a font, replace it in
+  `Fonts/` and run, for example,
   `Scripts/embed-font.sh Fonts/Inter-Regular.ttf > Sources/ParhelionRender/InterRegularFontData.swift`.
 - When you open a pull request, fill in the template's AI assistance section truthfully. Unless a
   person has told you they reviewed the change, choose *Generated, not reviewed*.

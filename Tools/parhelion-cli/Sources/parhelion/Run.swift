@@ -85,7 +85,7 @@ struct Run: ParsableCommand {
         var app: AppConnection? = try launch()
         let host = try window.openWindow(for: app!.hello)
         wakeBox.set(host.waker)
-        let title = "\(app!.hello.appName) — Parhelion"
+        let title = WindowOptions.title(for: app!.hello)
         print("Running \(app!.hello.appName). Save a file to reload. Close the window to quit.")
 
         let rebuild = BackgroundBuild()

@@ -116,7 +116,8 @@ the child. A `nil` dimension in a proposal asks for the child's ideal size.
   There is no kerning or shaping yet, and all text uses the body size until the environment and
   `font` exist. The renderer must draw with the same font file so that layout and pixels agree.
 - **The root** covers the device screen. Root content is proposed the safe area and centered in
-  it. `Device.iPhone16` is the default.
+  it. `Device.iPhone16` is the default; `PARHELION_DEVICE` picks another preset from
+  `Device.all`.
 
 Every number in which Parhelion assumes SwiftUI's behavior, such as the default padding of 16
 points, is in `LayoutDefaults.swift`. These are assumptions until the planned macOS fidelity job
@@ -124,8 +125,9 @@ verifies them.
 
 ### Rendering
 
-`ViewHost.render(scale:)` draws the laid-out tree into a `RenderedFrame`, an RGBA image at the
-given number of pixels per point. Like layout, the renderer reads only the tree.
+`ViewHost.render(scale:chrome:)` draws the laid-out tree into a `RenderedFrame`, an RGBA image at
+the given number of pixels per point. Like layout, the renderer reads only the tree, and the
+device for the system interface it draws over the tree.
 
 - **Drawing** happens in `ParhelionRender`, a module with no dependencies. It parses Inter's
   TrueType outlines, flattens curves, and fills paths with exact-area anti-aliasing. There is no
@@ -142,6 +144,21 @@ given number of pixels per point. Like layout, the renderer reads only the tree.
   32-bit words. A typical screen renders in under 1 ms in an optimized build.
 - **PNG** output uses a small built-in deflate encoder. A screen of mostly flat color compresses
   to about 50 KB at 2× scale.
+- **Device chrome** draws over everything the app presents. `.systemBars` adds the status bar
+  and the home indicator, which is what a Simulator screenshot shows; agent screenshots and
+  `--png` use it, so every point of the image is a point on the screen. `.screen` also adds the
+  Dynamic Island or notch and blacks out the screen's rounded corners; the preview session sends
+  these frames. Each `Device` preset records its corner radius, cutout, and home indicator width.
+  Parhelion draws only the light appearance so far, so the bars are always black. The status
+  bar's clock uses Inter SemiBold in place of SF Pro. The chrome depends only on the device, the
+  scale, and the kind of chrome, so `ViewHost` draws it once into a `CanvasOverlay` and blends
+  that over each frame: opaque runs are copied as whole words, and only the anti-aliased edges
+  are blended.
+- **The bezel** exists only in the window. The window host draws the phone once, with a
+  transparent hole the shape of the screen, and draws it over each frame. The window ends at the
+  phone's side buttons and is transparent outside the phone where the compositor supports it, so
+  the host also fades out the frame's square corners where they reach past the phone's rounded
+  body. Pointer positions are moved by the bezel's margin before they go to the app.
 
 ### Scrolling and time
 

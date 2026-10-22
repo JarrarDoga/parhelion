@@ -74,6 +74,10 @@ enum ColorPalette {
     /// Assumed: the color that dims the screen behind a sheet or an alert.
     static let presentationDim = RGBA(red: 0, green: 0, blue: 0, alpha: 51)
 
+    /// Assumed: the color of the status bar's contents and the home
+    /// indicator over the light appearance.
+    static let systemBarForeground = RGBA.black
+
     /// Assumed: the background of an alert.
     static let alertBackground = RGBA(red: 242, green: 242, blue: 242)
 

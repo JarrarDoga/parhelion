@@ -232,13 +232,40 @@ public struct Canvas: Sendable {
                 x: innerRight, y: innerBottom, width: outerRight - innerRight,
                 height: outerBottom - innerBottom),
         ]
+        for corner in corners {
+            fill(path, clippedTo: corner, color: color)
+        }
+    }
+
+    /// Fills a path given in points, drawing only inside a rectangle and
+    /// the current clip.
+    public mutating func fill(_ path: Path, clippedTo rect: CGRect, color: RGBA) {
         let outerClip = clipRect
         defer { clipRect = outerClip }
-        for corner in corners {
-            let clip = outerClip.map { $0.intersection(corner) } ?? corner
-            guard !clip.isNull, clip.width > 0, clip.height > 0 else { continue }
-            clipRect = clip
-            fill(path, color: color)
+        let clip = outerClip.map { $0.intersection(rect) } ?? rect
+        guard !clip.isNull, clip.width > 0, clip.height > 0 else { return }
+        clipRect = clip
+        fill(path, color: color)
+    }
+
+    /// Blends an overlay's pixels over the canvas. The overlay must have the
+    /// canvas's size in pixels.
+    public mutating func draw(_ overlay: CanvasOverlay) {
+        precondition(
+            overlay.width == width && overlay.height == height,
+            "An overlay must have the canvas's size in pixels.")
+        pixels.withUnsafeMutableBytes { raw in
+            let words = raw.bindMemory(to: UInt32.self)
+            for run in overlay.runs {
+                let start = Int(run.start)
+                UnsafeMutableBufferPointer(rebasing: words[start..<start + Int(run.count)])
+                    .update(repeating: run.word)
+            }
+        }
+        pixels.withUnsafeMutableBufferPointer { bytes in
+            for pixel in overlay.blends {
+                Self.blend(pixel.color, 1, into: bytes, at: Int(pixel.index) * 4)
+            }
         }
     }
 
@@ -315,6 +342,54 @@ public struct Canvas: Sendable {
         bytes[index + 1] = channel(color.green, bytes[index + 1])
         bytes[index + 2] = channel(color.blue, bytes[index + 2])
         bytes[index + 3] = UInt8(min(max((outAlpha * 255).rounded(), 0), 255))
+    }
+}
+
+/// The pixels a drawing covers, kept so that the drawing can be blended
+/// over many canvases without rasterizing it again.
+///
+/// Draw on a transparent canvas, then make an overlay of it. Only pixels
+/// with some opacity are kept: runs of one opaque color, which are copied
+/// as whole words, and single translucent pixels, which are blended. So an
+/// overlay of a few small shapes is cheap to draw even over a large canvas.
+public struct CanvasOverlay: Sendable {
+    /// The size in pixels of the canvases the overlay can be drawn over.
+    public let width: Int
+    public let height: Int
+    /// Runs of opaque pixels of one color, by the index of their first
+    /// pixel, row-major from the top-left corner.
+    let runs: [(start: Int32, count: Int32, word: UInt32)]
+    /// Translucent pixels, by index.
+    let blends: [(index: Int32, color: RGBA)]
+
+    /// The pixels of a canvas that are not fully transparent.
+    public init(_ canvas: Canvas) {
+        width = canvas.width
+        height = canvas.height
+        var runs: [(start: Int32, count: Int32, word: UInt32)] = []
+        var blends: [(index: Int32, color: RGBA)] = []
+        for row in 0..<canvas.height {
+            for column in 0..<canvas.width {
+                let index = row * canvas.width + column
+                let color = canvas.pixel(x: column, y: row)
+                guard color.alpha > 0 else { continue }
+                guard color.alpha == 255 else {
+                    blends.append((Int32(index), color))
+                    continue
+                }
+                // Extend the last run if this pixel continues it on the
+                // same row.
+                if let last = runs.last, last.word == color.packed,
+                    Int(last.start + last.count) == index, column > 0
+                {
+                    runs[runs.count - 1].count += 1
+                } else {
+                    runs.append((Int32(index), 1, color.packed))
+                }
+            }
+        }
+        self.runs = runs
+        self.blends = blends
     }
 }
 

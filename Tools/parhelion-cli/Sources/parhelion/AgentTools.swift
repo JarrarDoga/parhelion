@@ -4,11 +4,12 @@ import ParhelionTooling
 /// The tools `parhelion mcp` offers, and how their arguments become
 /// commands for the app.
 enum AgentTools {
-    static func instructions(product: String) -> String {
+    static func instructions(product: String, device: String?) -> String {
         """
-        Parhelion runs the SwiftUI app \(product) on Linux, on a simulated iPhone 16 screen of \
-        393 × 852 points. Start with get_view_tree: it lists every view with its identifier \
-        (after #) and its frame in points. Tap buttons by label or identifier, type into text \
+        Parhelion runs the SwiftUI app \(product) on Linux, on a simulated \(device ?? "iPhone 16") \
+        screen; the Root view's frame is the screen's size in points. Screenshots show the status \
+        bar and the home indicator over the app, as in the iOS Simulator. Start with \
+        get_view_tree: it lists every view with its identifier (after #) and its frame in points. Tap buttons by label or identifier, type into text \
         fields, scroll, and take screenshots to check how the screen looks. While a sheet or an \
         alert is presented, only it receives input; drag a sheet down to dismiss it. The view tree \
         shows where views end up, even while an animation is still moving them; if a reply says \

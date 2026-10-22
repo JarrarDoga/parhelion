@@ -34,6 +34,19 @@ struct FontTests {
     func missingGlyph() {
         #expect(font.glyph(for: "\u{10FFFD}") == 0)
     }
+
+    @Test("The cap height comes from the OS/2 table")
+    func capHeight() {
+        #expect(font.capHeight > 0 && font.capHeight < font.ascender)
+        #expect(abs(font.capHeight(size: 2048) - Double(font.capHeight)) < 1e-9)
+    }
+
+    @Test("SemiBold glyphs are wider than Regular ones")
+    func semiBold() {
+        let semiBold = TrueTypeFont.interSemiBold
+        #expect(semiBold.unitsPerEm == font.unitsPerEm)
+        #expect(semiBold.width(of: "9:41", size: 17) > font.width(of: "9:41", size: 17))
+    }
 }
 
 @Suite("Rasterizer")
@@ -94,6 +107,22 @@ struct RasterizerTests {
         )
         #expect(coverage.values[10 * coverage.width + 10] < 0.01)  // The center is empty.
         #expect(coverage.values[10 * coverage.width + 2] > 0.99)  // The ring is filled.
+    }
+
+    @Test("A reversed inner rounded rectangle cuts a hole")
+    func roundedRingHole() throws {
+        var ring = Path(roundedRect: CGRect(x: 0, y: 0, width: 20, height: 20), cornerRadius: 4)
+        ring.addPath(
+            Path(
+                roundedRect: CGRect(x: 5, y: 5, width: 10, height: 10), cornerRadius: 2,
+                reversed: true))
+        let coverage = try #require(
+            Rasterizer.coverage(of: ring.polygons(tolerance: 0.1), clipWidth: 20, clipHeight: 20)
+        )
+        #expect(coverage.values[10 * coverage.width + 10] < 0.01)  // The center is empty.
+        #expect(coverage.values[10 * coverage.width + 2] > 0.99)  // The ring is filled.
+        // The hole is round at its corners, so the corner pixel is mostly filled.
+        #expect(coverage.values[5 * coverage.width + 5] > 0.5)
     }
 }
 

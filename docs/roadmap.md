@@ -64,6 +64,8 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 
 ## Continuous: Fidelity
 
+- [x] Device chrome: the status bar, the Dynamic Island, the home indicator, rounded screen
+      corners, a phone bezel in the window, and iPhone presets with `--device`
 - [ ] CI on macOS and on Linux arm64
 - [ ] Verify each constant in `LayoutDefaults.swift` against Apple's SwiftUI
 - [ ] Symbol images: substitute an open-source icon set for SF Symbols

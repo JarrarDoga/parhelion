@@ -5,7 +5,7 @@ import Foundation
 /// A TrueType font: its metrics, character map, and glyph outlines.
 ///
 /// Parhelion reads the `head`, `hhea`, `maxp`, `hmtx`, `cmap`, `loca`, and
-/// `glyf` tables. It does not apply kerning, ligatures, or hinting, so layout
+/// `glyf` tables, and the cap height from `OS/2`. It does not apply kerning, ligatures, or hinting, so layout
 /// and drawing both place each glyph at its advance width and stay in
 /// agreement.
 public struct TrueTypeFont: Sendable {
@@ -26,6 +26,8 @@ public struct TrueTypeFont: Sendable {
     public let descender: Int
     /// Extra space between lines, in font units.
     public let lineGap: Int
+    /// The height of capital letters above the baseline, in font units.
+    public let capHeight: Int
 
     private let bytes: [UInt8]
     private let advances: [UInt16]
@@ -51,6 +53,14 @@ public struct TrueTypeFont: Sendable {
         lineGap = Int(try reader.int16(at: hhea + 8))
         let metricCount = Int(try reader.uint16(at: hhea + 34))
 
+        // Version 2 and later of the OS/2 table record the cap height. Older
+        // fonts get an estimate.
+        if let os2 = tables["OS/2"], try reader.uint16(at: os2) >= 2 {
+            capHeight = Int(try reader.int16(at: os2 + 88))
+        } else {
+            capHeight = ascender * 7 / 10
+        }
+
         let hmtx = try table("hmtx")
         advances = try (0..<metricCount).map { try reader.uint16(at: hmtx + $0 * 4) }
 
@@ -70,16 +80,21 @@ public struct TrueTypeFont: Sendable {
         self.bytes = bytes
     }
 
-    /// Inter Regular, the typeface Parhelion uses for all text.
-    public static let interRegular: TrueTypeFont = {
+    /// Inter Regular, the typeface Parhelion uses for app text.
+    public static let interRegular = embedded(interRegularFontBase64, name: "Inter Regular")
+
+    /// Inter SemiBold, for the status bar's clock.
+    public static let interSemiBold = embedded(interSemiBoldFontBase64, name: "Inter SemiBold")
+
+    private static func embedded(_ base64: String, name: String) -> TrueTypeFont {
         guard
-            let data = Data(base64Encoded: interRegularFontBase64),
+            let data = Data(base64Encoded: base64),
             let font = try? TrueTypeFont(bytes: [UInt8](data))
         else {
-            fatalError("The embedded Inter Regular font data is unreadable.")
+            fatalError("The embedded \(name) font data is unreadable.")
         }
         return font
-    }()
+    }
 
     // MARK: - Metrics
 
@@ -99,6 +114,11 @@ public struct TrueTypeFont: Sendable {
     public func width(of text: some StringProtocol, size: Double) -> Double {
         let units = text.unicodeScalars.reduce(0) { $0 + advance(ofGlyph: glyph(for: $1)) }
         return Double(units) * size / Double(unitsPerEm)
+    }
+
+    /// The height of capital letters at the given point size.
+    public func capHeight(size: Double) -> Double {
+        Double(capHeight) * size / Double(unitsPerEm)
     }
 
     /// The distance between the baselines of two lines at the given point size.
