@@ -139,7 +139,13 @@ device for the system interface it draws over the tree.
 - **Drawing** happens in `ParhelionRender`, a module with no dependencies. It parses Inter's
   TrueType outlines, flattens curves, and fills paths with exact-area anti-aliasing. There is no
   GPU and no system font library, so the same tree produces the same pixels on every machine
-  ([ADR 0004](adr/0004-pure-swift-renderer.md)).
+  ([ADR 0004](adr/0004-pure-swift-renderer.md)). For Liquid Glass, the canvas also draws
+  continuous ("squircle") corners, rings, linear gradients, blend modes, blurred drop shadows,
+  and a blur with saturation of the pixels already drawn. Shadows and blurs approximate a
+  Gaussian with three box blurs on integers, at a reduced resolution for wide blurs, so their
+  cost follows the area they cover: at 3× in an optimized build, a 44-point control's shadow
+  or blur takes about 0.5 ms, and an alert's blur about 3 ms. Shapes and their rings rasterize
+  only their corners.
 - **Colors** come from `ColorPalette`, which maps SwiftUI's named colors and styles to iOS 27's
   light-appearance system colors. A `foregroundStyle` applies to the node and its descendants, and
   button labels take the tint color unless they set their own style.

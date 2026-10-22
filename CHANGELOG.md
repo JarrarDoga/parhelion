@@ -121,6 +121,23 @@ may contain breaking changes.
   below the bar's row of buttons, and pushed views inherit the display mode of the view beneath.
   `navigationBarTitleDisplayMode(_:)` now chooses `.large` or `.inline`, and the `NavigationBar`
   node records a `titleDisplayMode` attribute.
+- Drawing primitives in `ParhelionRender` for Liquid Glass, which views do not use yet:
+  - `Path.addCurve(to:control1:control2:)`, for cubic curves.
+  - `Path.CornerStyle` and `Path(roundedRect:cornerRadius:style:reversed:)`. `.continuous`
+    approximates iOS's continuous corners and blends to circular corners on short sides, so half
+    the height still makes a capsule. `Canvas.fill(_:cornerRadius:style:color:)` fills them
+    quickly.
+  - `Canvas.drawShadow(of:color:offset:blur:drawsUnderShape:)` for paths and rounded rectangles:
+    blurred drop shadows, cut away under the shape unless `drawsUnderShape` is set.
+  - `Path.StrokeAlignment`, `Path(ringAround:cornerRadius:style:lineWidth:alignment:)`, and
+    `Canvas.stroke(_:cornerRadius:style:lineWidth:alignment:color:)`: rings inside, centered on,
+    or outside a rounded rectangle's edge.
+  - `Canvas.LinearGradient` and `Canvas.fill(_:gradient:)`: linear gradients at any angle, with
+    any number of stops, for paths and rectangles.
+  - `Canvas.BlendMode` and `Canvas.blendMode`: `normal`, `multiply`, `screen`, `lighten`, `darken`,
+    `plusLighter`, and `plusDarker`.
+  - `Canvas.blur(_:cornerRadius:style:radius:saturation:)`: blurs the pixels inside a rounded
+    rectangle and scales their saturation.
 
 ### Changed
 
