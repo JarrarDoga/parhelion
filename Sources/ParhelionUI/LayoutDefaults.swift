@@ -98,8 +98,7 @@ enum LayoutDefaults {
     static let listSectionSpacing: CGFloat = 20
 
     /// Assumed: the corner radius of a section in an inset grouped list, in
-    /// the iOS 27 UI Kit. The kit's corners are continuous; Parhelion draws
-    /// circular ones.
+    /// the iOS 27 UI Kit, with continuous corners.
     static let listCornerRadius: CGFloat = 26
 
     /// Assumed: the insets around a section header in a list: one line of
