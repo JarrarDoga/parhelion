@@ -79,7 +79,7 @@ extension Device {
     // radii are from ScreenCorners (github.com/kylebshr/ScreenCorners).
     // Assumed: the Dynamic Island and notch frames are measurements of
     // Apple's product bezel images and Simulator screenshots, and the home
-    // indicator width is measured on an iPhone 16 Pro.
+    // indicator width is from Apple's iOS 27 UI Kit.
 
     /// iPhone 16 in portrait: 393 × 852 points.
     public static let iPhone16 = dynamicIslandPhone(
@@ -141,7 +141,7 @@ extension Device {
                 CGRect(
                     x: (width - islandWidth) / 2, y: islandY, width: islandWidth,
                     height: 36.67)),
-            homeIndicatorWidth: 139
+            homeIndicatorWidth: 144
         )
     }
 

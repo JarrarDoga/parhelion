@@ -18,51 +18,50 @@ public enum DeviceChrome: Sendable, CaseIterable {
 
 /// The sizes and positions of the system interface's parts.
 ///
-/// Assumed: these are measurements of iOS 18 and iOS 26 Simulator
-/// screenshots of 402-point-wide iPhones, which match glyph for glyph, and
-/// of Apple's product bezel images. Apple publishes none of them. Parhelion
-/// uses the same sizes on every device.
+/// These are iOS 27's, from the iPhone 17 Pro status bar in Apple's iOS 27
+/// UI Kit for Sketch (v27.1.2). Assumed: no device capture has confirmed
+/// them yet, and Parhelion uses the same sizes on every device.
 enum ChromeMetrics {
     /// The status bar's clock, which the Simulator shows as 9:41.
     static let time = "9:41"
-    /// Assumed: the clock is SF Pro Semibold at 17 points, which matches its
-    /// measured cap height of 12 points. Parhelion draws it with Inter
-    /// SemiBold.
-    static let timeFontSize = 17.0
+    /// The clock is SF Pro Semibold at 17.67 points. Parhelion draws it with
+    /// Inter SemiBold.
+    static let timeFontSize = 17.67
 
-    /// How far the clock and the glyphs sit from the centers of the areas
-    /// beside the sensor housing, toward the housing.
-    static let towardHousing: CGFloat = 5
+    /// How far the clock's center sits from the center of the area to the
+    /// left of the sensor housing, toward the housing. Negative values move
+    /// it toward the screen's edge.
+    static let timeTowardHousing: CGFloat = -2
+    /// How far the glyphs' center sits from the center of the area to the
+    /// right of the housing, toward the housing.
+    static let glyphsTowardHousing: CGFloat = -1
 
-    /// The cellular signal glyph's four bars, bottom-aligned. Assumed: the
-    /// sizes are scaled from a 440-point-wide screenshot.
+    /// The cellular signal glyph's four fully rounded bars, bottom-aligned.
     static let signalBarWidth: CGFloat = 3.33
-    static let signalBarSpacing: CGFloat = 2
-    static let signalBarHeights: [CGFloat] = [4.67, 7, 9.67, 12.33]
-    static let signalBarCornerRadius: CGFloat = 1
+    static let signalBarSpacing: CGFloat = 2.33
+    static let signalBarHeights: [CGFloat] = [6.33, 8.67, 11, 13.67]
+    static let signalBarCornerRadius: CGFloat = 3.33 / 2
 
     /// The Wi-Fi glyph: three bands of a fan whose point is at the bottom,
-    /// 17 × 12.33 points. Each band is given as its inner and outer radius.
+    /// 19.33 × 14.33 points. Each band is given as its inner and outer
+    /// radius.
     static let wifiBands: [(inner: CGFloat, outer: CGFloat)] = [
-        (0, 3.8), (5.4, 8.1), (9.6, 12.33),
+        (0, 4.4), (6.3, 9.4), (11.2, 14.33),
     ]
-    /// The fan opens this far to each side of vertical, so that it is 17
+    /// The fan opens this far to each side of vertical, so that it is 19.33
     /// points wide.
-    static let wifiHalfAngle = asin(8.5 / 12.33)
+    static let wifiHalfAngle = asin(9.665 / 14.33)
 
-    /// The battery glyph: a translucent outline around a solid fill, which
-    /// shows a full charge, and a translucent terminal to its right.
-    static let batterySize = CGSize(width: 25, height: 13)
+    /// The battery glyph: a solid body, which shows a full charge, and a
+    /// translucent terminal to its right. Assumed: the terminal's opacity.
+    static let batterySize = CGSize(width: 26.33, height: 13.67)
     static let batteryCornerRadius: CGFloat = 4.33
-    static let batteryOutlineWidth: CGFloat = 1
-    static let batteryFillInset: CGFloat = 2
-    static let batteryTerminalSize = CGSize(width: 1.33, height: 4)
+    static let batteryTerminalSize = CGSize(width: 2, height: 5)
     static let batteryTerminalGap: CGFloat = 1
-    static let batteryOutlineOpacity = 0.4
     static let batteryTerminalOpacity = 0.5
 
     /// The space between the glyphs on the right of the status bar.
-    static let glyphSpacing: CGFloat = 7.33
+    static let glyphSpacing: CGFloat = 8
 
     /// Assumed: the radius of the curves where a notch's sides flare out to
     /// meet the top of the screen, measured on the iPhone 14's bezel.
@@ -145,9 +144,8 @@ extension TreeRenderer {
     private func drawStatusBar(color: RGBA, into canvas: inout Canvas) {
         guard let areas = statusBarAreas else { return }
 
-        // The clock is centered a little toward the housing from the middle
-        // of the area to its left, with its digits centered on the bar's
-        // midline.
+        // The clock is centered near the middle of the area to the left of
+        // the housing, with its digits centered on the bar's midline.
         let font = TrueTypeFont.interSemiBold
         let size = ChromeMetrics.timeFontSize
         let timeWidth = font.width(of: ChromeMetrics.time, size: size)
@@ -157,14 +155,14 @@ extension TreeRenderer {
             font: font,
             size: size,
             origin: CGPoint(
-                x: Double(areas.left.midX + ChromeMetrics.towardHousing) - timeWidth / 2,
+                x: Double(areas.left.midX + ChromeMetrics.timeTowardHousing) - timeWidth / 2,
                 y: Double(areas.midY) + capHeight / 2
             ),
             color: color
         )
 
-        // The signal, Wi-Fi, and battery glyphs are placed as a group the
-        // same way in the area to the right, sharing a midline with the
+        // The signal, Wi-Fi, and battery glyphs are placed as a group near
+        // the middle of the area to the right, sharing a midline with the
         // clock.
         let signalWidth =
             ChromeMetrics.signalBarWidth * CGFloat(ChromeMetrics.signalBarHeights.count)
@@ -175,7 +173,7 @@ extension TreeRenderer {
             ChromeMetrics.batterySize.width + ChromeMetrics.batteryTerminalGap
             + ChromeMetrics.batteryTerminalSize.width
         let groupWidth = signalWidth + wifiWidth + batteryWidth + 2 * ChromeMetrics.glyphSpacing
-        var x = areas.right.midX - ChromeMetrics.towardHousing - groupWidth / 2
+        var x = areas.right.midX - ChromeMetrics.glyphsTowardHousing - groupWidth / 2
         drawSignal(at: x, midY: areas.midY, color: color, into: &canvas)
         x += signalWidth + ChromeMetrics.glyphSpacing
         drawWiFi(centerX: x + wifiWidth / 2, midY: areas.midY, color: color, into: &canvas)
@@ -236,24 +234,8 @@ extension TreeRenderer {
     private func drawBattery(at x: CGFloat, midY: CGFloat, color: RGBA, into canvas: inout Canvas) {
         let size = ChromeMetrics.batterySize
         let body = CGRect(x: x, y: midY - size.height / 2, width: size.width, height: size.height)
-        let radius = ChromeMetrics.batteryCornerRadius
-        let outline = ChromeMetrics.batteryOutlineWidth
-        var outlineColor = color
-        outlineColor.alpha = UInt8(Double(color.alpha) * ChromeMetrics.batteryOutlineOpacity)
-        var ring = Path(roundedRect: body, cornerRadius: radius)
-        ring.addPath(
-            Path(
-                roundedRect: body.insetBy(dx: outline, dy: outline),
-                cornerRadius: radius - outline,
-                reversed: true
-            )
-        )
-        canvas.fill(ring, color: outlineColor)
-
-        // The Simulator shows a full battery.
-        let inset = ChromeMetrics.batteryFillInset
-        canvas.fill(
-            body.insetBy(dx: inset, dy: inset), cornerRadius: radius - inset, color: color)
+        // The Simulator shows a full battery, which iOS 27 draws solid.
+        canvas.fill(body, cornerRadius: ChromeMetrics.batteryCornerRadius, color: color)
 
         let terminal = ChromeMetrics.batteryTerminalSize
         var terminalColor = color

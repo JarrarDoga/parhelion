@@ -95,7 +95,7 @@ may contain breaking changes.
   (see ADR 0005).
 - Not yet supported: `scaleEffect`, `rotationEffect`, `matchedGeometryEffect`, the `scale`
   transition, color interpolation, and repeating animations.
-- Device chrome: `ViewHost.render(scale:chrome:)` draws the status bar (the clock, signal,
+- Device chrome: `ViewHost.render(scale:chrome:)` draws the iOS 27 status bar (the clock, signal,
   Wi-Fi, and a full battery) and the home indicator with `.systemBars`, and adds the Dynamic Island
   or notch and the screen's rounded corners with `.screen`.
 - The preview window shows the screen inside a phone bezel with side buttons, like the iOS
