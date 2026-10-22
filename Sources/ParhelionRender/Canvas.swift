@@ -40,11 +40,15 @@ public struct Canvas: Sendable {
     /// Pixels per point.
     public let scale: Double
     /// RGBA pixels, four bytes each, row-major from the top-left corner.
-    public private(set) var pixels: [UInt8]
+    public internal(set) var pixels: [UInt8]
 
     /// A rectangle in points that drawing is limited to, or `nil` to draw
     /// anywhere on the canvas.
     public var clipRect: CGRect?
+
+    /// How fills, gradients, strokes, shadows, and text combine with the
+    /// pixels already on the canvas. Overlays ignore it.
+    public var blendMode: BlendMode = .normal
 
     /// Creates a canvas of the given size in points, filled with a color.
     public init(width: Double, height: Double, scale: Double, background: RGBA = .white) {
@@ -72,7 +76,7 @@ public struct Canvas: Sendable {
     }
 
     /// The clip rectangle in whole pixels, intersected with the canvas.
-    private var pixelClip: (minX: Int, minY: Int, maxX: Int, maxY: Int) {
+    var pixelClip: (minX: Int, minY: Int, maxX: Int, maxY: Int) {
         var clip = (minX: 0, minY: 0, maxX: width, maxY: height)
         if let clipRect {
             // Clip to whole pixels, so content next to a clip edge never bleeds
@@ -123,6 +127,7 @@ public struct Canvas: Sendable {
         let solidEndX = min(Int(right.rounded(.down)), endX)
         let word = color.packed
         let width = width
+        let mode = blendMode
 
         pixels.withUnsafeMutableBufferPointer { bytes in
             let words = UnsafeMutableRawBufferPointer(bytes).bindMemory(to: UInt32.self)
@@ -130,7 +135,7 @@ public struct Canvas: Sendable {
                 let rowCoverage = min(Double(y + 1), bottom) - max(Double(y), top)
                 let row = y * width
                 if rowCoverage >= 1, solidEndX > solidStartX {
-                    if color.alpha == 255 {
+                    if color.alpha == 255, mode == .normal {
                         UnsafeMutableBufferPointer(
                             rebasing: words[(row + solidStartX)..<(row + solidEndX)]
                         )
@@ -146,17 +151,19 @@ public struct Canvas: Sendable {
                                 continue
                             }
                             source = words[index]
-                            Self.blend(color, 1, into: bytes, at: index * 4)
+                            Self.blend(color, 1, mode, into: bytes, at: index * 4)
                             blended = words[index]
                         }
                     }
                     for x in startX..<solidStartX {
                         let columnCoverage = min(Double(x + 1), right) - max(Double(x), left)
-                        Self.blend(color, Float(columnCoverage), into: bytes, at: (row + x) * 4)
+                        Self.blend(
+                            color, Float(columnCoverage), mode, into: bytes, at: (row + x) * 4)
                     }
                     for x in max(solidEndX, startX)..<endX {
                         let columnCoverage = min(Double(x + 1), right) - max(Double(x), left)
-                        Self.blend(color, Float(columnCoverage), into: bytes, at: (row + x) * 4)
+                        Self.blend(
+                            color, Float(columnCoverage), mode, into: bytes, at: (row + x) * 4)
                     }
                 } else {
                     for x in startX..<endX {
@@ -164,6 +171,7 @@ public struct Canvas: Sendable {
                         Self.blend(
                             color,
                             Float(columnCoverage * rowCoverage),
+                            mode,
                             into: bytes,
                             at: (row + x) * 4
                         )
@@ -173,12 +181,21 @@ public struct Canvas: Sendable {
         }
     }
 
-    /// Fills a rectangle with rounded corners, given in points.
+    /// Fills a rectangle with circular rounded corners, given in points.
+    public mutating func fill(_ rect: CGRect, cornerRadius: CGFloat, color: RGBA) {
+        fill(rect, cornerRadius: cornerRadius, style: .circular, color: color)
+    }
+
+    /// Fills a rectangle with rounded corners of the given style, in points.
     ///
     /// Only the four corners go through the general rasterizer, each clipped
-    /// to its own box. The rest is filled as rectangles. Every edge that two
-    /// of these pieces share lies on a pixel boundary, so no seams show.
-    public mutating func fill(_ rect: CGRect, cornerRadius: CGFloat, color: RGBA) {
+    /// to its own box. A continuous corner's box reaches about 1.53 × the
+    /// radius along each edge, where its curve starts. The rest is filled
+    /// as rectangles. Every edge that two of these pieces share lies on a
+    /// pixel boundary, so no seams show.
+    public mutating func fill(
+        _ rect: CGRect, cornerRadius: CGFloat, style: Path.CornerStyle, color: RGBA
+    ) {
         guard color.alpha > 0, rect.width > 0, rect.height > 0 else { return }
         let radius = min(cornerRadius, rect.width / 2, rect.height / 2)
         guard radius > 0 else {
@@ -188,11 +205,12 @@ public struct Canvas: Sendable {
         func snap(_ value: CGFloat, _ rule: FloatingPointRoundingRule) -> CGFloat {
             CGFloat((Double(value) * scale).rounded(rule) / scale)
         }
-        let innerLeft = snap(rect.minX + radius, .up)
-        let innerRight = snap(rect.maxX - radius, .down)
-        let innerTop = snap(rect.minY + radius, .up)
-        let innerBottom = snap(rect.maxY - radius, .down)
-        let path = Path(roundedRect: rect, cornerRadius: radius)
+        let extent = Path.cornerExtent(of: rect, cornerRadius: radius, style: style)
+        let innerLeft = snap(rect.minX + extent, .up)
+        let innerRight = snap(rect.maxX - extent, .down)
+        let innerTop = snap(rect.minY + extent, .up)
+        let innerBottom = snap(rect.maxY - extent, .down)
+        let path = Path(roundedRect: rect, cornerRadius: radius, style: style)
         guard innerLeft < innerRight, innerTop < innerBottom else {
             fill(path, color: color)
             return
@@ -304,6 +322,7 @@ public struct Canvas: Sendable {
     /// Blends a color into the canvas, weighted by coverage.
     private mutating func composite(_ coverage: Coverage, color: RGBA) {
         let width = width
+        let mode = blendMode
         pixels.withUnsafeMutableBufferPointer { bytes in
             coverage.values.withUnsafeBufferPointer { values in
                 for row in 0..<coverage.height {
@@ -312,7 +331,7 @@ public struct Canvas: Sendable {
                     for column in 0..<coverage.width {
                         let amount = values[valueStart + column]
                         guard amount > 0 else { continue }
-                        Self.blend(color, amount, into: bytes, at: rowStart + column * 4)
+                        Self.blend(color, amount, mode, into: bytes, at: rowStart + column * 4)
                     }
                 }
             }
@@ -320,9 +339,26 @@ public struct Canvas: Sendable {
     }
 
     /// Blends `color`, weighted by `coverage` in `0...1`, over the pixel at a
+    /// byte offset with a blend mode.
+    @inline(__always)
+    static func blend(
+        _ color: RGBA,
+        _ coverage: Float,
+        _ mode: BlendMode,
+        into bytes: UnsafeMutableBufferPointer<UInt8>,
+        at index: Int
+    ) {
+        if mode == .normal {
+            blend(color, coverage, into: bytes, at: index)
+        } else {
+            blendSeparately(color, coverage, mode: mode, into: bytes, at: index)
+        }
+    }
+
+    /// Blends `color`, weighted by `coverage` in `0...1`, over the pixel at a
     /// byte offset, with straight-alpha "source over" compositing.
     @inline(__always)
-    private static func blend(
+    static func blend(
         _ color: RGBA,
         _ coverage: Float,
         into bytes: UnsafeMutableBufferPointer<UInt8>,
