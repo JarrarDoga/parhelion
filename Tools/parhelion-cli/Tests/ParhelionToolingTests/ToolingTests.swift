@@ -213,7 +213,7 @@ struct SourceWatcherTests {
         )
         try "let a = 1".write(toFile: root + "/A.swift", atomically: true, encoding: .utf8)
 
-        var watcher = SourceWatcher(root: root)
+        let watcher = SourceWatcher(root: root)
         var changed = watcher.checkForChanges()
         #expect(!changed)
 

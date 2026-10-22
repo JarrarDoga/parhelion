@@ -47,15 +47,15 @@ struct Run: ParsableCommand {
         let package = try AppPackage.load(at: packagePath)
         let plan = try RunPlan.make(for: package, at: packagePath, product: product)
         let builder = AppBuilder(plan: plan, configuration: configuration.rawValue)
-        var watcher = SourceWatcher(root: plan.watchRoot)
+        let watcher = SourceWatcher(root: plan.watchRoot)
 
-        print("Building \(plan.product)...")
+        print("Building \(plan.product): \(builder.modeDescription)...")
         var outcome = builder.build()
         while !outcome.succeeded {
             report(outcome, from: builder)
             if window.exitAfterFirstFrame { throw ExitCode.failure }
             print("Fix the errors and save. Waiting for changes...")
-            while !watcher.checkForChanges() { Thread.sleep(forTimeInterval: 0.5) }
+            while !watcher.waitForChanges(timeout: nil) {}
             print("Building \(plan.product)...")
             outcome = builder.build()
         }
@@ -90,10 +90,14 @@ struct Run: ParsableCommand {
 
         let loop = FrameLoop(window: host)
         let rebuild = BackgroundBuild()
-        var lastCheck = Date()
+        let changes = ChangeMonitor(watcher: watcher, wake: host.waker)
         var reportedExit = false
+        // The reload in progress: when the change was seen, and how long
+        // its build took, until the new app's first frame is on screen.
+        var reload: (changedAt: UInt64, build: Double, restartedAt: UInt64)?
+        var changedAt: UInt64?
         while true {
-            switch try loop.step(app: app, idleTimeout: 0.25) {
+            switch try loop.step(app: app, idleTimeout: 1) {
             case .close:
                 app?.close()
                 return
@@ -102,6 +106,15 @@ struct Run: ParsableCommand {
                     app?.close()
                     return
                 }
+                if presentedFrame, let finished = reload {
+                    reload = nil
+                    let now = PreviewClock.now()
+                    print(
+                        String(
+                            format: "Reloaded in %.2f s: build %.2f s, restart %.2f s.",
+                            PreviewClock.seconds(now - finished.changedAt), finished.build,
+                            PreviewClock.seconds(now - finished.restartedAt)))
+                }
             }
 
             if let current = app, current.isDisconnected, !reportedExit {
@@ -109,13 +122,12 @@ struct Run: ParsableCommand {
                 print("The app exited. Save a file to rebuild and start it again.")
             }
 
-            if !rebuild.isRunning, Date().timeIntervalSince(lastCheck) > 0.5 {
-                lastCheck = Date()
-                if watcher.checkForChanges() {
-                    print("Change detected. Rebuilding...")
-                    host.setTitle("\(title) — Rebuilding…")
-                    rebuild.start(builder, wake: host.waker)
-                }
+            // Changes during a build start another build after it.
+            if !rebuild.isRunning, let time = changes.take() {
+                print("Change detected. Rebuilding...")
+                host.setTitle("\(title) — Rebuilding…")
+                changedAt = time
+                rebuild.start(builder, wake: host.waker)
             }
 
             if let outcome = rebuild.takeResult() {
@@ -124,12 +136,17 @@ struct Run: ParsableCommand {
                     host.setTitle("\(title) — Build failed")
                     continue
                 }
+                let compiled = AppBuilder.compiledModules(in: outcome.output)
+                if !compiled.isEmpty {
+                    print("Compiled \(compiled.joined(separator: ", ")).")
+                }
+                let restartedAt = PreviewClock.now()
                 app?.close()
                 do {
                     app = try launch()
                     reportedExit = false
                     host.setTitle(title)
-                    print(String(format: "Reloaded in %.1f s.", outcome.duration))
+                    reload = (changedAt ?? restartedAt, outcome.duration, restartedAt)
                 } catch {
                     app = nil
                     print("The rebuilt app did not start: \(error)")
@@ -142,6 +159,34 @@ struct Run: ParsableCommand {
     private func report(_ outcome: AppBuilder.Outcome, from builder: AppBuilder) {
         print("Build failed:")
         print(builder.errorSummary(outcome.output))
+    }
+}
+
+/// Waits for source changes on a background thread and remembers when the
+/// first one since the last ``take()`` happened.
+final class ChangeMonitor: @unchecked Sendable {
+    private let lock = NSLock()
+    private var changedAt: UInt64?
+
+    init(watcher: SourceWatcher, wake: @escaping @Sendable () -> Void) {
+        Thread { [self] in
+            while true {
+                guard watcher.waitForChanges(timeout: nil) else { continue }
+                let now = PreviewClock.now()
+                lock.withLock {
+                    if changedAt == nil { changedAt = now }
+                }
+                wake()
+            }
+        }.start()
+    }
+
+    /// When the sources changed, if they did since the last call.
+    func take() -> UInt64? {
+        lock.withLock {
+            defer { changedAt = nil }
+            return changedAt
+        }
     }
 }
 
