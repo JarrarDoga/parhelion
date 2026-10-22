@@ -1,8 +1,9 @@
 name: CI
 
+# Pull requests only. Branch protection requires a branch to be up to date with
+# main before it merges, so the last run on a pull request already tested the
+# exact tree that lands, and a second run on main would repeat it.
 on:
-  push:
-    branches: [main]
   pull_request:
 
 permissions:
