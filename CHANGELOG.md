@@ -69,7 +69,7 @@ may contain breaking changes.
   `navigationTitle(_:)`, a back button labeled with the previous title, and items from
   `toolbar(content:)` with `ToolbarItem` and `ToolbarItemGroup`. Also
   `navigationDestination(for:destination:)`, `navigationBarBackButtonHidden(_:)`,
-  `navigationBarTitleDisplayMode(_:)`, and `NavigationView`. Titles display inline.
+  `navigationBarTitleDisplayMode(_:)`, and `NavigationView`.
 - In a list, a navigation link's row shows a disclosure indicator.
 - `Image(systemName:)` draws chevrons for `chevron.backward`, `chevron.left`, `chevron.forward`,
   and `chevron.right`.
