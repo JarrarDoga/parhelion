@@ -109,6 +109,14 @@ may contain breaking changes.
 - `CanvasOverlay`, a drawing kept to blend over many canvases, `Canvas.fill(_:clippedTo:color:)`,
   and `Path(roundedRect:cornerRadius:reversed:)` in `ParhelionRender`.
 - `parhelion mcp` includes the app's last output when the app exits before it connects.
+- `Font`, with the text styles from `largeTitle` to `caption2`, `system(size:weight:design:)`,
+  `system(_:design:weight:)`, `Font.Weight`, `Font.Design`, `weight(_:)`, and `bold()`; the
+  `font(_:)`, `fontWeight(_:)`, and `bold(_:)` modifiers and `EnvironmentValues.font`; and
+  `Text.font(_:)`, `Text.fontWeight(_:)`, and `Text.bold(_:)`. A `Text` node records a font other
+  than the body style as an attribute, such as `font=headline`, and layout and drawing use its
+  size, line height, and weight. Every design draws with Inter.
+- Inter Medium and Inter Bold, as `TrueTypeFont.interMedium` and `TrueTypeFont.interBold`. Text
+  draws with the bundled weight nearest to its font's weight.
 
 ### Changed
 
@@ -123,6 +131,8 @@ may contain breaking changes.
 - Rounded rectangles fill their interiors as rectangles and rasterize only their corners, and a
   translucent fill blends once for each run of equal pixels. A screen with a sheet renders in
   16 ms in a debug build instead of 380 ms.
+- Each line of text is as tall as its text style's line height: 22 points for body text instead
+  of Inter's own 20.57.
 
 ### Fixed
 

@@ -36,7 +36,7 @@ struct ListTests {
         #expect(
             host.root.outline() == """
                 Root
-                └─ List contentOffset=0, 0 contentSize=300 × 269.57
+                └─ List contentOffset=0, 0 contentSize=300 × 271
                    ├─ Section
                    │  └─ Text "One" listRow
                    ├─ Section

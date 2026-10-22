@@ -47,6 +47,18 @@ struct FontTests {
         #expect(semiBold.unitsPerEm == font.unitsPerEm)
         #expect(semiBold.width(of: "9:41", size: 17) > font.width(of: "9:41", size: 17))
     }
+
+    @Test("The four bundled weights share metrics and widen with weight")
+    func weights() {
+        let fonts: [TrueTypeFont] = [.interRegular, .interMedium, .interSemiBold, .interBold]
+        for other in fonts {
+            #expect(other.unitsPerEm == font.unitsPerEm)
+            #expect(other.lineHeight(size: 17) == font.lineHeight(size: 17))
+            #expect(!other.outline(ofGlyph: other.glyph(for: "T")).isEmpty)
+        }
+        let widths = fonts.map { $0.width(of: "Tasks", size: 34) }
+        #expect(widths == widths.sorted() && Set(widths).count == 4)
+    }
 }
 
 @Suite("Rasterizer")

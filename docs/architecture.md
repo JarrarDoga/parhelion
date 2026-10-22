@@ -111,10 +111,17 @@ the child. A `nil` dimension in a proposal asks for the child's ideal size.
   because the order changes the result. A node's `frame` is its own bounds, without its outer
   padding or frames, which is also the area that receives taps.
 - **Text** is measured with the advance widths of the bundled Inter typeface and wraps at spaces.
-  The widths are generated into source from `Fonts/Inter-Regular.ttf`, because Parhelion cannot
-  ship SwiftPM resources ([ADR 0003](adr/0003-no-swiftpm-resources.md)).
-  There is no kerning or shaping yet, and all text uses the body size until the environment and
-  `font` exist. The renderer must draw with the same font file so that layout and pixels agree.
+  The four weights in `Fonts/` (Regular, Medium, SemiBold, and Bold) are generated into source,
+  because Parhelion cannot ship SwiftPM resources ([ADR 0003](adr/0003-no-swiftpm-resources.md)).
+  There is no kerning, shaping, or tracking yet.
+- **Fonts** flow down through the environment: `font(_:)`, `fontWeight(_:)`, and `bold(_:)` set
+  them for their content, and `Text.font(_:)` overrides them. Each `Text` resolves its font when
+  it is evaluated and records it as an attribute, such as `font=headline` or
+  `font=largeTitle.bold`, unless it is the body style. Layout and drawing read only that
+  attribute: a text style's size, line height, and weight come from `LayoutDefaults`, and the
+  weight picks the nearest bundled Inter. Each line is the line height tall, with the difference
+  from Inter's own height split above and below the glyphs, and the renderer draws with the same
+  font and baselines so that layout and pixels agree.
 - **The root** covers the device screen. Root content is proposed the safe area and centered in
   it. `Device.iPhone16` is the default; `PARHELION_DEVICE` picks another preset from
   `Device.all`.

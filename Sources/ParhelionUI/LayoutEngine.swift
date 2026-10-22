@@ -47,7 +47,7 @@ struct LayoutEngine {
 
     init(
         device: Device,
-        measurer: any TextMeasurer = FontTextMeasurer(font: .interRegular),
+        measurer: any TextMeasurer = FontTextMeasurer(),
         scrolling: ScrollLayout = ScrollLayout()
     ) {
         self.device = device
@@ -296,20 +296,20 @@ struct LayoutEngine {
         case "Text":
             return measurer.size(
                 of: node.text ?? "",
-                fontSize: LayoutDefaults.bodyFontSize,
+                font: ResolvedFont(attribute: node.attributes["font"]),
                 width: proposal.width
             )
 
         case "TextField":
             // A text field fills the width it is offered and is one line tall.
-            let fontSize = LayoutDefaults.bodyFontSize
+            let font = TextFieldGeometry.resolvedFont
             let widest =
                 [node.attributes["value"] ?? "", node.attributes["placeholder"] ?? ""]
-                .map { measurer.size(of: $0, fontSize: fontSize, width: nil).width }
+                .map { measurer.size(of: $0, font: font, width: nil).width }
                 .max() ?? 0
             return CGSize(
                 width: proposal.width ?? widest + TextFieldGeometry.caretWidth,
-                height: measurer.lineHeight(fontSize: fontSize)
+                height: font.lineHeight
             )
 
         case "Image":

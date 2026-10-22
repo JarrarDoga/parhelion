@@ -36,9 +36,43 @@ enum LayoutDefaults {
     /// stops.
     static let momentumStopSpeed: CGFloat = 5
 
-    /// Assumed: the point size of the `body` text style at the default
-    /// Dynamic Type size, on iOS.
-    static let bodyFontSize: CGFloat = 17
+    /// The size, line height, and weight of a text style.
+    struct TextStyleMetrics {
+        var size: CGFloat
+        var lineHeight: CGFloat
+        var weight: Font.Weight
+    }
+
+    /// Assumed: the size, line height, and weight of each text style at the
+    /// default ("Large") Dynamic Type size, on iOS. From the typography
+    /// table of the Human Interface Guidelines, which the iOS 27 UI Kit's
+    /// text styles repeat.
+    static func textStyleMetrics(_ style: Font.TextStyle) -> TextStyleMetrics {
+        switch style {
+        case .largeTitle: TextStyleMetrics(size: 34, lineHeight: 41, weight: .regular)
+        case .title: TextStyleMetrics(size: 28, lineHeight: 34, weight: .regular)
+        case .title2: TextStyleMetrics(size: 22, lineHeight: 28, weight: .regular)
+        case .title3: TextStyleMetrics(size: 20, lineHeight: 25, weight: .regular)
+        case .headline: TextStyleMetrics(size: 17, lineHeight: 22, weight: .semibold)
+        case .body: TextStyleMetrics(size: 17, lineHeight: 22, weight: .regular)
+        case .callout: TextStyleMetrics(size: 16, lineHeight: 21, weight: .regular)
+        case .subheadline: TextStyleMetrics(size: 15, lineHeight: 20, weight: .regular)
+        case .footnote: TextStyleMetrics(size: 13, lineHeight: 18, weight: .regular)
+        case .caption: TextStyleMetrics(size: 12, lineHeight: 16, weight: .regular)
+        case .caption2: TextStyleMetrics(size: 11, lineHeight: 13, weight: .regular)
+        }
+    }
+
+    /// Assumed: the line height of the system font at a fixed size, such as
+    /// `.system(size: 13)`: San Francisco's own line height, about 1.2 times
+    /// the size, rounded to a whole point. This gives the 16-point lines of
+    /// 13-point list footers in the iOS 27 UI Kit.
+    static func systemLineHeight(size: CGFloat) -> CGFloat {
+        (size * 1.2).rounded()
+    }
+
+    /// The point size of the `body` text style.
+    static var bodyFontSize: CGFloat { textStyleMetrics(.body).size }
 
     /// Assumed: the ideal size of a view that fills its proposal, such as
     /// `Color`, when the parent proposes no size.

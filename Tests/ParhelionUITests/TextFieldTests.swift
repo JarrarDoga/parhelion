@@ -39,8 +39,8 @@ struct TextFieldTests {
         #expect(field.attributes["placeholder"] == "Name")
         #expect(field.attributes["value"] == "")
         #expect(field.frame?.width == CGFloat(300 - 32))
-        #expect(
-            field.frame?.height == FontTextMeasurer(font: .interRegular).lineHeight(fontSize: 17))
+        // One line of body text: 17 points on a 22-point line.
+        #expect(field.frame?.height == 22)
     }
 
     @Test("Typing inserts at the caret and updates the bound state")

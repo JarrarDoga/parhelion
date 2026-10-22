@@ -91,9 +91,9 @@ Pass `--png PATH` to draw the screen to an image, `--frames` to show each node's
 ```console
 $ swift run HelloParhelion --frames
 Root  [0, 0, 393 × 852]
-└─ VStack padding(16)  [146.21, 413.25, 100.57 × 50.5]
-   ├─ Image foregroundStyle=tint imageScale=large systemName=globe  [185.54, 413.25, 21.93 × 21.93]
-   └─ Text "Hello, world!"  [146.21, 443.18, 100.57 × 20.57]
+└─ VStack padding(16)  [146.21, 412.54, 100.57 × 51.93]
+   ├─ Image foregroundStyle=tint imageScale=large systemName=globe  [185.54, 412.54, 21.93 × 21.93]
+   └─ Text "Hello, world!"  [146.21, 442.47, 100.57 × 22]
 ```
 
 ## Preview window
