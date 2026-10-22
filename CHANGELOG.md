@@ -138,6 +138,13 @@ may contain breaking changes.
     `plusLighter`, and `plusDarker`.
   - `Canvas.blur(_:cornerRadius:style:radius:saturation:)`: blurs the pixels inside a rounded
     rectangle and scales their saturation.
+- Preview protocol capabilities: an app lists `hostClock` and `sharedFrames` in its hello, and a
+  window host that supports them answers with `welcome`. Older apps and hosts keep working with
+  newer ones (see ADR 0006).
+- `PreviewTick`, `PreviewFrameUpdate`, `PreviewSharedMemory`, `SharedFrameBuffer`, `SlotPool`,
+  `PreviewClock`, and `PreviewTimeline` in `ParhelionPreview`.
+- `parhelion run` prints its build mode, the modules each rebuild compiled, and the time from a
+  change to the new app's first frame, split into build and restart.
 
 ### Changed
 
@@ -164,11 +171,29 @@ may contain breaking changes.
   52 points tall with 16-point side insets, separators stop 16 points short of the trailing
   edge, headers are semibold 17-point text in a 42-point block, footers are 13-point text, and
   sections are 20 points apart. The disclosure indicator is slightly larger and thinner.
+- The preview window paces animation to the display: it turns on vsync, reads the display's
+  refresh rate (again when the window moves to another display), and ticks the app after each
+  refresh with the time the next frame will be on screen. A push in the Tasks example now shows
+  a new frame every refresh, one period apart, instead of frames 9 to 23 ms apart. When nothing
+  moves, neither process uses CPU.
+- Frames travel from the app to the window through shared memory instead of the socket: about
+  0.2 ms per frame instead of 3 ms.
+- `parhelion run` and `parhelion mcp` build Parhelion with optimization in debug builds while the
+  app stays unoptimized, so frames render in about 2 ms instead of 16 ms and app edits rebuild as
+  fast as before. Apps that pin Parhelion to a version get the whole build optimized instead.
+  Builds go to `.build/parhelion`.
+- `parhelion run` notices saved files with inotify, within a millisecond instead of up to
+  0.75 s, and falls back to checking twice a second where inotify is not available.
+- The preview channel reads each message straight into its final array, without the 64 KB reads
+  and repeated copies it made before.
 
 ### Fixed
 
 - The first click on an unfocused preview window reaches the app. Before, SDL used the click only
   to focus the window.
 - `parhelion mcp --window` opens its window instead of stopping with an argument parser error.
+- An app that paces its own frames, for a window host without the host clock, keeps a fixed
+  60 Hz grid. Before, its timeout was truncated to whole milliseconds, so it drew every 16 ms
+  and measured time from whenever it woke.
 
 [Unreleased]: https://github.com/JarrarDoga/parhelion/commits/main
