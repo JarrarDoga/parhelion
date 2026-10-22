@@ -72,7 +72,19 @@ Parhelion draws the screen itself. This image of the `Counter` example came from
 `swift run Counter --png docs/images/counter.png`:
 
 <p align="center">
-  <img src="docs/images/counter.png" alt="The Counter example rendered by Parhelion under an iOS status bar: a count label, red Decrease and blue Increase buttons, a Reset button, and the home indicator." width="240">
+  <img src="docs/images/counter.png" alt="The Counter example rendered by Parhelion under an iOS status bar: a count label, a gray bordered Decrease button and a blue prominent Increase button, a Reset button, and the home indicator." width="240">
+</p>
+
+The `Tasks` example shows the rest of the iOS 27 interface: a large title and a list, a pushed
+screen with a glass back button, an alert, and a sheet with glass toolbar buttons. Its images come
+from `PARHELION_README_IMAGES=docs/images swift test --filter writeReadmeImages`, which taps
+through the app with `ViewHost`:
+
+<p align="center">
+  <img src="docs/images/tasks-list.png" alt="The Tasks list: a large Tasks title, an Add button on a glass capsule, and To do and Done sections." width="190">
+  <img src="docs/images/tasks-detail.png" alt="The Buy milk screen: a chevron back button on a glass circle above a large title." width="190">
+  <img src="docs/images/tasks-alert.png" alt="A Delete this task? alert on large glass with gray Cancel and red Delete capsule buttons over a dimmed screen." width="190">
+  <img src="docs/images/tasks-sheet.png" alt="The New task sheet: Cancel on a glass capsule and a blue Add button above a title field." width="190">
 </p>
 
 The bundled `HelloParhelion` example is the app that `xtool new` generates, copied without changes:

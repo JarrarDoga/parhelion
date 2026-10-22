@@ -3,9 +3,10 @@ import Testing
 
 @testable import ParhelionUI
 
-// A copy of Examples/Tasks, whose screens show most of the system interface
-// Parhelion draws: a large title, a toolbar button, a list, a back button, an
-// alert, and a sheet with a toolbar.
+// A copy of the views of Examples/Tasks, whose screens show most of the
+// system interface Parhelion draws: a large title, a toolbar button, a list,
+// a back button, an alert, and a sheet with a toolbar. The README shows them.
+// A test checks that the copy matches the example, apart from `private`.
 
 private struct TaskItem: Identifiable, Codable {
     var id: Int
@@ -56,7 +57,9 @@ private struct TaskListView: View {
             .sheet(isPresented: $isAdding) {
                 NewTaskView { title in
                     let id = (tasks.map(\.id).max() ?? 0) + 1
-                    tasks.append(TaskItem(id: id, title: title))
+                    withAnimation {
+                        tasks.append(TaskItem(id: id, title: title))
+                    }
                 }
             }
         }
@@ -82,7 +85,7 @@ private struct TaskDetailView: View {
         VStack(spacing: 24) {
             Text(task.isDone ? "Done" : "Not done yet")
             Button(task.isDone ? "Mark as not done" : "Mark as done") {
-                task.isDone.toggle()
+                withAnimation { task.isDone.toggle() }
             }
             Button("Delete", role: .destructive) {
                 isConfirmingDelete = true
@@ -138,7 +141,7 @@ enum TasksScreens {
         case list, detail, alert, sheet
     }
 
-    static func host(showing screen: Screen, device: Device = .iPhone16Pro) throws -> ViewHost {
+    static func host(showing screen: Screen, device: Device = .iPhone16) throws -> ViewHost {
         let host = ViewHost(TaskListView(), device: device)
         switch screen {
         case .list:
@@ -155,22 +158,79 @@ enum TasksScreens {
         host.advanceTime(by: 2)
         return host
     }
+
+    /// A screen as the README shows it: at 2× with the status bar and the
+    /// home indicator, as `--png` draws.
+    static func readmeImage(_ screen: Screen) throws -> Data {
+        try host(showing: screen).render(scale: 2, chrome: .systemBars).pngData()
+    }
+
+    static let repository = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+
+    static func readmeImageURL(_ screen: Screen, in directory: URL? = nil) -> URL {
+        (directory ?? repository.appendingPathComponent("docs/images"))
+            .appendingPathComponent("tasks-\(screen.rawValue).png")
+    }
 }
 
-/// Writes the Tasks example's screens as PNGs at 3×, to compare with iOS
-/// 27 references. Set `PARHELION_DEMO_DIR` to a directory to run it.
 @MainActor
-@Suite(
-    "Tasks screens",
-    .enabled(if: ProcessInfo.processInfo.environment["PARHELION_DEMO_DIR"] != nil)
-)
+@Suite("Tasks screens")
 struct TasksScreensTests {
-    @Test("Render each screen")
+    @Test("The test's copy of the Tasks example matches the example")
+    func copyMatchesExample() throws {
+        let example = try String(
+            contentsOf: TasksScreens.repository.appendingPathComponent(
+                "Examples/Tasks/TasksApp.swift"),
+            encoding: .utf8)
+        let copy = try String(contentsOf: URL(fileURLWithPath: #filePath), encoding: .utf8)
+        let views = example[example.range(of: "struct TaskItem")!.lowerBound...]
+        let copied = copy[
+            copy.range(of: "private struct TaskItem")!
+                .lowerBound..<copy.range(of: "/// The Tasks example's screens")!.lowerBound
+        ]
+        #expect(
+            copied.replacingOccurrences(of: "private struct", with: "struct")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                == views.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    /// Rendering is deterministic, so the README's images must match a fresh
+    /// render. After an intended rendering change, regenerate them with
+    /// `PARHELION_README_IMAGES=docs/images swift test --filter writeReadmeImages`.
+    @Test("The README's Tasks images match a fresh render", arguments: TasksScreens.Screen.allCases)
+    func readmeImages(_ screen: TasksScreens.Screen) throws {
+        let committed = try Data(contentsOf: TasksScreens.readmeImageURL(screen))
+        #expect(try TasksScreens.readmeImage(screen) == committed)
+    }
+
+    @Test(
+        "Write the README's Tasks images",
+        .enabled(if: ProcessInfo.processInfo.environment["PARHELION_README_IMAGES"] != nil)
+    )
+    func writeReadmeImages() throws {
+        let path = ProcessInfo.processInfo.environment["PARHELION_README_IMAGES"] ?? ""
+        let directory = URL(
+            fileURLWithPath: path,
+            relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath))
+        for screen in TasksScreens.Screen.allCases {
+            try TasksScreens.readmeImage(screen).write(
+                to: TasksScreens.readmeImageURL(screen, in: directory))
+        }
+    }
+
+    /// Writes the screens at 3× on an iPhone 16 Pro, the size of Apple's iOS
+    /// 27 UI Kit, to compare with its artwork. Set `PARHELION_DEMO_DIR` to a
+    /// directory, and optionally `PARHELION_DEMO_PREFIX`.
+    @Test(
+        "Write the Tasks screens at 3×",
+        .enabled(if: ProcessInfo.processInfo.environment["PARHELION_DEMO_DIR"] != nil)
+    )
     func renderScreens() throws {
         let directory = ProcessInfo.processInfo.environment["PARHELION_DEMO_DIR"] ?? ""
         let prefix = ProcessInfo.processInfo.environment["PARHELION_DEMO_PREFIX"] ?? "tasks-"
         for screen in TasksScreens.Screen.allCases {
-            let host = try TasksScreens.host(showing: screen)
+            let host = try TasksScreens.host(showing: screen, device: .iPhone16Pro)
             let url = URL(fileURLWithPath: directory)
                 .appendingPathComponent("\(prefix)\(screen.rawValue).png")
             try host.render(scale: 3, chrome: .systemBars).pngData().write(to: url)

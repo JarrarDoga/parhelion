@@ -16,18 +16,10 @@ struct CounterView: View {
         VStack(spacing: 24) {
             Text("Count: \(count)")
             HStack(spacing: 12) {
-                Button(action: { count -= 1 }) {
-                    Text("Decrease")
-                        .padding(12)
-                        .foregroundStyle(.white)
-                        .background(.red)
-                }
-                Button(action: { count += 1 }) {
-                    Text("Increase")
-                        .padding(12)
-                        .foregroundStyle(.white)
-                        .background(.blue)
-                }
+                Button("Decrease") { count -= 1 }
+                    .buttonStyle(.bordered)
+                Button("Increase") { count += 1 }
+                    .buttonStyle(.borderedProminent)
             }
             Button("Reset") { count = 0 }
         }
