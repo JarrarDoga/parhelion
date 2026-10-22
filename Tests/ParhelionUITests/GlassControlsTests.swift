@@ -171,6 +171,30 @@ struct GlassControlsTests {
             ])
     }
 
+    @Test("A principal button draws without glass, in the tint color")
+    func principalButton() throws {
+        let host = ViewHost(
+            NavigationStack {
+                Text("Content")
+                    .toolbar {
+                        ToolbarItem(placement: .principal) { Button("MMMM") {} }
+                    }
+            },
+            device: screen
+        )
+        let button = try frame(host, "toolbar/0/Button")
+        let rendered = host.render(scale: 3)
+        #expect(
+            components(rendered.color(at: CGPoint(x: button.minX - 4, y: button.midY)))
+                == [255, 255, 255])
+        var bluest = 0
+        for x in stride(from: button.minX, to: button.maxX, by: 0.33) {
+            let pixel = components(rendered.color(at: CGPoint(x: x, y: button.midY)))
+            bluest = max(bluest, pixel[2] - pixel[0])
+        }
+        #expect(bluest > 150)
+    }
+
     // MARK: Back button
 
     @Test("The back button is a chevron on a 44-point circle 16 points from the edge")

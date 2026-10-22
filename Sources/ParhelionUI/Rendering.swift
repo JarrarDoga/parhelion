@@ -163,7 +163,7 @@ struct TreeRenderer {
                 into: &canvas)
             if let drawn {
                 foreground = drawn
-            } else if container == .standard {
+            } else if container == .standard || container == .navigationBar {
                 foreground =
                     foreground
                     ?? (style == .plain
@@ -189,6 +189,10 @@ struct TreeRenderer {
                 foreground = node.attributes["foregroundStyle"] ?? ColorPalette.glassLabelStyle
             }
             container = .toolbarGroup
+
+        case "ToolbarItemGroup":
+            // Principal items draw as they would anywhere else.
+            container = .standard
 
         case "Sheet":
             drawSheet(node, in: frame, paint: paint, opacity: opacity, into: &canvas)
@@ -253,7 +257,7 @@ struct TreeRenderer {
         let isDestructive = node.attributes["role"] == "destructive"
         let radius = min(frame.width, frame.height) / 2
         switch container {
-        case .navigationBar:
+        case .navigationBar where node.id.rawValue.hasSuffix("/bar/back"):
             // The back button is a glass circle.
             canvas.drawGlass(
                 frame, cornerRadius: radius, material: ColorPalette.smallGlass, opacity: opacity)
@@ -268,7 +272,7 @@ struct TreeRenderer {
             // yet.
             canvas.fill(frame, cornerRadius: radius, color: paint(ColorPalette.tertiaryFillStyle))
             return own ?? (isDestructive ? "red" : "primary")
-        case .standard:
+        case .navigationBar, .standard:
             break
         }
         let style = BuiltInButtonStyle(rawValue: node.attributes["buttonStyle"] ?? "")
