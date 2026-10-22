@@ -80,11 +80,18 @@ public struct TrueTypeFont: Sendable {
         self.bytes = bytes
     }
 
-    /// Inter Regular, the typeface Parhelion uses for app text.
+    /// Inter Regular, the typeface Parhelion uses for regular-weight text.
     public static let interRegular = embedded(interRegularFontBase64, name: "Inter Regular")
 
-    /// Inter SemiBold, for the status bar's clock.
+    /// Inter Medium, for medium-weight text.
+    public static let interMedium = embedded(interMediumFontBase64, name: "Inter Medium")
+
+    /// Inter SemiBold, for semibold text such as headlines and the status
+    /// bar's clock.
     public static let interSemiBold = embedded(interSemiBoldFontBase64, name: "Inter SemiBold")
+
+    /// Inter Bold, for bold text such as large navigation titles.
+    public static let interBold = embedded(interBoldFontBase64, name: "Inter Bold")
 
     private static func embedded(_ base64: String, name: String) -> TrueTypeFont {
         guard

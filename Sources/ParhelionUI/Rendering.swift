@@ -58,8 +58,7 @@ extension ViewHost {
 /// Draws a laid-out ``ViewNode`` tree. Like layout, it reads only the tree,
 /// and the device for the system interface it can draw over the tree.
 struct TreeRenderer {
-    let font = TrueTypeFont.interRegular
-    let measurer = FontTextMeasurer(font: .interRegular)
+    let measurer = FontTextMeasurer()
     /// The screen the tree was laid out for.
     var device: Device
     /// The button being pressed, which draws dimmed.
@@ -124,7 +123,8 @@ struct TreeRenderer {
 
         case "Text":
             drawText(
-                node.text ?? "", in: frame, color: paint(foreground ?? "primary"), into: &canvas)
+                node.text ?? "", font: ResolvedFont(attribute: node.attributes["font"]), in: frame,
+                color: paint(foreground ?? "primary"), into: &canvas)
 
         case "TextField":
             drawTextField(
@@ -252,17 +252,24 @@ struct TreeRenderer {
                         height: size.height
                     )
                     canvas.fill(
-                        Self.chevron(in: indicator, pointingLeft: false, thickness: 2),
+                        Self.chevron(
+                            in: indicator, pointingLeft: false,
+                            thickness: LayoutDefaults.disclosureIndicatorThickness),
                         color: paint(ColorPalette.color(named: "tertiary"))
                     )
                 }
                 guard index < rows.count - 1 else { continue }
+                // Assumed: a separator spans the row's content, inset on both
+                // sides, as in the iOS 27 UI Kit. A navigation link's trailing
+                // inset includes its disclosure indicator, so the trailing
+                // end uses the list's own inset.
                 let thickness = LayoutDefaults.listSeparatorThickness
                 canvas.fill(
                     CGRect(
                         x: cell.minX + insets.leading,
                         y: cell.maxY - thickness,
-                        width: cell.width - insets.leading,
+                        width: max(
+                            cell.width - insets.leading - LayoutDefaults.listRowInsets.trailing, 0),
                         height: thickness
                     ),
                     color: paint(ColorPalette.separator)
@@ -275,22 +282,22 @@ struct TreeRenderer {
     /// baseline, aligned to the leading edge.
     private func drawText(
         _ text: String,
+        font: ResolvedFont,
         in frame: CGRect,
         color: RGBA,
         into canvas: inout Canvas
     ) {
-        let size = Double(LayoutDefaults.bodyFontSize)
-        let lines = measurer.lines(of: text, fontSize: CGFloat(size), width: frame.width)
-        let ascent = Double(font.ascender) * size / Double(font.unitsPerEm)
-        let lineHeight = font.lineHeight(size: size)
+        let lines = measurer.lines(of: text, font: font, width: frame.width)
+        let typeface = font.typeface
+        let baseline = font.baseline
         for (index, line) in lines.enumerated() {
             canvas.drawText(
                 line.text,
-                font: font,
-                size: size,
+                font: typeface,
+                size: Double(font.size),
                 origin: CGPoint(
                     x: Double(frame.minX),
-                    y: Double(frame.minY) + ascent + Double(index) * lineHeight
+                    y: Double(frame.minY + baseline + CGFloat(index) * font.lineHeight)
                 ),
                 color: color
             )
@@ -313,7 +320,7 @@ struct TreeRenderer {
         let caret = min(caretOffset, value.count)
         let shift =
             isFocused ? geometry.horizontalShift(text: value, caret: caret, width: frame.width) : 0
-        let ascent = Double(font.ascender) * geometry.fontSize / Double(font.unitsPerEm)
+        let baseline = Double(TextFieldGeometry.resolvedFont.baseline)
 
         let outerClip = canvas.clipRect
         canvas.clipRect = outerClip.map { $0.intersection(frame) } ?? frame
@@ -323,9 +330,9 @@ struct TreeRenderer {
         // Assumed: placeholders use the tertiary label color, as on iOS.
         canvas.drawText(
             shown,
-            font: font,
+            font: geometry.font,
             size: geometry.fontSize,
-            origin: CGPoint(x: Double(frame.minX - shift), y: Double(frame.minY) + ascent),
+            origin: CGPoint(x: Double(frame.minX - shift), y: Double(frame.minY) + baseline),
             color: paint(value.isEmpty ? "tertiary" : style)
         )
         if isFocused {

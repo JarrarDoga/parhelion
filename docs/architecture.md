@@ -111,10 +111,17 @@ the child. A `nil` dimension in a proposal asks for the child's ideal size.
   because the order changes the result. A node's `frame` is its own bounds, without its outer
   padding or frames, which is also the area that receives taps.
 - **Text** is measured with the advance widths of the bundled Inter typeface and wraps at spaces.
-  The widths are generated into source from `Fonts/Inter-Regular.ttf`, because Parhelion cannot
-  ship SwiftPM resources ([ADR 0003](adr/0003-no-swiftpm-resources.md)).
-  There is no kerning or shaping yet, and all text uses the body size until the environment and
-  `font` exist. The renderer must draw with the same font file so that layout and pixels agree.
+  The four weights in `Fonts/` (Regular, Medium, SemiBold, and Bold) are generated into source,
+  because Parhelion cannot ship SwiftPM resources ([ADR 0003](adr/0003-no-swiftpm-resources.md)).
+  There is no kerning, shaping, or tracking yet.
+- **Fonts** flow down through the environment: `font(_:)`, `fontWeight(_:)`, and `bold(_:)` set
+  them for their content, and `Text.font(_:)` overrides them. Each `Text` resolves its font when
+  it is evaluated and records it as an attribute, such as `font=headline` or
+  `font=largeTitle.bold`, unless it is the body style. Layout and drawing read only that
+  attribute: a text style's size, line height, and weight come from `LayoutDefaults`, and the
+  weight picks the nearest bundled Inter. Each line is the line height tall, with the difference
+  from Inter's own height split above and below the glyphs, and the renderer draws with the same
+  font and baselines so that layout and pixels agree.
 - **The root** covers the device screen. Root content is proposed the safe area and centered in
   it. `Device.iPhone16` is the default; `PARHELION_DEVICE` picks another preset from
   `Device.all`.
@@ -133,7 +140,7 @@ device for the system interface it draws over the tree.
   TrueType outlines, flattens curves, and fills paths with exact-area anti-aliasing. There is no
   GPU and no system font library, so the same tree produces the same pixels on every machine
   ([ADR 0004](adr/0004-pure-swift-renderer.md)).
-- **Colors** come from `ColorPalette`, which maps SwiftUI's named colors and styles to iOS's
+- **Colors** come from `ColorPalette`, which maps SwiftUI's named colors and styles to iOS 27's
   light-appearance system colors. A `foregroundStyle` applies to the node and its descendants, and
   button labels take the tint color unless they set their own style.
 - **Backgrounds** fill the bounds at their position in the modifier chain. Each node records those
@@ -188,11 +195,15 @@ momentum, and `scroll(_:to:)` work the same way. Evaluation shapes the tree:
 - Rows outside a `Section` are grouped into sections of their own, one for each run of
   consecutive rows, so a list's children are always `Section` nodes.
 - A section's header and footer become `SectionHeader` and `SectionFooter` nodes around its rows.
+  Inside a list, they are evaluated with the list's fonts in the environment, semibold 17 points
+  for headers and 13 points for footers, so a font set inside them still wins.
 - Each row gets a `listRow` layout modifier, its outermost. The row fills the width it is
-  offered, is at least 44 points tall, and places its content at the leading edge inside the
-  row insets. The bounds recorded for the modifier are the row's cell.
+  offered, is at least 52 points tall, and places its content at the leading edge inside the
+  row insets, 15 points above and below and 16 at the sides. The bounds recorded for the
+  modifier are the row's cell.
 
-The renderer draws each section's cells as one rounded group and a separator between rows. Hit
+The renderer draws each section's cells as one rounded group, with a corner radius of 26 in the
+inset grouped style, and a separator between rows, inset 16 points from both sides. Hit
 testing uses a row's cell instead of its frame, so a button row responds to taps across its whole
 width, and a pressed button row highlights its cell. `listStyle(_:)` records a `listStyle`
 attribute that layout and drawing read.
@@ -210,14 +221,20 @@ On every update the stack evaluates each screen in order, at its own path (`Dest
   left the tree, the stack drops it and the entries above it.
 - Only the top screen is in the tree, but every screen is evaluated, so the views beneath keep
   their state. A popped screen is no longer evaluated, so its state is discarded.
-- Modifiers report a screen's title, toolbar items, and back-button visibility to the stack
-  through the evaluator, which holds the innermost stack being evaluated.
+- Modifiers report a screen's title, title display mode, toolbar items, and back-button
+  visibility to the stack through the evaluator, which holds the innermost stack being evaluated.
+- The root screen's `.automatic` title is large, and each pushed screen's `.automatic` title takes
+  the display mode of the screen beneath it, as in SwiftUI.
 
 The tree is `NavigationStack` with a `NavigationBar` child followed by the top screen. The bar
-contains `ToolbarItemGroup` nodes with a `placement` attribute and the title as a `Text` node. The
-back button is an ordinary `Button` whose identifier ends in `/bar/back`, so every tap method
-drives it. The stack fills the space it is offered: the bar takes the top 44 points, and the
-screen is centered in the rest, as root content is.
+records its `titleDisplayMode` and contains `ToolbarItemGroup` nodes with a `placement` attribute
+and the title as a `Text` node with its font. The back button is an ordinary `Button` whose
+identifier ends in `/bar/back`, so every tap method drives it. The stack fills the space it is
+offered: the bar takes the top 54 points with an inline title, or 105 with a large one, and the
+screen is centered in the rest, as root content is. Inside the bar, the item groups and an inline
+title center in the top 44-point row. A large title starts 54 points down, at the leading margin,
+so the back button and toolbar items stay above it. A bar with principal items or without a title
+always uses the inline layout.
 
 ### Presentations
 

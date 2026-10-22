@@ -36,34 +36,89 @@ enum LayoutDefaults {
     /// stops.
     static let momentumStopSpeed: CGFloat = 5
 
-    /// Assumed: the point size of the `body` text style at the default
-    /// Dynamic Type size, on iOS.
-    static let bodyFontSize: CGFloat = 17
+    /// The size, line height, and weight of a text style.
+    struct TextStyleMetrics {
+        var size: CGFloat
+        var lineHeight: CGFloat
+        var weight: Font.Weight
+    }
+
+    /// Assumed: the size, line height, and weight of each text style at the
+    /// default ("Large") Dynamic Type size, on iOS. From the typography
+    /// table of the Human Interface Guidelines, which the iOS 27 UI Kit's
+    /// text styles repeat.
+    static func textStyleMetrics(_ style: Font.TextStyle) -> TextStyleMetrics {
+        switch style {
+        case .largeTitle: TextStyleMetrics(size: 34, lineHeight: 41, weight: .regular)
+        case .title: TextStyleMetrics(size: 28, lineHeight: 34, weight: .regular)
+        case .title2: TextStyleMetrics(size: 22, lineHeight: 28, weight: .regular)
+        case .title3: TextStyleMetrics(size: 20, lineHeight: 25, weight: .regular)
+        case .headline: TextStyleMetrics(size: 17, lineHeight: 22, weight: .semibold)
+        case .body: TextStyleMetrics(size: 17, lineHeight: 22, weight: .regular)
+        case .callout: TextStyleMetrics(size: 16, lineHeight: 21, weight: .regular)
+        case .subheadline: TextStyleMetrics(size: 15, lineHeight: 20, weight: .regular)
+        case .footnote: TextStyleMetrics(size: 13, lineHeight: 18, weight: .regular)
+        case .caption: TextStyleMetrics(size: 12, lineHeight: 16, weight: .regular)
+        case .caption2: TextStyleMetrics(size: 11, lineHeight: 13, weight: .regular)
+        }
+    }
+
+    /// Assumed: the line height of the system font at a fixed size, such as
+    /// `.system(size: 13)`: San Francisco's own line height, about 1.2 times
+    /// the size, rounded to a whole point. This gives the 16-point lines of
+    /// 13-point list footers in the iOS 27 UI Kit.
+    static func systemLineHeight(size: CGFloat) -> CGFloat {
+        (size * 1.2).rounded()
+    }
+
+    /// The point size of the `body` text style.
+    static var bodyFontSize: CGFloat { textStyleMetrics(.body).size }
 
     /// Assumed: the ideal size of a view that fills its proposal, such as
     /// `Color`, when the parent proposes no size.
     static let flexibleIdealSize: CGFloat = 10
 
-    /// Assumed: the insets around a list row's content, on iOS.
-    static let listRowInsets = EdgeInsets(top: 11, leading: 20, bottom: 11, trailing: 20)
+    /// Assumed: the insets around a list row's content, from the iOS 27 UI
+    /// Kit: a line of body text sits 15 points from the top and bottom of a
+    /// 52-point row, and 16 points from its sides.
+    static let listRowInsets = EdgeInsets(top: 15, leading: 16, bottom: 15, trailing: 16)
 
-    /// Assumed: the minimum height of a list row, iOS's minimum tap target.
-    static let listRowMinHeight: CGFloat = 44
+    /// Assumed: the minimum height of a list row, 52 points in the iOS 27 UI
+    /// Kit.
+    static let listRowMinHeight: CGFloat = 52
 
-    /// Assumed: the space around the sections of an inset grouped list.
-    static let listContentInsets = EdgeInsets(top: 20, leading: 16, bottom: 20, trailing: 16)
+    /// Assumed: the space around the sections of an inset grouped list. In a
+    /// real iOS 26 SwiftUI screenshot, a first section without a header
+    /// starts right below a large title's bar, so there is no space above.
+    static let listContentInsets = EdgeInsets(top: 0, leading: 16, bottom: 20, trailing: 16)
 
-    /// Assumed: the space between the sections of a grouped list.
-    static let listSectionSpacing: CGFloat = 35
+    /// Assumed: the space between the sections of a grouped list, from the
+    /// bottom of one section's footer to the top of the next one's header,
+    /// in the iOS 27 UI Kit.
+    static let listSectionSpacing: CGFloat = 20
 
-    /// Assumed: the corner radius of a section in an inset grouped list.
-    static let listCornerRadius: CGFloat = 10
+    /// Assumed: the corner radius of a section in an inset grouped list, in
+    /// the iOS 27 UI Kit. The kit's corners are continuous; Parhelion draws
+    /// circular ones.
+    static let listCornerRadius: CGFloat = 26
 
-    /// Assumed: the insets around a section header in a list.
-    static let listHeaderInsets = EdgeInsets(top: 0, leading: 20, bottom: 7, trailing: 20)
+    /// Assumed: the insets around a section header in a list: one line of
+    /// header text makes a 42-point block in the iOS 27 UI Kit.
+    static let listHeaderInsets = EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16)
 
-    /// Assumed: the insets around a section footer in a list.
-    static let listFooterInsets = EdgeInsets(top: 7, leading: 20, bottom: 0, trailing: 20)
+    /// Assumed: the insets around a section footer in a list: one line of
+    /// footer text makes a 30-point block, 8 points below the cells, in the
+    /// iOS 27 UI Kit.
+    static let listFooterInsets = EdgeInsets(top: 8, leading: 16, bottom: 6, trailing: 16)
+
+    /// Assumed: the font of a list's section headers, semibold 17 points on
+    /// a 22-point line in the iOS 27 UI Kit, which is `headline`. Headers are
+    /// in mixed case, not uppercase, since iOS 26.
+    static let listHeaderFont = Font.headline
+
+    /// Assumed: the font of a list's section footers, 13 points on a 16-point
+    /// line in the iOS 27 UI Kit.
+    static let listFooterFont = Font.system(size: 13)
 
     /// Assumed: the thickness of a list's row separators, one pixel on a 3×
     /// screen.
@@ -74,11 +129,40 @@ enum LayoutDefaults {
     static let disclosureIndicatorSpacing: CGFloat = 12
 
     /// Assumed: the size of the disclosure indicator, the chevron at the
-    /// trailing edge of a navigation link's list row.
-    static let disclosureIndicatorSize = CGSize(width: 7, height: 12)
+    /// trailing edge of a navigation link's list row, measured from the iOS
+    /// 27 UI Kit's semibold 17-point `chevron.right`.
+    static let disclosureIndicatorSize = CGSize(width: 7.5, height: 12.5)
 
-    /// Assumed: the height of the navigation bar with an inline title.
-    static let navigationBarHeight: CGFloat = 44
+    /// Assumed: the stroke width of the disclosure indicator.
+    static let disclosureIndicatorThickness: CGFloat = 1.75
+
+    /// Assumed: the height of the navigation bar with an inline title: the
+    /// 44-point row of buttons and the title, and 10 points below it. From
+    /// the iOS 27 UI Kit's standard top toolbar with a title.
+    static let navigationBarHeight: CGFloat = 54
+
+    /// Assumed: the height of the row at the top of the navigation bar that
+    /// holds its buttons and an inline title, centered vertically, in the
+    /// iOS 27 UI Kit.
+    static let navigationBarRowHeight: CGFloat = 44
+
+    /// Assumed: the height of the navigation bar with a large title: the
+    /// 44-point row, a 10-point gap, the title's 41-point line, and 10 points
+    /// below it. From the iOS 27 UI Kit's standard top toolbar with a large
+    /// title.
+    static let largeTitleNavigationBarHeight: CGFloat = 105
+
+    /// Assumed: the distance from the top of the navigation bar to the top
+    /// of a large title's line, in the iOS 27 UI Kit.
+    static let largeTitleTop: CGFloat = 54
+
+    /// Assumed: the font of a large navigation title, bold `largeTitle`
+    /// (34 points on a 41-point line) in the iOS 27 UI Kit.
+    static let largeTitleFont = Font.largeTitle.bold()
+
+    /// Assumed: the font of an inline navigation title, semibold 17 points
+    /// on a 22-point line in the iOS 27 UI Kit, which is `headline`.
+    static let inlineTitleFont = Font.headline
 
     /// Assumed: the space between the navigation bar's items and the edges
     /// of the screen.

@@ -30,7 +30,9 @@ jobs:
       - name: Check the embedded fonts
         run: |
           Scripts/embed-font.sh Fonts/Inter-Regular.ttf | diff -q - Sources/ParhelionRender/InterRegularFontData.swift
+          Scripts/embed-font.sh Fonts/Inter-Medium.ttf | diff -q - Sources/ParhelionRender/InterMediumFontData.swift
           Scripts/embed-font.sh Fonts/Inter-SemiBold.ttf | diff -q - Sources/ParhelionRender/InterSemiBoldFontData.swift
+          Scripts/embed-font.sh Fonts/Inter-Bold.ttf | diff -q - Sources/ParhelionRender/InterBoldFontData.swift
       - name: Check that no target declares resources
         # See docs/adr/0003-no-swiftpm-resources.md.
         run: "! grep -nE '^[[:space:]]*resources:' Package.swift"

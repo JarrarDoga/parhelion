@@ -7,6 +7,10 @@ public struct Text: View, Equatable, Sendable {
     public typealias Body = Never
 
     let content: String
+    /// The font set with ``font(_:)``, which overrides the environment's.
+    var font: Font?
+    /// The weight set with ``fontWeight(_:)`` or ``bold(_:)``.
+    var weight: Font.Weight?
 
     public init(_ content: some StringProtocol) {
         self.content = String(content)
@@ -23,7 +27,12 @@ public struct Text: View, Equatable, Sendable {
 
 extension Text: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
-        [ViewNode(id: path.appending("Text").id, kind: "Text", attributes: ["text": content])]
+        var attributes = ["text": content]
+        // Text in the body font, the default, records no font, so outlines
+        // show a font only where one was chosen.
+        let font = resolvedFont(in: evaluator.environment)
+        if font != .body { attributes["font"] = font.attribute }
+        return [ViewNode(id: path.appending("Text").id, kind: "Text", attributes: attributes)]
     }
 }
 

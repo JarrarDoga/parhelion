@@ -44,8 +44,11 @@ extension TextField: PrimitiveView {
 /// Where the caret and text of a single-line field sit, shared by hit
 /// testing and drawing so that both agree.
 struct TextFieldGeometry {
-    let font = TrueTypeFont.interRegular
-    let fontSize = Double(LayoutDefaults.bodyFontSize)
+    /// The font of a field's text: the body style.
+    static let resolvedFont = ResolvedFont.body
+
+    let font = Self.resolvedFont.typeface
+    let fontSize = Double(Self.resolvedFont.size)
 
     /// Assumed: the caret's width in points.
     static let caretWidth: CGFloat = 2

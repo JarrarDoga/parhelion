@@ -69,7 +69,7 @@ may contain breaking changes.
   `navigationTitle(_:)`, a back button labeled with the previous title, and items from
   `toolbar(content:)` with `ToolbarItem` and `ToolbarItemGroup`. Also
   `navigationDestination(for:destination:)`, `navigationBarBackButtonHidden(_:)`,
-  `navigationBarTitleDisplayMode(_:)`, and `NavigationView`. Titles display inline.
+  `navigationBarTitleDisplayMode(_:)`, and `NavigationView`.
 - In a list, a navigation link's row shows a disclosure indicator.
 - `Image(systemName:)` draws chevrons for `chevron.backward`, `chevron.left`, `chevron.forward`,
   and `chevron.right`.
@@ -109,6 +109,18 @@ may contain breaking changes.
 - `CanvasOverlay`, a drawing kept to blend over many canvases, `Canvas.fill(_:clippedTo:color:)`,
   and `Path(roundedRect:cornerRadius:reversed:)` in `ParhelionRender`.
 - `parhelion mcp` includes the app's last output when the app exits before it connects.
+- `Font`, with the text styles from `largeTitle` to `caption2`, `system(size:weight:design:)`,
+  `system(_:design:weight:)`, `Font.Weight`, `Font.Design`, `weight(_:)`, and `bold()`; the
+  `font(_:)`, `fontWeight(_:)`, and `bold(_:)` modifiers and `EnvironmentValues.font`; and
+  `Text.font(_:)`, `Text.fontWeight(_:)`, and `Text.bold(_:)`. A `Text` node records a font other
+  than the body style as an attribute, such as `font=headline`, and layout and drawing use its
+  size, line height, and weight. Every design draws with Inter.
+- Inter Medium and Inter Bold, as `TrueTypeFont.interMedium` and `TrueTypeFont.interBold`. Text
+  draws with the bundled weight nearest to its font's weight.
+- Large navigation titles: the root of a `NavigationStack` shows its title in bold 34-point type
+  below the bar's row of buttons, and pushed views inherit the display mode of the view beneath.
+  `navigationBarTitleDisplayMode(_:)` now chooses `.large` or `.inline`, and the `NavigationBar`
+  node records a `titleDisplayMode` attribute.
 
 ### Changed
 
@@ -123,6 +135,18 @@ may contain breaking changes.
 - Rounded rectangles fill their interiors as rectangles and rasterize only their corners, and a
   translucent fill blends once for each run of equal pixels. A screen with a sheet renders in
   16 ms in a debug build instead of 380 ms.
+- Each line of text is as tall as its text style's line height: 22 points for body text instead
+  of Inter's own 20.57.
+- The navigation bar follows the iOS 27 UI Kit: 54 points tall with an inline title, which is
+  semibold, and 105 points with a large title. Its buttons and inline title center in the top
+  44 points instead of the whole bar.
+- Named colors use iOS 27's values: blue, the default tint, is 0,136,255 instead of 0,122,255,
+  and red, orange, mint, teal, cyan, indigo, purple, and brown changed too. List separators are
+  black at 12% opacity.
+- Inset grouped lists follow the iOS 27 UI Kit: sections have a corner radius of 26, rows are
+  52 points tall with 16-point side insets, separators stop 16 points short of the trailing
+  edge, headers are semibold 17-point text in a 42-point block, footers are 13-point text, and
+  sections are 20 points apart. The disclosure indicator is slightly larger and thinner.
 
 ### Fixed
 

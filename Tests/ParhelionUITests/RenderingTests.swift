@@ -27,7 +27,7 @@ struct RenderingTests {
     func colorFill() {
         let host = ViewHost(Color.red.frame(width: 50, height: 50), device: square)
         let frame = host.render(scale: 2)
-        #expect(components(frame.color(at: CGPoint(x: 100, y: 100))) == [255, 59, 48, 255])
+        #expect(components(frame.color(at: CGPoint(x: 100, y: 100))) == [255, 56, 60, 255])
         #expect(components(frame.color(at: CGPoint(x: 70, y: 100))) == [255, 255, 255, 255])
     }
 
@@ -39,7 +39,7 @@ struct RenderingTests {
         )
         let frame = host.render(scale: 2)
         // 40 × 40 points of blue, centered: from 80 to 120.
-        #expect(components(frame.color(at: CGPoint(x: 82, y: 100))) == [0, 122, 255, 255])
+        #expect(components(frame.color(at: CGPoint(x: 82, y: 100))) == [0, 136, 255, 255])
         #expect(components(frame.color(at: CGPoint(x: 78, y: 100))) == [255, 255, 255, 255])
     }
 
@@ -53,8 +53,8 @@ struct RenderingTests {
             device: square
         )
         let frame = host.render(scale: 2)
-        #expect(components(frame.color(at: CGPoint(x: 100, y: 100))) == [255, 59, 48, 255])
-        #expect(components(frame.color(at: CGPoint(x: 85, y: 100))) == [0, 122, 255, 255])
+        #expect(components(frame.color(at: CGPoint(x: 100, y: 100))) == [255, 56, 60, 255])
+        #expect(components(frame.color(at: CGPoint(x: 85, y: 100))) == [0, 136, 255, 255])
     }
 
     @Test("Text draws in its frame with the inherited foreground style")
@@ -93,7 +93,7 @@ struct RenderingTests {
         for y in stride(from: label.minY, to: label.maxY, by: 0.5) {
             for x in stride(from: label.minX, to: label.maxX, by: 0.5) {
                 let pixel = components(frame.color(at: CGPoint(x: x, y: y)))
-                if pixel == [0, 122, 255, 255] { sawTint = true }
+                if pixel == [0, 136, 255, 255] { sawTint = true }
             }
         }
         #expect(sawTint)
@@ -119,4 +119,26 @@ func colorOpacity() {
     let pixel = host.render(scale: 1).color(at: CGPoint(x: 10, y: 10))
     #expect((126...129).contains(pixel.red))
     #expect(host.root.children[0].attributes["color"] == "black@0.5")
+}
+
+@Test("Named colors are iOS 27's light-appearance system colors")
+func systemColors() {
+    let expected: [String: [UInt8]] = [
+        "red": [255, 56, 60, 255], "orange": [255, 141, 40, 255],
+        "yellow": [255, 204, 0, 255], "green": [52, 199, 89, 255],
+        "mint": [0, 200, 179, 255], "teal": [0, 195, 208, 255], "cyan": [0, 192, 232, 255],
+        "blue": [0, 136, 255, 255], "tint": [0, 136, 255, 255], "accentColor": [0, 136, 255, 255],
+        "indigo": [97, 85, 245, 255], "purple": [203, 48, 224, 255], "pink": [255, 45, 85, 255],
+        "brown": [172, 127, 94, 255], "gray": [142, 142, 147, 255],
+        // Labels: 60,60,67 at 60%, 30%, and 18%.
+        "secondary": [60, 60, 67, 153], "tertiary": [60, 60, 67, 76],
+        "quaternary": [60, 60, 67, 46],
+    ]
+    for (name, components) in expected {
+        let color = ColorPalette.color(named: name)
+        #expect([color.red, color.green, color.blue, color.alpha] == components, "\(name)")
+    }
+    // Separators are black at 12%.
+    let separator = ColorPalette.separator
+    #expect([separator.red, separator.green, separator.blue, separator.alpha] == [0, 0, 0, 31])
 }

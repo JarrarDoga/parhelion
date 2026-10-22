@@ -20,7 +20,8 @@ let package = Package(
     name: "CheckApp",
     platforms: [.iOS(.v17), .macOS(.v14)],
     products: [.library(name: "CheckApp", targets: ["CheckApp"])],
-    dependencies: [.package(path: "$repo")],
+    // The name is explicit so the check works whatever the clone directory is called.
+    dependencies: [.package(name: "parhelion", path: "$repo")],
     targets: [
         .target(
             name: "CheckApp",

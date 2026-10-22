@@ -39,8 +39,8 @@ struct TextFieldTests {
         #expect(field.attributes["placeholder"] == "Name")
         #expect(field.attributes["value"] == "")
         #expect(field.frame?.width == CGFloat(300 - 32))
-        #expect(
-            field.frame?.height == FontTextMeasurer(font: .interRegular).lineHeight(fontSize: 17))
+        // One line of body text: 17 points on a 22-point line.
+        #expect(field.frame?.height == 22)
     }
 
     @Test("Typing inserts at the caret and updates the bound state")
@@ -150,7 +150,7 @@ struct TextFieldTests {
 
         try host.focus(fieldIDs(host)[0])
         let focused = host.render(scale: 2).color(at: caretPoint)
-        #expect([focused.red, focused.green, focused.blue] == [0, 122, 255])
+        #expect([focused.red, focused.green, focused.blue] == [0, 136, 255])
 
         // The placeholder draws in a light gray, not black.
         var darkest: UInt8 = 255

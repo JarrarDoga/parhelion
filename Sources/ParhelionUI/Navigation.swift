@@ -39,8 +39,10 @@ public struct NavigationPath: Equatable {
 ///
 /// Only the top view is on screen. The bar shows the top view's
 /// ``View/navigationTitle(_:)``, its toolbar items, and a back button whose
-/// label is the previous view's title. Titles display inline, at the body
-/// text size, until Parhelion supports fonts.
+/// label is the previous view's title. The root view's title is large, below
+/// the row of buttons, and pushed views keep the display mode of the view
+/// beneath them unless they set one with
+/// ``View/navigationBarTitleDisplayMode(_:)``.
 public struct NavigationStack<Data, Root: View>: View {
     public typealias Body = Never
 
@@ -200,7 +202,12 @@ extension NavigationLink: PrimitiveView {
 /// `NavigationBarItem.TitleDisplayMode`.
 public enum NavigationBarItem {
     public enum TitleDisplayMode: Sendable {
-        case automatic, inline, large
+        /// The display mode of the view beneath, or large for the root view.
+        case automatic
+        /// A small title, centered in the row of buttons.
+        case inline
+        /// A large title, below the row of buttons.
+        case large
     }
 }
 
@@ -211,12 +218,12 @@ extension View {
         NavigationOptionView(content: self, option: .title(String(title)))
     }
 
-    /// Sets how the navigation title is displayed. Parhelion displays every
-    /// title inline until it supports fonts, so this has no effect yet.
+    /// Sets how the navigation title is displayed while this view is on top
+    /// of a ``NavigationStack``.
     public func navigationBarTitleDisplayMode(
         _ displayMode: NavigationBarItem.TitleDisplayMode
     ) -> some View {
-        self
+        NavigationOptionView(content: self, option: .titleDisplayMode(displayMode))
     }
 
     /// Hides the back button while this view is on top of a
@@ -248,6 +255,7 @@ struct NavigationOptionView<Content: View>: View {
 
     enum Option {
         case title(String)
+        case titleDisplayMode(NavigationBarItem.TitleDisplayMode)
         case backButtonHidden(Bool)
         case destination(ObjectIdentifier, (AnyHashable) -> (any View)?)
     }
@@ -269,6 +277,10 @@ extension NavigationOptionView: PrimitiveView {
             // The innermost title wins, so a view's own title overrides one
             // set around it.
             if navigation.screen.title == nil { navigation.screen.title = title }
+        case .titleDisplayMode(let mode):
+            if navigation.screen.titleDisplayMode == nil {
+                navigation.screen.titleDisplayMode = mode
+            }
         case .backButtonHidden(let hidden):
             navigation.screen.backButtonHidden = navigation.screen.backButtonHidden || hidden
         case .destination(let type, let makeView):
@@ -490,6 +502,7 @@ final class NavigationContext {
     /// What the view being evaluated declares for its own screen.
     struct Screen {
         var title: String?
+        var titleDisplayMode: NavigationBarItem.TitleDisplayMode?
         var backButtonHidden = false
         var toolbarItems: [(position: ToolbarItemPlacement.Position, nodes: [ViewNode])] = []
     }
@@ -558,6 +571,15 @@ extension NavigationStack: PrimitiveView {
         }
 
         let top = screens[screens.count - 1]
+        // The root view's automatic title is large, and each pushed view's
+        // automatic title takes the display mode of the view beneath it.
+        let isLarge = screens.reduce(true) { isLarge, screen in
+            switch screen.screen.titleDisplayMode ?? .automatic {
+            case .automatic: isLarge
+            case .inline: false
+            case .large: true
+            }
+        }
         let barPath = ownPath.appending("bar")
         var leading: [ViewNode] = []
         if screens.count > 1, !top.screen.backButtonHidden {
@@ -601,17 +623,24 @@ extension NavigationStack: PrimitiveView {
         }
         group("leading", leading)
         let principal = items(.principal)
+        // A large title needs a title: principal items and a bar without a
+        // title use the inline layout.
+        var displayMode = "inline"
         if !principal.isEmpty {
             group("principal", principal)
         } else if let title = top.screen.title {
+            if isLarge { displayMode = "large" }
+            let font = isLarge ? LayoutDefaults.largeTitleFont : LayoutDefaults.inlineTitleFont
             barChildren.append(
                 ViewNode(
                     id: barPath.appending("title").id, kind: "Text",
-                    attributes: ["text": title]))
+                    attributes: ["text": title, "font": font.resolved().attribute]))
         }
         group("trailing", items(.trailing))
 
-        let bar = ViewNode(id: barPath.id, kind: "NavigationBar", children: barChildren)
+        let bar = ViewNode(
+            id: barPath.id, kind: "NavigationBar", attributes: ["titleDisplayMode": displayMode],
+            children: barChildren)
         return [ViewNode(id: id, kind: "NavigationStack", children: [bar] + top.nodes)]
     }
 }
