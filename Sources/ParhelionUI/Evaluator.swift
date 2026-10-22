@@ -43,6 +43,8 @@ final class Evaluator {
     var transitions: [NodeID: AnyTransition] = [:]
     /// The detents declared inside the sheet being evaluated.
     var presentationDetents: Set<PresentationDetent> = []
+    /// The grabber visibility declared inside the sheet being evaluated.
+    var presentationDragIndicator = Visibility.automatic
     private(set) var actions: [NodeID: @MainActor () -> Void] = [:]
     private(set) var textFields: [NodeID: Binding<String>] = [:]
 

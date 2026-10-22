@@ -82,8 +82,11 @@ public struct ViewNode: Hashable, Sendable {
         kind == "Text" ? attributes["text"] : nil
     }
 
-    /// The text of this node and its descendants, in reading order.
+    /// The text of this node and its descendants, in reading order, or the
+    /// node's `label` attribute when it has one. A back button, which shows
+    /// only a chevron, records the title of the view it returns to there.
     public var label: String {
+        if let label = attributes["label"] { return label }
         var parts: [String] = []
         collectText(into: &parts)
         return parts.joined(separator: " ")

@@ -140,7 +140,7 @@ struct NavigationTests {
             for group in bar.children where group.kind == "ToolbarItemGroup" {
                 let frame = try #require(group.frame)
                 #expect(frame.midY == 22)
-                #expect(frame.height == 22)
+                #expect(frame.height == 44)
             }
         }
     }
@@ -224,10 +224,13 @@ struct NavigationTests {
     func pushAndPop() throws {
         let host = ViewHost(Library(), device: screen)
         try host.tapButton(labeled: "Details")
-        #expect(texts(host) == ["Library", "Details", "Count: 0", "Increment"])
+        // The back button shows only a chevron; its label attribute is the
+        // previous title.
+        #expect(texts(host) == ["Details", "Count: 0", "Increment"])
         let back = try #require(host.root.allNodes.first { $0.id.rawValue.hasSuffix("/bar/back") })
         #expect(back.kind == "Button")
         #expect(back.label == "Library")
+        #expect(back.children.map(\.kind) == ["Image"])
         try host.tap(back.id)
         #expect(texts(host).first == "Library")
         #expect(texts(host).contains("Details"))
@@ -251,12 +254,13 @@ struct NavigationTests {
     func valueLinks() throws {
         let host = ViewHost(Numbers(), device: screen)
         try host.tapButton(labeled: "Three")
-        #expect(texts(host) == ["Back", "3", "Number 3"])
+        #expect(texts(host) == ["3", "Number 3"])
+        // A back button without a previous title is labeled "Back".
         try host.tapButton(labeled: "Back")
         try host.tapButton(labeled: "Jump")
-        #expect(texts(host) == ["1", "2", "Number 2"])
+        #expect(texts(host) == ["2", "Number 2"])
         try host.tapButton(labeled: "1")
-        #expect(texts(host) == ["Back", "1", "Number 1"])
+        #expect(texts(host) == ["1", "Number 1"])
     }
 
     @Test("A navigation path holds values of any hashable type")

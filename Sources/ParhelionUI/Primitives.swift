@@ -124,14 +124,54 @@ extension Button: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         let ownPath = path.appending("Button")
         evaluator.registerAction(action, for: ownPath.id)
+        let environment = evaluator.environment
+        var attributes = role.map { ["role": $0.name] } ?? [:]
+        let children: [ViewNode]
+        switch environment.buttonStyle {
+        case .custom(let style):
+            attributes["buttonStyle"] = baseTypeName(of: type(of: style))
+            children = evaluator.withEnvironment({ $0.buttonStyle = .builtIn(.automatic) }) {
+                evaluator.evaluate(customBody(style), at: ownPath)
+            }
+        case .builtIn(let style):
+            if style != .automatic { attributes["buttonStyle"] = style.rawValue }
+            if style.drawsShape, environment.controlSize != .regular {
+                attributes["controlSize"] = environment.controlSize.rawValue
+            }
+            children = evaluator.withEnvironment({ labelEnvironment(&$0, style: style) }) {
+                evaluator.evaluate(label, at: ownPath)
+            }
+        }
         return [
-            ViewNode(
-                id: ownPath.id,
-                kind: "Button",
-                attributes: role.map { ["role": $0.name] } ?? [:],
-                children: evaluator.evaluate(label, at: ownPath)
-            )
+            ViewNode(id: ownPath.id, kind: "Button", attributes: attributes, children: children)
         ]
+    }
+
+    /// Changes the environment of the label for the button's style: glass
+    /// buttons, toolbar items, and alert buttons have medium labels, and a
+    /// small bordered button has smaller text. Fonts set inside the label
+    /// still win.
+    private func labelEnvironment(_ environment: inout EnvironmentValues, style: BuiltInButtonStyle)
+    {
+        // Assumed: in the iOS 27 UI Kit, labels on glass and in alerts are
+        // medium, and other button labels are regular.
+        if style.isGlass || environment.buttonContext != .standard {
+            environment.fontWeight = environment.fontWeight ?? .medium
+        }
+        if style.drawsShape, environment.buttonContext == .standard {
+            let metrics = LayoutDefaults.controlMetrics(
+                environment.controlSize, glass: style.isGlass)
+            if metrics.fontSize != LayoutDefaults.bodyFontSize, environment.font == nil {
+                environment.font = .subheadline
+            }
+        }
+    }
+
+    private func customBody<S: ButtonStyle>(_ style: S) -> any View {
+        style.makeBody(
+            configuration: ButtonStyleConfiguration(
+                role: role, label: ButtonStyleConfiguration.Label(content: label),
+                isPressed: false))
     }
 }
 

@@ -168,41 +168,130 @@ enum LayoutDefaults {
     /// of the screen.
     static let navigationBarMargin: CGFloat = 16
 
-    /// Assumed: the space between the back button and the leading edge of
-    /// the screen.
-    static let backButtonMargin: CGFloat = 8
+    /// Assumed: the side of a glass toolbar button: a 44-point circle for a
+    /// symbol, or the height of a capsule for text, in the iOS 27 UI Kit's
+    /// toolbar buttons.
+    static let toolbarButtonSize: CGFloat = 44
 
-    /// Assumed: the space between the back button's chevron and its title.
-    static let backButtonSpacing: CGFloat = 3
+    /// Assumed: the space between a text toolbar button's label and the
+    /// ends of its capsule: "Label" makes a 67-point capsule in the iOS 27
+    /// UI Kit.
+    static let toolbarTextButtonPadding: CGFloat = 12
 
-    /// Assumed: the space between items in a group of toolbar items.
-    static let toolbarItemSpacing: CGFloat = 16
+    /// Assumed: the width each symbol takes in a capsule that several
+    /// toolbar items share. The kit's group of two symbols is 104 points
+    /// wide and its group of three 160; Parhelion gives each symbol the same
+    /// width, which makes three 156.
+    static let toolbarGroupedSymbolWidth: CGFloat = 52
+
+    /// Assumed: the space between separate glass items in the navigation
+    /// bar, such as the back button and a leading item, in the iOS 27 UI
+    /// Kit (buttons at x = 16 and x = 72).
+    static let toolbarGroupSpacing: CGFloat = 12
+
+    /// Assumed: the size of the back button's chevron, measured in an iOS 26
+    /// Simulator screenshot of an iPhone 17 Pro: about 10.3 × 18 points.
+    static let backChevronSize = CGSize(width: 10.33, height: 18)
+
+    /// Assumed: the stroke width of the back button's chevron, about 2.3
+    /// points in the same screenshot.
+    static let backChevronThickness: CGFloat = 2.3
+
+    /// Assumed: how far left of the button's center the back button's
+    /// chevron sits, an optical offset of about 1.7 points in the same
+    /// screenshot.
+    static let backChevronOpticalOffset: CGFloat = 1.7
+
+    /// Assumed: how far below the top of a sheet its toolbar's buttons sit:
+    /// the iOS 27 UI Kit's sheet toolbar is 70 points tall, with 44-point
+    /// buttons 16 points from the top.
+    static let sheetToolbarTopInset: CGFloat = 16
 
     /// Assumed: the space between the top of the safe area and the top of a
-    /// sheet at its large detent.
-    static let sheetTopInset: CGFloat = 10
+    /// sheet at its large detent. In iOS 26 and 27, the sheet's top edge is
+    /// at the top of the safe area, in the iOS 27 UI Kit and in an iOS 26
+    /// Simulator screenshot.
+    static let sheetTopInset: CGFloat = 0
 
-    /// Assumed: the corner radius of a sheet's top corners.
-    static let sheetCornerRadius: CGFloat = 10
+    /// Assumed: the corner radius of a sheet's top corners at its large
+    /// detent, continuous, in the iOS 27 UI Kit.
+    static let sheetCornerRadius: CGFloat = 38
+
+    /// Assumed: the space between a sheet at a partial-height detent, such
+    /// as `.medium`, and the left, right, and bottom edges of the screen, in
+    /// the iOS 27 UI Kit.
+    static let partialSheetInset: CGFloat = 8
+
+    /// Assumed: the corner radius of all four corners of a sheet at a
+    /// partial-height detent, continuous, in the iOS 27 UI Kit.
+    static let partialSheetCornerRadius: CGFloat = 34
+
+    /// Assumed: the size of a sheet's grabber, 60 × 4 points with fully
+    /// rounded ends in the iOS 27 UI Kit, whose change log widens it for
+    /// iOS 27.
+    static let grabberSize = CGSize(width: 60, height: 4)
+
+    /// Assumed: the space between the top of a sheet and its grabber, in the
+    /// iOS 27 UI Kit.
+    static let grabberTop: CGFloat = 5
 
     /// Assumed: how far a sheet must be dragged down to dismiss it when
     /// released, in points.
     static let sheetDismissDistance: CGFloat = 100
 
-    /// Assumed: the width of an alert.
-    static let alertWidth: CGFloat = 270
+    /// Assumed: the width of an alert, 300 points in the iOS 27 UI Kit.
+    static let alertWidth: CGFloat = 300
 
-    /// Assumed: the corner radius of an alert.
-    static let alertCornerRadius: CGFloat = 14
+    /// Assumed: the corner radius of an alert, continuous, in the iOS 27 UI
+    /// Kit.
+    static let alertCornerRadius: CGFloat = 34
 
-    /// Assumed: the space around an alert's title and message.
-    static let alertContentInsets = EdgeInsets(top: 20, leading: 16, bottom: 20, trailing: 16)
+    /// Assumed: the space around an alert's title and message, in the iOS
+    /// 27 UI Kit: 22 points from the top and sides (the kit's 14-point
+    /// group inset plus 8), and 24 points from the message to the buttons.
+    static let alertContentInsets = EdgeInsets(top: 22, leading: 22, bottom: 24, trailing: 22)
 
-    /// Assumed: the space between an alert's title and message.
-    static let alertContentSpacing: CGFloat = 4
+    /// Assumed: the space between an alert's title and message, and between
+    /// its other content, in the iOS 27 UI Kit.
+    static let alertContentSpacing: CGFloat = 10
 
-    /// Assumed: the height of each button in an alert.
-    static let alertButtonHeight: CGFloat = 44
+    /// Assumed: the height of each of an alert's capsule buttons, in the
+    /// iOS 27 UI Kit.
+    static let alertButtonHeight: CGFloat = 48
+
+    /// Assumed: the space between an alert's buttons and its sides and
+    /// bottom, in the iOS 27 UI Kit.
+    static let alertButtonInset: CGFloat = 14
+
+    /// Assumed: the space between two alert buttons side by side, in the
+    /// iOS 27 UI Kit.
+    static let alertButtonSpacing: CGFloat = 8
+
+    /// Assumed: the space between alert buttons stacked vertically, which
+    /// three or more buttons are, in the iOS 27 UI Kit.
+    static let alertStackedButtonSpacing: CGFloat = 12
+
+    /// The height, horizontal padding, and font size of a button with a
+    /// bordered or glass style at one control size.
+    struct ControlMetrics: Equatable {
+        var height: CGFloat
+        var padding: CGFloat
+        var fontSize: CGFloat
+    }
+
+    /// Assumed: the size of a button with a bordered or glass style, from
+    /// the iOS 27 UI Kit's small, medium, and large buttons. Matching the
+    /// kit's sizes to SwiftUI's control sizes is a guess from their names;
+    /// `.mini` draws as `.small`, and `.extraLarge` as `.large`. Glass
+    /// buttons are 46 points tall at the large size instead of 50.
+    static func controlMetrics(_ size: ControlSize, glass: Bool) -> ControlMetrics {
+        switch size {
+        case .mini, .small: ControlMetrics(height: 28, padding: 10, fontSize: 15)
+        case .regular: ControlMetrics(height: 34, padding: 12, fontSize: 17)
+        case .large, .extraLarge:
+            ControlMetrics(height: glass ? 46 : 50, padding: 20, fontSize: 17)
+        }
+    }
 
     /// Assumed: the duration of a timing-curve animation, such as
     /// `.easeInOut`, when none is given.

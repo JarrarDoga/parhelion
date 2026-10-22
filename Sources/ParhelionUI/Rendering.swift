@@ -74,23 +74,44 @@ struct TreeRenderer {
             scale: scale,
             background: ColorPalette.background
         )
-        draw(root, foreground: nil, opacity: 1, into: &canvas)
+        draw(root, inherited: Inherited(), into: &canvas)
         // The system interface is above everything the app presents.
         if let chrome { canvas.draw(chrome) }
         return canvas
     }
 
-    /// Draws a node and its children. `foreground` is the style inherited
-    /// from ancestors, which a node's own `foregroundStyle` overrides, and
-    /// `opacity` multiplies every color in the subtree.
-    private func draw(
-        _ node: ViewNode,
-        foreground: String?,
-        opacity: Double,
-        into canvas: inout Canvas
-    ) {
-        var foreground = node.attributes["foregroundStyle"] ?? foreground
-        var opacity = opacity
+    /// What a node inherits from its ancestors when it is drawn.
+    struct Inherited {
+        /// The foreground style, which a node's own `foregroundStyle`
+        /// overrides.
+        var foreground: String?
+        /// The tint color's style name, set by `tint(_:)`, or `nil` for the
+        /// default tint.
+        var tint: String?
+        /// The opacity that multiplies every color in the subtree.
+        var opacity = 1.0
+        /// What the node is in, which changes how its buttons draw.
+        var container = Container.standard
+    }
+
+    /// What a node is in, for how buttons inside it draw.
+    enum Container {
+        case standard
+        /// A navigation bar, whose back button draws its own glass.
+        case navigationBar
+        /// A group of toolbar items, which draws one glass capsule behind
+        /// its buttons.
+        case toolbarGroup
+        /// An alert, whose buttons are capsules.
+        case alert
+    }
+
+    /// Draws a node and its children.
+    private func draw(_ node: ViewNode, inherited: Inherited, into canvas: inout Canvas) {
+        var foreground = node.attributes["foregroundStyle"] ?? inherited.foreground
+        let tint = node.attributes["tint"] ?? inherited.tint
+        var container = inherited.container
+        var opacity = inherited.opacity
         guard let frame = node.frame else { return }
         opacity *= node.opacity
 
@@ -106,7 +127,7 @@ struct TreeRenderer {
             return color
         }
         func paint(_ style: String) -> RGBA {
-            paint(ColorPalette.color(named: style))
+            paint(ColorPalette.color(named: style == "tint" ? tint ?? style : style))
         }
 
         // Backgrounds sit behind the view, the outermost one at the back.
@@ -136,33 +157,48 @@ struct TreeRenderer {
             }
 
         case "Button":
-            // Assumed: a button's label takes the tint color unless it sets its
-            // own foreground style, as with SwiftUI's default button style. A
-            // destructive button's label is red.
-            foreground = foreground ?? (node.attributes["role"] == "destructive" ? "red" : "tint")
+            let style = BuiltInButtonStyle(rawValue: node.attributes["buttonStyle"] ?? "")
+            let drawn = drawButton(
+                node, in: frame, container: container, tint: tint, opacity: opacity, paint: paint,
+                into: &canvas)
+            if let drawn {
+                foreground = drawn
+            } else if container == .standard {
+                foreground =
+                    foreground
+                    ?? (style == .plain
+                        ? "primary" : node.attributes["role"] == "destructive" ? "red" : "tint")
+            }
+            container = .standard
+
+        case "ToolbarItemGroup" where node.attributes["placement"] != "principal":
+            // Assumed: toolbar items are labeled in near-black on glass, or
+            // white on prominent glass, not in the tint color, as in the
+            // iOS 27 UI Kit. Explicit styles on the items still win.
+            let radius = min(frame.width, frame.height) / 2
+            if node.attributes["glass"] == "prominent" {
+                let fill = node.children.first?.attributes["tint"] ?? tint ?? "tint"
+                canvas.drawGlass(
+                    frame, cornerRadius: radius, material: ColorPalette.prominentGlass,
+                    tint: ColorPalette.color(named: fill), opacity: opacity)
+                foreground = node.attributes["foregroundStyle"] ?? "white"
+            } else {
+                canvas.drawGlass(
+                    frame, cornerRadius: radius, material: ColorPalette.smallGlass,
+                    opacity: opacity)
+                foreground = node.attributes["foregroundStyle"] ?? ColorPalette.glassLabelStyle
+            }
+            container = .toolbarGroup
 
         case "Sheet":
-            // The dimming deepens as the sheet slides up into view.
-            let screen = CGRect(origin: .zero, size: device.screenSize)
-            let shown = min(max((screen.maxY - frame.minY) / max(frame.height, 1), 0), 1)
-            var dim = ColorPalette.presentationDim
-            dim.alpha = UInt8((Double(dim.alpha) * Double(shown)).rounded())
-            canvas.fill(screen, color: paint(dim))
-            // Only the top corners are rounded; the bottom ones are off screen.
-            let radius = LayoutDefaults.sheetCornerRadius
-            canvas.fill(
-                CGRect(
-                    x: frame.minX, y: frame.minY, width: frame.width,
-                    height: frame.height + radius),
-                cornerRadius: radius,
-                color: paint(ColorPalette.background)
-            )
+            drawSheet(node, in: frame, paint: paint, opacity: opacity, into: &canvas)
 
         case "FullScreenCover":
             canvas.fill(frame, color: paint(ColorPalette.background))
 
         case "Alert":
-            drawAlert(node, in: frame, paint: paint, into: &canvas)
+            drawAlert(in: frame, paint: paint, opacity: opacity, into: &canvas)
+            container = .alert
 
         case "NavigationLink":
             // Assumed: in a list, a link's label uses the primary color;
@@ -171,6 +207,9 @@ struct TreeRenderer {
 
         case "NavigationStack":
             drawNavigationBarBackground(node, paint: paint, into: &canvas)
+
+        case "NavigationBar":
+            container = .navigationBar
 
         case "List":
             drawList(node, in: frame, paint: paint, into: &canvas)
@@ -189,10 +228,78 @@ struct TreeRenderer {
         if node.isScrollContainer {
             canvas.clipRect = outerClip.map { $0.intersection(frame) } ?? frame
         }
-        for child in node.children {
-            draw(child, foreground: foreground, opacity: opacity, into: &canvas)
+        let inherited = Inherited(
+            foreground: foreground, tint: tint, opacity: opacity, container: container)
+        for (index, child) in node.children.enumerated() {
+            var childInherited = inherited
+            // An alert's message, after its title, is gray.
+            if node.kind == "Alert", index > 0, child.kind != "Button",
+                child.kind != "TextField"
+            {
+                childInherited.foreground = foreground ?? ColorPalette.alertMessageStyle
+            }
+            draw(child, inherited: childInherited, into: &canvas)
         }
         canvas.clipRect = outerClip
+    }
+
+    /// Draws what a button's style puts behind its label, and returns the
+    /// label's foreground style when the style chooses one.
+    private func drawButton(
+        _ node: ViewNode, in frame: CGRect, container: Container, tint: String?, opacity: Double,
+        paint: (String) -> RGBA, into canvas: inout Canvas
+    ) -> String? {
+        let own = node.attributes["foregroundStyle"]
+        let isDestructive = node.attributes["role"] == "destructive"
+        let radius = min(frame.width, frame.height) / 2
+        switch container {
+        case .navigationBar:
+            // The back button is a glass circle.
+            canvas.drawGlass(
+                frame, cornerRadius: radius, material: ColorPalette.smallGlass, opacity: opacity)
+            return own ?? ColorPalette.glassLabelStyle
+        case .toolbarGroup:
+            // The group draws the glass. An explicit tint colors the label.
+            return own ?? (node.attributes["tint"] != nil ? "tint" : nil)
+        case .alert:
+            // Assumed: every alert button is a gray capsule with a black
+            // label, red for a destructive one, in the iOS 27 UI Kit. Only a
+            // preferred action is blue, and Parhelion has no way to mark one
+            // yet.
+            canvas.fill(frame, cornerRadius: radius, color: paint(ColorPalette.tertiaryFillStyle))
+            return own ?? (isDestructive ? "red" : "primary")
+        case .standard:
+            break
+        }
+        let style = BuiltInButtonStyle(rawValue: node.attributes["buttonStyle"] ?? "")
+        let accent = isDestructive ? "red" : "tint"
+        switch style {
+        case .bordered:
+            canvas.fill(frame, cornerRadius: radius, color: paint(ColorPalette.tertiaryFillStyle))
+            return own ?? accent
+        case .borderedProminent:
+            canvas.fill(frame, cornerRadius: radius, color: paint(accent))
+            return own ?? "white"
+        case .glass:
+            canvas.drawGlass(
+                frame, cornerRadius: radius, material: ColorPalette.smallGlass, opacity: opacity)
+            return own ?? (isDestructive ? "red" : ColorPalette.glassLabelStyle)
+        case .glassProminent:
+            canvas.drawGlass(
+                frame, cornerRadius: radius, material: ColorPalette.prominentGlass,
+                tint: ColorPalette.color(named: isDestructive ? "red" : tint ?? "tint"),
+                opacity: opacity)
+            return own ?? "white"
+        case .plain:
+            // Assumed: a plain button's label keeps the foreground style
+            // around it, primary by default, instead of the tint color.
+            return nil
+        case .automatic, .borderless, nil:
+            // Assumed: a button's label takes the tint color unless it sets
+            // its own foreground style, as with SwiftUI's default button
+            // style. A destructive button's label is red.
+            return nil
+        }
     }
 
     /// Draws a list's background, and each section's group of cells with
@@ -235,7 +342,7 @@ struct TreeRenderer {
             if style.isGrouped {
                 let group = first.1.union(last.1)
                 canvas.fill(
-                    group, cornerRadius: style.cornerRadius,
+                    group, cornerRadius: style.cornerRadius, style: .continuous,
                     color: paint(ColorPalette.groupedRowBackground)
                 )
             }
@@ -345,31 +452,66 @@ struct TreeRenderer {
         }
     }
 
-    /// Draws the dimmed screen behind an alert, the alert's background, and
-    /// the separators around its buttons.
+    /// Draws the dimmed screen behind an alert and the alert's large glass.
+    /// Its buttons draw their own capsules.
     private func drawAlert(
-        _ node: ViewNode,
-        in frame: CGRect,
-        paint: (RGBA) -> RGBA,
-        into canvas: inout Canvas
+        in frame: CGRect, paint: (RGBA) -> RGBA, opacity: Double, into canvas: inout Canvas
     ) {
         let screen = CGRect(origin: .zero, size: device.screenSize)
-        canvas.fill(screen, color: paint(ColorPalette.presentationDim))
-        canvas.fill(
-            frame, cornerRadius: LayoutDefaults.alertCornerRadius,
-            color: paint(ColorPalette.alertBackground)
-        )
-        let thickness = LayoutDefaults.listSeparatorThickness
-        for button in node.children where button.kind == "Button" {
-            guard let cell = button.frame else { continue }
+        canvas.fill(screen, color: paint(ColorPalette.alertDim))
+        canvas.drawGlass(
+            frame, cornerRadius: LayoutDefaults.alertCornerRadius, style: .continuous,
+            material: ColorPalette.largeGlass, opacity: opacity)
+    }
+
+    /// Draws the dimmed screen behind a sheet, and the sheet: opaque with
+    /// rounded top corners at its large detent, and inset glass with four
+    /// rounded corners at a smaller one. A grabber shows at the top when the
+    /// sheet has several detents or asks for one.
+    private func drawSheet(
+        _ node: ViewNode, in frame: CGRect, paint: (RGBA) -> RGBA, opacity: Double,
+        into canvas: inout Canvas
+    ) {
+        // The dimming deepens as the sheet slides up into view.
+        let screen = CGRect(origin: .zero, size: device.screenSize)
+        let shown = min(max((screen.maxY - frame.minY) / max(frame.height, 1), 0), 1)
+        var dim = ColorPalette.sheetDim
+        dim.alpha = UInt8((Double(dim.alpha) * Double(shown)).rounded())
+        canvas.fill(screen, color: paint(dim))
+
+        if frame.minX > 0.5 {
+            canvas.drawGlass(
+                frame, cornerRadius: LayoutDefaults.partialSheetCornerRadius, style: .continuous,
+                material: ColorPalette.partialSheetGlass, opacity: opacity)
+        } else {
+            let radius = LayoutDefaults.sheetCornerRadius
+            let shadow = ColorPalette.sheetShadow
+            // Only the shadow above the sheet shows, so a strip along its
+            // top casts it, which is much cheaper than the whole sheet.
+            let strip = CGRect(
+                x: frame.minX, y: frame.minY, width: frame.width,
+                height: min(frame.height, radius + shadow.offset + CGFloat(shadow.blur) * 1.5))
+            canvas.drawShadow(
+                of: strip, cornerRadius: radius, style: .continuous, color: paint(shadow.color),
+                offset: CGSize(width: 0, height: shadow.offset), blur: shadow.blur)
+            // Only the top corners are rounded; the bottom ones are off
+            // screen.
             canvas.fill(
-                CGRect(x: cell.minX, y: cell.minY, width: cell.width, height: thickness),
-                color: paint(ColorPalette.separator))
-            if cell.minX > frame.minX {
-                canvas.fill(
-                    CGRect(x: cell.minX, y: cell.minY, width: thickness, height: cell.height),
-                    color: paint(ColorPalette.separator))
-            }
+                CGRect(
+                    x: frame.minX, y: frame.minY, width: frame.width,
+                    height: frame.height + radius),
+                cornerRadius: radius, style: .continuous, color: paint(ColorPalette.background))
+        }
+
+        let detents = node.attributes["detents"]?.split(separator: ",").count ?? 0
+        let indicator = node.attributes["dragIndicator"]
+        if indicator == "visible" || (indicator == nil && detents > 1) {
+            let size = LayoutDefaults.grabberSize
+            canvas.fill(
+                CGRect(
+                    x: frame.midX - size.width / 2, y: frame.minY + LayoutDefaults.grabberTop,
+                    width: size.width, height: size.height),
+                cornerRadius: size.height / 2, color: paint(ColorPalette.grabber))
         }
     }
 
@@ -381,21 +523,27 @@ struct TreeRenderer {
         paint: (RGBA) -> RGBA,
         into canvas: inout Canvas
     ) {
-        guard let bar = node.children.first(where: { $0.kind == "NavigationBar" })?.frame,
+        guard let barNode = node.children.first(where: { $0.kind == "NavigationBar" }),
+            let bar = barNode.frame,
             let content = node.children.first(where: { $0.kind != "NavigationBar" }),
             content.kind == "List",
             ListStyleMetrics(styleName: content.attributes["listStyle"]).isGrouped
         else { return }
-        if abs(bar.minY - device.safeArea.minY) < 0.5 {
+        if barNode.attributes["presentation"] != "sheet" {
             let area = CGRect(x: bar.minX, y: 0, width: bar.width, height: bar.maxY)
             canvas.fill(area, color: paint(ColorPalette.groupedBackground))
         } else {
-            // A stack below the top of the screen is in a sheet, whose top
-            // corners are rounded. The fill extends under the list beneath.
-            let radius = LayoutDefaults.sheetCornerRadius
+            // A sheet's top corners are rounded, and more so at its large
+            // detent, where it spans the screen. The fill extends under the
+            // list beneath.
+            let radius =
+                bar.minX > 0.5
+                ? LayoutDefaults.partialSheetCornerRadius : LayoutDefaults.sheetCornerRadius
             let area = CGRect(
                 x: bar.minX, y: bar.minY, width: bar.width, height: bar.height + radius)
-            canvas.fill(area, cornerRadius: radius, color: paint(ColorPalette.groupedBackground))
+            canvas.fill(
+                area, cornerRadius: radius, style: .continuous,
+                color: paint(ColorPalette.groupedBackground))
         }
     }
 
@@ -407,12 +555,20 @@ struct TreeRenderer {
         let side = min(frame.width, frame.height)
         switch name {
         case "chevron.backward", "chevron.left", "chevron.forward", "chevron.right":
-            let width = side * 0.55
+            // The proportions of the back button's chevron, a 17-point
+            // symbol, which is a little taller than the symbol's side.
+            let symbol = LayoutDefaults.bodyFontSize
+            let size = LayoutDefaults.backChevronSize
+            let width = side * size.width / symbol
+            let height = side * size.height / symbol
             let rect = CGRect(
-                x: frame.midX - width / 2, y: frame.midY - side / 2, width: width, height: side)
+                x: frame.midX - width / 2, y: frame.midY - height / 2, width: width,
+                height: height)
             let pointingLeft = name == "chevron.backward" || name == "chevron.left"
             canvas.fill(
-                Self.chevron(in: rect, pointingLeft: pointingLeft, thickness: side * 0.13),
+                Self.chevron(
+                    in: rect, pointingLeft: pointingLeft,
+                    thickness: side * LayoutDefaults.backChevronThickness / symbol),
                 color: color)
         default:
             drawSymbolPlaceholder(in: frame, color: color, into: &canvas)
