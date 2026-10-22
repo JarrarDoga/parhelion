@@ -486,11 +486,15 @@ struct TreeRenderer {
         } else {
             let radius = LayoutDefaults.sheetCornerRadius
             let shadow = ColorPalette.sheetShadow
-            // Only the shadow above the sheet shows, so a strip along its
-            // top casts it, which is much cheaper than the whole sheet.
+            // Only the shadow above the sheet and around its top corners
+            // shows, so a strip along its top casts it, which is much cheaper
+            // than the whole sheet. The blur reaches about 1.5 × its radius,
+            // so the shadow of the strip's bottom edge, moved down by the
+            // offset, stays below the corners, under the opaque sheet.
             let strip = CGRect(
                 x: frame.minX, y: frame.minY, width: frame.width,
-                height: min(frame.height, radius + shadow.offset + CGFloat(shadow.blur) * 1.5))
+                height: min(
+                    frame.height, radius + max(CGFloat(shadow.blur) * 1.5 - shadow.offset, 0)))
             canvas.drawShadow(
                 of: strip, cornerRadius: radius, style: .continuous, color: paint(shadow.color),
                 offset: CGSize(width: 0, height: shadow.offset), blur: shadow.blur)

@@ -67,12 +67,15 @@ extension Canvas {
             return color
         }
 
-        // Whether the backdrop needs blurring is decided before the shadow
-        // darkens it.
+        // Whether the backdrop is flat is decided before the shadow darkens
+        // the pixels around the shape.
         let reach = CGFloat(material.blurRadius * 1.5)
-        let blursBackdrop =
-            tint == nil && material.blurRadius > 0
-            && !isFlat(rect.insetBy(dx: -reach, dy: -reach))
+        var flatBackdrop: RGBA?
+        if tint == nil, isFlat(rect.insetBy(dx: -reach, dy: -reach)) {
+            let x = min(max(Int(Double(rect.midX) * scale), 0), width - 1)
+            let y = min(max(Int(Double(rect.midY) * scale), 0), height - 1)
+            flatBackdrop = pixel(x: x, y: y)
+        }
         drawShadow(
             of: rect, cornerRadius: cornerRadius, style: style,
             color: faded(material.shadow.color),
@@ -81,14 +84,28 @@ extension Canvas {
         if let tint {
             fill(rect, cornerRadius: cornerRadius, style: style, color: faded(tint))
         } else {
-            if blursBackdrop {
-                blur(
-                    rect, cornerRadius: cornerRadius, style: style, radius: material.blurRadius,
-                    saturation: material.saturation)
-            }
-            for layer in material.tint {
-                blendMode = layer.blendMode
-                fill(rect, cornerRadius: cornerRadius, style: style, color: faded(layer.color))
+            if let flatBackdrop, flatBackdrop.alpha == 255 {
+                // Over one opaque color, the tint layers make one color too:
+                // blend them on a single pixel and fill the shape with the
+                // result, which is much faster than blending each layer
+                // over every pixel.
+                var probe = Canvas(width: 1, height: 1, scale: 1, background: flatBackdrop)
+                for layer in material.tint {
+                    probe.blendMode = layer.blendMode
+                    probe.fill(CGRect(x: 0, y: 0, width: 1, height: 1), color: faded(layer.color))
+                }
+                fill(rect, cornerRadius: cornerRadius, style: style, color: probe.pixel(x: 0, y: 0))
+            } else {
+                if flatBackdrop == nil, material.blurRadius > 0 {
+                    blur(
+                        rect, cornerRadius: cornerRadius, style: style,
+                        radius: material.blurRadius, saturation: material.saturation)
+                }
+                for layer in material.tint {
+                    blendMode = layer.blendMode
+                    fill(
+                        rect, cornerRadius: cornerRadius, style: style, color: faded(layer.color))
+                }
             }
         }
 

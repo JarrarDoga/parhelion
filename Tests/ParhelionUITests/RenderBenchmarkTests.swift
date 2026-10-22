@@ -53,3 +53,21 @@ func canvasTiming() {
     }
     print("BENCH blank canvas: \(blank), 20 full-width rects: \(rects), 20 text rows: \(text)")
 }
+
+@MainActor
+@Test(
+    "Glass timing", .enabled(if: ProcessInfo.processInfo.environment["PARHELION_BENCHMARK"] != nil)
+)
+func glassTiming() throws {
+    let clock = ContinuousClock()
+    for screen in [TasksScreens.Screen.list, .detail, .alert, .sheet] {
+        let host = try TasksScreens.host(showing: screen)
+        for scale in [2.0, 3.0] {
+            _ = host.render(scale: scale, chrome: .screen)
+            let render = clock.measure {
+                for _ in 0..<10 { _ = host.render(scale: scale, chrome: .screen) }
+            }
+            print("BENCH \(screen.rawValue) at \(Int(scale))×: \(render / 10) per frame")
+        }
+    }
+}
