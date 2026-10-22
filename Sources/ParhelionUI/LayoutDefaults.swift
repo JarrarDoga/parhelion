@@ -111,8 +111,33 @@ enum LayoutDefaults {
     /// trailing edge of a navigation link's list row.
     static let disclosureIndicatorSize = CGSize(width: 7, height: 12)
 
-    /// Assumed: the height of the navigation bar with an inline title.
-    static let navigationBarHeight: CGFloat = 44
+    /// Assumed: the height of the navigation bar with an inline title: the
+    /// 44-point row of buttons and the title, and 10 points below it. From
+    /// the iOS 27 UI Kit's standard top toolbar with a title.
+    static let navigationBarHeight: CGFloat = 54
+
+    /// Assumed: the height of the row at the top of the navigation bar that
+    /// holds its buttons and an inline title, centered vertically, in the
+    /// iOS 27 UI Kit.
+    static let navigationBarRowHeight: CGFloat = 44
+
+    /// Assumed: the height of the navigation bar with a large title: the
+    /// 44-point row, a 10-point gap, the title's 41-point line, and 10 points
+    /// below it. From the iOS 27 UI Kit's standard top toolbar with a large
+    /// title.
+    static let largeTitleNavigationBarHeight: CGFloat = 105
+
+    /// Assumed: the distance from the top of the navigation bar to the top
+    /// of a large title's line, in the iOS 27 UI Kit.
+    static let largeTitleTop: CGFloat = 54
+
+    /// Assumed: the font of a large navigation title, bold `largeTitle`
+    /// (34 points on a 41-point line) in the iOS 27 UI Kit.
+    static let largeTitleFont = Font.largeTitle.bold()
+
+    /// Assumed: the font of an inline navigation title, semibold 17 points
+    /// on a 22-point line in the iOS 27 UI Kit, which is `headline`.
+    static let inlineTitleFont = Font.headline
 
     /// Assumed: the space between the navigation bar's items and the edges
     /// of the screen.

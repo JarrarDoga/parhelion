@@ -355,7 +355,8 @@ struct LayoutEngine {
             return stackLayout(node, proposal, axis: .vertical, spacing: 0).size
         case "NavigationStack":
             // A navigation stack takes the space it is offered.
-            let barHeight = LayoutDefaults.navigationBarHeight
+            let barHeight = Self.navigationBarHeight(
+                node.children.first { $0.kind == "NavigationBar" })
             let content = Self.implicitStack(
                 node.children.filter { $0.kind != "NavigationBar" }, id: node.id)
             let contentProposal = ProposedSize(
@@ -369,8 +370,7 @@ struct LayoutEngine {
             let width = node.children.reduce(0) {
                 $0 + sizeThatFits($1, ProposedSize(width: nil, height: nil), parentAxis: nil).width
             }
-            return CGSize(
-                width: proposal.width ?? width, height: LayoutDefaults.navigationBarHeight)
+            return CGSize(width: proposal.width ?? width, height: Self.navigationBarHeight(node))
         case "ToolbarItemGroup":
             return stackLayout(
                 node, proposal, axis: .horizontal, spacing: LayoutDefaults.toolbarItemSpacing
@@ -586,19 +586,20 @@ struct LayoutEngine {
             "NavigationLink" where node.children.count > 1:
             node.children = placeStack(node, in: rect, axis: .vertical)
         case "NavigationStack":
+            let bar = node.children.first { $0.kind == "NavigationBar" }
             let barRect = CGRect(
                 x: rect.minX, y: rect.minY, width: rect.width,
-                height: min(LayoutDefaults.navigationBarHeight, rect.height))
+                height: min(Self.navigationBarHeight(bar), rect.height))
             let contentRect = CGRect(
                 x: rect.minX, y: barRect.maxY, width: rect.width,
                 height: rect.height - barRect.height)
-            let bar = node.children.first { $0.kind == "NavigationBar" }
             let content = node.children.filter { $0.kind != "NavigationBar" }
             node.children =
                 (bar.map { [place($0, in: barRect, parentAxis: nil)] } ?? [])
                 + placeCentered(content, id: node.id, in: contentRect)
         case "NavigationBar":
-            node.children = placeNavigationBar(node.children, in: rect)
+            node.children = placeNavigationBar(
+                node.children, in: rect, largeTitle: node.attributes["titleDisplayMode"] == "large")
         case "ToolbarItemGroup":
             node.children = placeStack(
                 node, in: rect, axis: .horizontal, spacing: LayoutDefaults.toolbarItemSpacing)
@@ -653,15 +654,28 @@ struct LayoutEngine {
 
     // MARK: - Navigation
 
-    /// Places the leading and trailing item groups at the edges of the bar,
-    /// and the title, or the principal items, in the middle.
-    private func placeNavigationBar(_ children: [ViewNode], in rect: CGRect) -> [ViewNode] {
+    /// The height of a navigation bar, which depends on how it displays its
+    /// title.
+    static func navigationBarHeight(_ bar: ViewNode?) -> CGFloat {
+        bar?.attributes["titleDisplayMode"] == "large"
+            ? LayoutDefaults.largeTitleNavigationBarHeight : LayoutDefaults.navigationBarHeight
+    }
+
+    /// Places the leading and trailing item groups at the edges of the bar's
+    /// top row, and an inline title, or the principal items, in the middle of
+    /// the row. A large title goes below the row, at the leading edge.
+    private func placeNavigationBar(
+        _ children: [ViewNode], in rect: CGRect, largeTitle: Bool
+    ) -> [ViewNode] {
+        // Items center in the top row, not in the whole bar.
+        let row = CGRect(
+            x: rect.minX, y: rect.minY, width: rect.width,
+            height: min(LayoutDefaults.navigationBarRowHeight, rect.height))
         func size(_ child: ViewNode, width: CGFloat? = nil) -> CGSize {
-            sizeThatFits(child, ProposedSize(width: width, height: rect.height), parentAxis: nil)
+            sizeThatFits(child, ProposedSize(width: width, height: row.height), parentAxis: nil)
         }
         func centered(_ size: CGSize, x: CGFloat) -> CGRect {
-            CGRect(
-                origin: CGPoint(x: x, y: rect.minY + (rect.height - size.height) / 2), size: size)
+            CGRect(origin: CGPoint(x: x, y: row.minY + (row.height - size.height) / 2), size: size)
         }
         let margin = LayoutDefaults.navigationBarMargin
         // The title stays centered, so it gets the width between the wider
@@ -688,6 +702,18 @@ struct LayoutEngine {
             }
         }
         for (index, child) in children.enumerated() where placed[index] == nil {
+            if largeTitle, child.kind == "Text" {
+                let width = max(rect.width - 2 * margin, 0)
+                let titleSize = size(child, width: width)
+                placed[index] = place(
+                    child,
+                    in: CGRect(
+                        origin: CGPoint(
+                            x: rect.minX + margin, y: rect.minY + LayoutDefaults.largeTitleTop),
+                        size: titleSize),
+                    parentAxis: nil)
+                continue
+            }
             let available = max(rect.width - 2 * max(sideExtent, margin), 0)
             let childSize = size(child, width: available)
             placed[index] = place(

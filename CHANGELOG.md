@@ -117,6 +117,10 @@ may contain breaking changes.
   size, line height, and weight. Every design draws with Inter.
 - Inter Medium and Inter Bold, as `TrueTypeFont.interMedium` and `TrueTypeFont.interBold`. Text
   draws with the bundled weight nearest to its font's weight.
+- Large navigation titles: the root of a `NavigationStack` shows its title in bold 34-point type
+  below the bar's row of buttons, and pushed views inherit the display mode of the view beneath.
+  `navigationBarTitleDisplayMode(_:)` now chooses `.large` or `.inline`, and the `NavigationBar`
+  node records a `titleDisplayMode` attribute.
 
 ### Changed
 
@@ -133,6 +137,9 @@ may contain breaking changes.
   16 ms in a debug build instead of 380 ms.
 - Each line of text is as tall as its text style's line height: 22 points for body text instead
   of Inter's own 20.57.
+- The navigation bar follows the iOS 27 UI Kit: 54 points tall with an inline title, which is
+  semibold, and 105 points with a large title. Its buttons and inline title center in the top
+  44 points instead of the whole bar.
 
 ### Fixed
 

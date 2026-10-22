@@ -217,14 +217,20 @@ On every update the stack evaluates each screen in order, at its own path (`Dest
   left the tree, the stack drops it and the entries above it.
 - Only the top screen is in the tree, but every screen is evaluated, so the views beneath keep
   their state. A popped screen is no longer evaluated, so its state is discarded.
-- Modifiers report a screen's title, toolbar items, and back-button visibility to the stack
-  through the evaluator, which holds the innermost stack being evaluated.
+- Modifiers report a screen's title, title display mode, toolbar items, and back-button
+  visibility to the stack through the evaluator, which holds the innermost stack being evaluated.
+- The root screen's `.automatic` title is large, and each pushed screen's `.automatic` title takes
+  the display mode of the screen beneath it, as in SwiftUI.
 
 The tree is `NavigationStack` with a `NavigationBar` child followed by the top screen. The bar
-contains `ToolbarItemGroup` nodes with a `placement` attribute and the title as a `Text` node. The
-back button is an ordinary `Button` whose identifier ends in `/bar/back`, so every tap method
-drives it. The stack fills the space it is offered: the bar takes the top 44 points, and the
-screen is centered in the rest, as root content is.
+records its `titleDisplayMode` and contains `ToolbarItemGroup` nodes with a `placement` attribute
+and the title as a `Text` node with its font. The back button is an ordinary `Button` whose
+identifier ends in `/bar/back`, so every tap method drives it. The stack fills the space it is
+offered: the bar takes the top 54 points with an inline title, or 105 with a large one, and the
+screen is centered in the rest, as root content is. Inside the bar, the item groups and an inline
+title center in the top 44-point row. A large title starts 54 points down, at the leading margin,
+so the back button and toolbar items stay above it. A bar with principal items or without a title
+always uses the inline layout.
 
 ### Presentations
 
