@@ -165,6 +165,141 @@ struct ContinuousCornerTests {
     }
 }
 
+@Suite("Rings")
+struct RingTests {
+    @Test("A ring lies inside, centered on, or outside the edge")
+    func alignment() {
+        let rect = CGRect(x: 10, y: 10, width: 40, height: 30)
+        for (alignment, dark) in [
+            (Path.StrokeAlignment.inside, [10, 11]), (.center, [9, 10]), (.outside, [8, 9]),
+        ] {
+            var canvas = Canvas(width: 60, height: 50, scale: 1)
+            canvas.stroke(rect, cornerRadius: 0, lineWidth: 2, alignment: alignment, color: .black)
+            for x in 6..<14 {
+                // The left side, on the middle row, and the top, in the
+                // middle column.
+                #expect(darkness(canvas, x, 25) == (dark.contains(x) ? 255 : 0))
+                #expect(darkness(canvas, 30, x) == (dark.contains(x) ? 255 : 0))
+            }
+            #expect(canvas.pixel(x: 30, y: 25) == .white)
+        }
+    }
+
+    @Test("A one-pixel hairline covers exactly one row of pixels")
+    func hairline() {
+        var canvas = Canvas(width: 40, height: 30, scale: 3)
+        canvas.stroke(
+            CGRect(x: 5, y: 5, width: 30, height: 20), cornerRadius: 10, style: .continuous,
+            lineWidth: 1.0 / 3, alignment: .inside, color: .black)
+        #expect(darkness(canvas, 60, 15) == 255)
+        #expect(darkness(canvas, 60, 14) == 0)
+        #expect(darkness(canvas, 60, 16) == 0)
+    }
+
+    @Test(
+        "A rounded ring matches the general rasterizer, without seams",
+        arguments: [1.0, 2.0, 3.0])
+    func fastPath(scale: Double) {
+        let rect = CGRect(x: 5.3, y: 4.7, width: 38.2, height: 22.9)
+        for style in [Path.CornerStyle.circular, .continuous] {
+            for alignment in [Path.StrokeAlignment.inside, .center, .outside] {
+                var fast = Canvas(width: 50, height: 32, scale: scale)
+                fast.stroke(
+                    rect, cornerRadius: 9, style: style, lineWidth: 1.5, alignment: alignment,
+                    color: .black)
+                var general = Canvas(width: 50, height: 32, scale: scale)
+                general.fill(
+                    Path(
+                        ringAround: rect, cornerRadius: 9, style: style, lineWidth: 1.5,
+                        alignment: alignment),
+                    color: .black)
+                #expect(largestDifference(fast, general) <= 3)
+            }
+        }
+    }
+}
+
+@Suite("Gradients")
+struct GradientTests {
+    @Test("A vertical gradient has its end colors at its ends and the middle between")
+    func vertical() {
+        var canvas = Canvas(width: 4, height: 100, scale: 1)
+        canvas.fill(
+            CGRect(x: 0, y: 0, width: 4, height: 100),
+            gradient: Canvas.LinearGradient(
+                colors: [.black, .white], start: .zero, end: CGPoint(x: 0, y: 100)))
+        for y in 0..<100 {
+            let expected = (Double(y) + 0.5) / 100 * 255
+            #expect(abs(Double(canvas.pixel(x: 2, y: y).red) - expected) <= 1)
+            #expect(canvas.pixel(x: 0, y: y) == canvas.pixel(x: 3, y: y))
+        }
+        #expect(canvas.pixel(x: 0, y: 0).red <= 2)
+        #expect(canvas.pixel(x: 0, y: 99).red >= 253)
+        #expect((126...129).contains(canvas.pixel(x: 0, y: 50).red))
+    }
+
+    @Test("Gradients run horizontally and at any angle, and pad past their ends")
+    func angles() {
+        var horizontal = Canvas(width: 20, height: 2, scale: 1)
+        horizontal.fill(
+            CGRect(x: 0, y: 0, width: 20, height: 2),
+            gradient: Canvas.LinearGradient(
+                colors: [.black, .white], start: CGPoint(x: 5, y: 0), end: CGPoint(x: 15, y: 0)))
+        #expect(horizontal.pixel(x: 0, y: 0) == .black)
+        #expect(horizontal.pixel(x: 4, y: 1) == .black)
+        #expect(horizontal.pixel(x: 19, y: 0) == .white)
+        #expect(horizontal.pixel(x: 9, y: 0).red < horizontal.pixel(x: 10, y: 0).red)
+
+        var diagonal = Canvas(width: 16, height: 16, scale: 1)
+        diagonal.fill(
+            CGRect(x: 0, y: 0, width: 16, height: 16),
+            gradient: Canvas.LinearGradient(
+                colors: [.black, .white], start: .zero, end: CGPoint(x: 16, y: 16)))
+        for y in 0..<16 {
+            for x in 0..<16 {
+                // Lines perpendicular to the gradient have one color.
+                #expect(diagonal.pixel(x: x, y: y) == diagonal.pixel(x: y, y: x))
+                if x > 0, y < 15 {
+                    #expect(
+                        abs(
+                            Int(diagonal.pixel(x: x, y: y).red)
+                                - Int(diagonal.pixel(x: x - 1, y: y + 1).red)) <= 1)
+                }
+            }
+        }
+    }
+
+    @Test("A fade to clear stays the same color as it fades")
+    func premultiplied() {
+        var canvas = Canvas(width: 2, height: 100, scale: 1, background: .black)
+        canvas.fill(
+            CGRect(x: 0, y: 0, width: 2, height: 100),
+            gradient: Canvas.LinearGradient(
+                colors: [RGBA(red: 255, green: 255, blue: 255, alpha: 153), .clear],
+                start: .zero, end: CGPoint(x: 0, y: 100)))
+        // Halfway, white at 30% over black.
+        #expect((75...78).contains(canvas.pixel(x: 0, y: 50).red))
+        #expect(canvas.pixel(x: 0, y: 99).red <= 2)
+        #expect((150...153).contains(canvas.pixel(x: 0, y: 0).red))
+    }
+
+    @Test("Stops can be placed anywhere, and paths take gradients too")
+    func stops() {
+        var canvas = Canvas(width: 100, height: 4, scale: 1)
+        canvas.fill(
+            Path(CGRect(x: 0, y: 0, width: 100, height: 4)),
+            gradient: Canvas.LinearGradient(
+                stops: [
+                    .init(color: .black, location: 0), .init(color: .white, location: 0.2),
+                    .init(color: .black, location: 1),
+                ],
+                start: .zero, end: CGPoint(x: 100, y: 0)))
+        #expect(canvas.pixel(x: 20, y: 0).red >= 252)
+        #expect(canvas.pixel(x: 10, y: 0).red < 140 && canvas.pixel(x: 10, y: 0).red > 115)
+        #expect(canvas.pixel(x: 60, y: 0).red < 130 && canvas.pixel(x: 60, y: 0).red > 125)
+    }
+}
+
 @Suite("Blend modes")
 struct BlendModeTests {
     let backdrop = RGBA(red: 200, green: 100, blue: 50)
