@@ -14,10 +14,18 @@ extension LayoutEngine {
         -> CGSize?
     {
         switch node.kind {
-        case "Toggle", "LabeledContent":
+        case "Toggle", "LabeledContent", "Stepper":
             return rowLayout(node, ProposedSize(width: proposal.width, height: nil)).size
         case "Switch":
             return LayoutDefaults.switchSize
+        case "StepperButton":
+            return LayoutDefaults.stepperButtonSize
+        case "Slider":
+            return sliderLayout(node, proposal.width).size
+        case "SliderTrack":
+            return CGSize(
+                width: proposal.width ?? LayoutDefaults.sliderIdealTrackWidth,
+                height: LayoutDefaults.sliderHeight)
         case "Knob":
             return .zero
         case "Divider":
@@ -34,9 +42,11 @@ extension LayoutEngine {
     /// `nil` if the node is not a control.
     func placeControl(_ node: ViewNode, in rect: CGRect) -> [ViewNode]? {
         switch node.kind {
-        case "Toggle", "LabeledContent":
+        case "Toggle", "LabeledContent", "Stepper":
             return placeRow(node, in: rect)
-        case "Switch", "Knob", "Divider":
+        case "Slider":
+            return placeSlider(node, in: rect)
+        case "Switch", "Knob", "Divider", "StepperButton", "SliderTrack":
             return node.children
         default:
             return nil
@@ -149,6 +159,89 @@ extension LayoutEngine {
     }
 }
 
+extension LayoutEngine {
+    // MARK: - Sliders
+
+    struct SliderLayout {
+        var size: CGSize
+        var minimum: (nodes: [ViewNode], size: CGSize)
+        var maximum: (nodes: [ViewNode], size: CGSize)
+    }
+
+    /// Sizes a slider: its value labels at their ideal sizes at the ends, and
+    /// the track filling the width between them.
+    private func sliderLayout(_ node: ViewNode, _ width: CGFloat?) -> SliderLayout {
+        let trackIndex = node.children.firstIndex { $0.kind == "SliderTrack" } ?? 0
+        func labels(_ nodes: [ViewNode]) -> (nodes: [ViewNode], size: CGSize) {
+            guard !nodes.isEmpty else { return ([], .zero) }
+            let stack = ViewNode(id: node.id, kind: "HStack", children: nodes)
+            return (nodes, sizeThatFits(stack, .unspecified, parentAxis: nil))
+        }
+        let minimum = labels(Array(node.children[..<trackIndex]))
+        let maximum = labels(Array(node.children.dropFirst(trackIndex + 1)))
+        let spacing = LayoutDefaults.sliderValueLabelSpacing
+        let labelsWidth =
+            minimum.size.width + maximum.size.width
+            + (minimum.nodes.isEmpty ? 0 : spacing) + (maximum.nodes.isEmpty ? 0 : spacing)
+        let height = max(LayoutDefaults.sliderHeight, minimum.size.height, maximum.size.height)
+        return SliderLayout(
+            size: CGSize(
+                width: width ?? labelsWidth + LayoutDefaults.sliderIdealTrackWidth, height: height),
+            minimum: minimum, maximum: maximum)
+    }
+
+    /// Places a slider's value labels at its ends and its track between
+    /// them, with the knob where the value is along the track.
+    private func placeSlider(_ node: ViewNode, in rect: CGRect) -> [ViewNode] {
+        let layout = sliderLayout(node, rect.width)
+        let spacing = LayoutDefaults.sliderValueLabelSpacing
+        func placeLabels(_ labels: (nodes: [ViewNode], size: CGSize), x: CGFloat) -> [ViewNode] {
+            guard !labels.nodes.isEmpty else { return [] }
+            let stack = ViewNode(id: node.id, kind: "HStack", children: labels.nodes)
+            let frame = CGRect(
+                x: x, y: rect.midY - labels.size.height / 2, width: labels.size.width,
+                height: labels.size.height)
+            return place(stack, in: frame, parentAxis: nil).children
+        }
+        let minimum = placeLabels(layout.minimum, x: rect.minX)
+        let maximum = placeLabels(layout.maximum, x: rect.maxX - layout.maximum.size.width)
+        let leading =
+            rect.minX + layout.minimum.size.width + (minimum.isEmpty ? 0 : spacing)
+        let trailing =
+            rect.maxX - layout.maximum.size.width - (maximum.isEmpty ? 0 : spacing)
+        let height = LayoutDefaults.sliderHeight
+        let trackFrame = CGRect(
+            x: leading, y: rect.midY - height / 2, width: max(trailing - leading, 0),
+            height: height)
+        guard var track = node.children.first(where: { $0.kind == "SliderTrack" }) else {
+            return node.children
+        }
+        track.frame = trackFrame
+        let knobSize = LayoutDefaults.sliderKnobSize
+        let fraction = CGFloat(Self.sliderFraction(node))
+        let knob = CGRect(
+            x: trackFrame.minX + fraction * max(trackFrame.width - knobSize.width, 0),
+            y: trackFrame.midY - knobSize.height / 2, width: knobSize.width,
+            height: knobSize.height)
+        track.children = track.children.map { child in
+            var child = child
+            child.frame = knob
+            return child
+        }
+        return minimum + [track] + maximum
+    }
+
+    /// How far along its track a slider's value is, from 0 to 1, from its
+    /// `value` and `bounds` attributes.
+    static func sliderFraction(_ node: ViewNode) -> Double {
+        let bounds = (node.attributes["bounds"] ?? "").components(separatedBy: "...")
+        guard let value = node.attributes["value"].flatMap(Double.init), bounds.count == 2,
+            let lower = Double(bounds[0]), let upper = Double(bounds[1]), upper > lower
+        else { return 0 }
+        return min(max((value - lower) / (upper - lower), 0), 1)
+    }
+}
+
 extension ViewNode {
     /// The insets of this node as a list row: a control taller than a line of
     /// text gets smaller vertical insets, so that its row stays as tall as a
@@ -157,6 +250,7 @@ extension ViewNode {
         let height: CGFloat
         switch kind {
         case "Toggle": height = LayoutDefaults.switchSize.height
+        case "Stepper": height = LayoutDefaults.stepperButtonSize.height
         default: return insets
         }
         var insets = insets

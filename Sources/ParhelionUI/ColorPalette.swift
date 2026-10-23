@@ -227,19 +227,43 @@ enum ColorPalette {
 // MARK: - Controls
 
 extension ColorPalette {
-    /// Assumed: the opacity of a control turned off with `disabled(_:)`, 50%
-    /// in the iOS 27 UI Kit's disabled switches, sliders, and segmented
-    /// controls.
+    /// The opacity of a control turned off with `disabled(_:)`, 50% in the
+    /// iOS 27 UI Kit's disabled switches, sliders, and segmented controls.
     static let disabledOpacity = 0.5
 
-    /// Assumed: the track of a switch that is off, 60,60,67 at 30% in the iOS
-    /// 27 UI Kit.
+    /// The track of a switch that is off, 60,60,67 at 30% in the iOS 27 UI
+    /// Kit.
     static let switchOffTrack = RGBA(red: 60, green: 60, blue: 67, alpha: 77)
 
-    /// Assumed: the track of a switch that is on when no tint is set: the
-    /// system green, as in the iOS 27 UI Kit.
+    /// The track of a switch that is on when no tint is set: the system
+    /// green, as in the iOS 27 UI Kit.
     static let switchOnTrackStyle = "green"
 
-    /// Assumed: the knob of a switch or a slider, white in the iOS 27 UI Kit.
+    /// The knob of a switch or a slider, white in the iOS 27 UI Kit.
     static let knob = RGBA.white
+
+    /// The track of a slider, 120 gray at 20% in the iOS 27 UI Kit. The part
+    /// before the knob takes the tint color.
+    static let sliderTrack = RGBA(red: 120, green: 120, blue: 120, alpha: 51)
+
+    /// The shadows under a slider's knob, black at 12% 6 points down with a
+    /// blur of 13 and half a point down with a blur of 4, in the iOS 27 UI Kit.
+    static let sliderKnobShadows = [
+        GlassMaterial.Shadow(
+            color: RGBA(red: 0, green: 0, blue: 0, alpha: 31), offset: 6, blur: 13),
+        GlassMaterial.Shadow(
+            color: RGBA(red: 0, green: 0, blue: 0, alpha: 31), offset: 0.5, blur: 4),
+    ]
+
+    /// The fill of a stepper and a segmented control: the tertiary fill,
+    /// 118,118,128 at 12%, in the iOS 27 UI Kit.
+    static let controlFill = tertiaryFill
+
+    /// The line between a stepper's halves, 60,60,67 at 30% in the iOS 27 UI
+    /// Kit.
+    static let stepperSeparator = RGBA(red: 60, green: 60, blue: 67, alpha: 77)
+
+    /// The color a pressed half of a stepper adds, black at 8%, drawn
+    /// plus-darker in the iOS 27 UI Kit.
+    static let stepperPressed = RGBA(red: 0, green: 0, blue: 0, alpha: 20)
 }

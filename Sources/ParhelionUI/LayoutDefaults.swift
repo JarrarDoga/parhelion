@@ -372,29 +372,29 @@ extension LayoutDefaults {
     /// the control at the trailing edge, at the least.
     static let controlLabelSpacing: CGFloat = 16
 
-    /// Assumed: the size of a switch, 64 × 28 points in the iOS 27 UI Kit,
-    /// with fully rounded ends.
+    /// The size of a switch, 64 × 28 points in the iOS 27 UI Kit, with fully
+    /// rounded ends.
     static let switchSize = CGSize(width: 64, height: 28)
 
-    /// Assumed: the size of a switch's knob, a 38 × 24 capsule 2 points
-    /// inside the track, in the iOS 27 UI Kit.
+    /// The size of a switch's knob, a 38 × 24 capsule 2 points inside the
+    /// track, in the iOS 27 UI Kit.
     static let switchKnobSize = CGSize(width: 38, height: 24)
 
-    /// Assumed: the space between a switch's knob and the ends of its track.
+    /// The space between a switch's knob and the ends of its track, in the
+    /// iOS 27 UI Kit.
     static let switchKnobInset: CGFloat = 2
 
-    /// Assumed: the size of the glass lens a switch's knob becomes while the
-    /// switch is pressed, 58 × 38 around the knob's center in the iOS 27 UI
-    /// Kit.
+    /// The size of the glass lens a switch's knob becomes while the switch is
+    /// pressed, 58 × 38 around the knob's center in the iOS 27 UI Kit.
     static let switchPressedKnobSize = CGSize(width: 58, height: 38)
 
     /// Assumed: the animation of a switch's knob when its value changes.
     static let switchAnimation = Animation.snappy(duration: 0.3)
 
-    /// Assumed: the vertical insets of a list row that holds a control
-    /// taller than a line of text, so that the row stays 52 points tall as in
-    /// the iOS 27 UI Kit: a switch sits 12 points from the top and bottom,
-    /// and a stepper or segmented control 10.
+    /// The vertical insets of a list row that holds a control taller than a
+    /// line of text, so that the row stays 52 points tall: in the iOS 27 UI
+    /// Kit, a switch sits 12 points from the top and bottom, and a stepper
+    /// 10.
     static func controlRowVerticalInset(controlHeight: CGFloat) -> CGFloat {
         max((listRowMinHeight - controlHeight) / 2, 0)
     }
@@ -402,4 +402,40 @@ extension LayoutDefaults {
     /// Assumed: the thickness of a `Divider`, one pixel on a 3× screen, like
     /// a list's separators.
     static let dividerThickness: CGFloat = 1.0 / 3
+
+    /// The height of a slider, the iOS 27 UI Kit's 22-point track symbol.
+    /// The 24-point knob reaches a point beyond it at the top and bottom, so a
+    /// slider row is 52 points tall with the usual insets.
+    static let sliderHeight: CGFloat = 22
+
+    /// The thickness of a slider's track, with fully rounded ends, in the iOS
+    /// 27 UI Kit.
+    static let sliderTrackThickness: CGFloat = 6
+
+    /// The size of a slider's knob, a 37 × 24 capsule, in the iOS 27 UI Kit.
+    static let sliderKnobSize = CGSize(width: 37, height: 24)
+
+    /// The size of the glass lens a slider's knob becomes while it is
+    /// dragged, 57 × 38 around the knob's center in the iOS 27 UI Kit.
+    static let sliderPressedKnobSize = CGSize(width: 57, height: 38)
+
+    /// The space between a slider's track and its minimum and maximum value
+    /// labels, in the iOS 27 UI Kit.
+    static let sliderValueLabelSpacing: CGFloat = 12
+
+    /// Assumed: the width of a slider's track when the slider is offered no
+    /// width.
+    static let sliderIdealTrackWidth: CGFloat = 100
+
+    /// The size of each half of a stepper, 46 × 32 points, making a 92 × 32
+    /// capsule in the iOS 27 UI Kit.
+    static let stepperButtonSize = CGSize(width: 46, height: 32)
+
+    /// The size of the line between a stepper's halves, in the iOS 27 UI Kit.
+    static let stepperSeparatorSize = CGSize(width: 1, height: 24)
+
+    /// Assumed: the width and stroke of a stepper's minus and plus, measured
+    /// from the iOS 27 UI Kit's semibold 17-point `minus` and `plus`.
+    static let stepperSymbolSize: CGFloat = 13.5
+    static let stepperSymbolThickness: CGFloat = 2
 }

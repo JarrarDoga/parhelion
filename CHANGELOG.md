@@ -192,6 +192,13 @@ may contain breaking changes.
   `Form`, which is an inset grouped list. A row that holds a switch stays 52 points tall.
 - `disabled(_:)` and `EnvironmentValues.isEnabled`. Disabled buttons, links, text fields, and
   controls record `disabled=true`, draw dimmed, and do not respond to input.
+- `Stepper`, with a value and bounds or with actions: a 92 × 32 capsule whose halves are
+  `StepperButton` nodes labeled `Decrement` and `Increment`. A half turns off at the end of the
+  range.
+- `Slider`, with bounds, steps, a label, value labels, and `onEditingChanged`. The node records
+  `value`, `bounds`, `step`, and `label`. A press on the track drags the knob, which becomes a
+  glass lens; a tap on the track moves the knob there. `tap(at:)`, the pointer methods, and
+  `parhelion mcp`'s tap and drag all drive it, and a drag on a slider in a list does not scroll.
 
 ### Changed
 
