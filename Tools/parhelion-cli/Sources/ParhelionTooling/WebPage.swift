@@ -11,7 +11,8 @@ enum WebPage {
     /// to its own server.
     static let contentSecurityPolicy =
         "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
-        + "img-src 'self' data:; connect-src 'self' ws: wss:; worker-src blob:; base-uri 'none'; "
+        + "img-src 'self' data:; connect-src 'self' ws: wss:; worker-src blob:; child-src blob:; "
+        + "base-uri 'none'; "
         + "form-action 'none'; frame-ancestors 'none'"
 
     static let html = #"""
@@ -55,7 +56,7 @@ enum WebPage {
           @media (pointer: coarse) { #keyboard { display: block; } }
           #stage { flex: 1; position: relative; display: flex; align-items: center;
             justify-content: center; min-height: 0; }
-          #phone { position: relative; }
+          #phone { position: relative; visibility: hidden; }
           #screen { position: absolute; display: block; background: #000; touch-action: none; }
           #bezel { position: absolute; inset: 0; width: 100%; height: 100%;
             pointer-events: none; }
@@ -179,6 +180,7 @@ enum WebPage {
             $("title").innerHTML = escapeHTML(hello.appName) + device;
             document.title = [hello.appName, hello.deviceName, "Parhelion"].filter(Boolean)
               .join(" — ");
+            $("phone").style.visibility = "visible";
             const bezel = $("bezel");
             bezel.hidden = !hello.bezel;
             if (hello.bezel) {
@@ -219,7 +221,8 @@ enum WebPage {
         addEventListener("resize", layout);
 
         // Workers decompress compressed parts in parallel, off the thread that handles
-        // input. Without workers, the page decompresses them itself.
+        // input. A worker joins once it has decompressed a first, empty stream; until then,
+        // or where workers are not allowed, the page decompresses parts itself.
         const inflateSource = `onmessage = async (event) => {
           const stream = new Blob([event.data.bytes]).stream()
             .pipeThrough(new DecompressionStream("deflate"));
@@ -234,13 +237,18 @@ enum WebPage {
           for (let index = 0; index < Math.min(navigator.hardwareConcurrency || 2, 4); index++) {
             const worker = new Worker(url);
             worker.onmessage = (event) => {
+              if (event.data.id < 0) {
+                decoders.push(worker);
+                return;
+              }
               pending.get(event.data.id)(event.data.pixels);
               pending.delete(event.data.id);
             };
-            decoders.push(worker);
+            const empty = new Uint8Array([0x78, 0x9c, 0x03, 0x00, 0x00, 0x00, 0x00, 0x01]);
+            worker.postMessage({ id: -1, bytes: empty }, [empty.buffer]);
           }
         } catch (error) {
-          decoders.length = 0;
+          // Decompress on the page.
         }
 
         async function inflate(bytes) {

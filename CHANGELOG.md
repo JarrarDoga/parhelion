@@ -209,6 +209,14 @@ may contain breaking changes.
   is chosen. The node records `pickerStyle` and `selection`.
 - The `Settings` example, a form with each control: `swift run Settings`, or
   `parhelion run --product Settings`.
+- `--web` for `parhelion run`, `parhelion preview`, and `parhelion mcp`: the preview as a web page,
+  at a URL the tool prints, for any browser on a desktop or a phone. The page shows the screen in
+  the phone bezel, scaled to the window, and sends taps, drags, wheel and trackpad scrolling, and
+  typing back. It stays connected across hot reloads and shows build errors. The server binds
+  127.0.0.1 unless `--web-address` names another address, such as a Tailscale address or
+  `0.0.0.0`; `--web-port` picks the port (8417 by default). Every request needs the random token
+  in the printed URL. `--web` needs no display, and with `parhelion mcp --window` the window and
+  the page show the same app.
 
 ### Changed
 
@@ -283,6 +291,8 @@ may contain breaking changes.
   for byte. The first frame of an alert, which the preview draws when the tap arrives, draws it
   at full opacity once, in about 8 ms at 2×. Fills composite fully covered pixels of an opaque
   color as whole words and round without calling into the C library.
+- The preview window's title says "Not running" when the app exits, as it already did when a
+  rebuilt app failed to start.
 
 ### Fixed
 

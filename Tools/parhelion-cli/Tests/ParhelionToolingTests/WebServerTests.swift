@@ -217,6 +217,21 @@ struct WebServerTests {
         #expect(close.opcode == 8 && close.payload == [0x03, 0xEA])
     }
 
+    @Test("A port in use is reported as such, so the tool can try the next")
+    func portInUse() throws {
+        let server = try makeServer()
+        defer { server.stop() }
+        do {
+            _ = try WebServer(
+                address: "127.0.0.1", port: server.port, token: token, webSocketPath: "/socket",
+                respond: { _ in .notFound }, acceptWebSocket: { _ in })
+            Issue.record("A second server listened on port \(server.port)")
+        } catch let error as WebServer.ServerError {
+            #expect(error.isAddressInUse)
+            #expect(error.description.contains("in use"))
+        }
+    }
+
     @Test("An address that is not one is refused")
     func invalidAddress() {
         #expect(throws: WebServer.ServerError.self) {

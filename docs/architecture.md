@@ -25,7 +25,7 @@ to behave exactly enough to test against.
 | `ParhelionUI` | Linux (macOS planned) | The SwiftUI-compatible API, layout, and the runtime. |
 | `ParhelionRender` | Linux (macOS planned) | Font parsing, anti-aliased rasterization, and PNG encoding, in pure Swift. |
 | `ParhelionPreview` | Linux | The protocol and socket channel between an app and the window host. |
-| `parhelion` (in `Tools/parhelion-cli`) | Linux | The command-line tool and SDL3 window host. A separate package, because it depends on SDL3. |
+| `parhelion` (in `Tools/parhelion-cli`) | Linux | The command-line tool, the SDL3 window host, and the web preview. A separate package, because it depends on SDL3. |
 | `SwiftUI` | Linux only | Re-exports `ParhelionUI` so that `import SwiftUI` compiles. See [ADR 0001](adr/0001-swiftui-module-shim.md). |
 
 Planned: an agent server. See the [roadmap](roadmap.md).
@@ -203,8 +203,8 @@ device for the system interface it draws over the tree.
   which goes when a frame does not draw it. At 2× in an optimized build, a frame of an alert
   fading in takes about 1.6 ms, of a sheet sliding up 3.4 ms, and of a list scrolling under
   toolbar glass 3.1 ms.
-- **The bezel** exists only in the window. The window host draws the phone once, with a
-  transparent hole the shape of the screen, and draws it over each frame. The window ends at the
+- **The bezel** exists only in the window and the web page. The window host draws the phone
+  once, with a transparent hole the shape of the screen, and draws it over each frame. The window ends at the
   phone's side buttons and is transparent outside the phone where the compositor supports it, so
   the host also fades out the frame's square corners where they reach past the phone's rounded
   body. Pointer positions are moved by the bezel's margin before they go to the app.
@@ -487,6 +487,93 @@ they are PNG data in command replies.
 Pointer input follows iOS: a press on a button highlights it, moving off the button cancels the
 highlight, and releasing over the same button taps it. `ViewHost.pointerDown(at:)`,
 `pointerMoved(to:)`, and `pointerUp(at:)` implement this for every client, not only the window.
+
+### The web preview
+
+`--web` shows the same session on web pages instead of, or with `parhelion mcp --window`, as
+well as the window:
+
+```text
+ browser                     parhelion                              the app
+ ┌──────────────┐ WebSocket  ┌──────────────────────────┐  socket,   ┌──────────────┐
+ │ canvas,      │ ◄───────── │ WebPreview: frame copy,  │ ◄───────── │ ViewHost     │
+ │ bezel image, │ ─────────► │ one sender per page;     │ ─────────► │              │
+ │ input        │ input JSON │ FrameLoop + WebHost      │  ticks     └──────────────┘
+ └──────────────┘            └──────────────────────────┘  shared memory
+```
+
+**The frame loop's surface.** `FrameLoop` drives a `PreviewSurface`: something that collects
+input, takes frames, and presents. The SDL window is one. `WebHost` is another, with no vsync and
+a refresh period of one frame of the simulated screen, from the hello's
+`maximumFramesPerSecond`, so the pacer's timer path ticks the app at the device's rate: a browser
+has no vsync to follow. `MirroredSurface` combines the window and the web host for
+`parhelion mcp --window --web`: the window paces, and pages get every frame it shows. Control-C
+and `SIGTERM` close a web-only session the way closing the window does.
+
+**The server.** `WebServer` in `ParhelionTooling` is a small HTTP/1.1 and WebSocket (RFC 6455)
+server over POSIX sockets, with no dependencies and a thread per connection. It serves three
+paths: the page at `/`, the bezel as a PNG at `/bezel.png`, drawn by `DeviceBezel` once per app,
+and the WebSocket at `/socket`. The page is Swift source, `WebPage.swift`, because Parhelion ships
+no resources ([ADR 0003](adr/0003-no-swiftpm-resources.md)).
+
+**Access.** Anyone who can open the page controls the app. The server binds 127.0.0.1 unless
+`--web-address` names another address, and every request must carry the 128-bit random token in
+the printed URL as its `token` parameter. The server checks it, in constant time, before it
+looks at the path, so the page, the bezel, and the WebSocket handshake all answer 403 without it.
+Responses are not cached and send no referrer, the page's content security policy loads no
+script, style, or image from elsewhere, and the server limits request heads to 16 KB and 10
+seconds and serves 32 connections at most. Pages may send only input and acknowledgements: pointer down, move,
+and up, scroll, text, and the editing keys, each checked before it becomes a `HostMessage`.
+
+**Frames.** The web host copies each frame's damaged rows from the shared-memory slot into a
+`FrameBuffer`, which releases the slot at once, and adds the damage to each page's pending
+rectangle when it presents. Each page has a sender thread. It sends the pending rectangle when
+the page has fewer than three frames unacknowledged, and the page acknowledges a frame once it
+has drawn it. A page on a slow connection therefore gets fewer frames, each with everything that
+changed since the last, never a growing queue.
+
+A frame message is a list of parts that the page applies in order. The host keeps a copy of
+what each page shows (`PageImage`) and compares the rectangle's rows with it, by CRC-32 and then
+byte for byte:
+
+- Rows that did not change are not sent.
+- When most changed rows match rows some distance away, as when content scrolled by whole pixels,
+  a copy part moves them within the page's canvas.
+- The remaining rows go as pixels in runs of up to 256 rows, compressed with zlib at level 4, in
+  parallel. The page decompresses them with `DecompressionStream` in up to four workers, or
+  itself until the workers answer a first small stream, and draws them with `putImageData`.
+
+zlib is loaded with `dlopen` when first used, so building the tool needs no zlib headers; without
+it, pixels go uncompressed.
+
+**Measurements.** A fling in the `Scrolling` example on iPhone 16 (60 Hz, 786 × 1704 pixels at
+2×) changes about 1,250 of the 1,704 rows in each frame, 5.4 MB uncompressed. Measured in
+headless Chromium on a 12-core desktop with other builds running, with a release build of the
+tool:
+
+| Link | Frames per second | KB per frame |
+| --- | --- | --- |
+| localhost | 53 to 59 | 34 to 39 |
+| 50 Mbit/s, 20 ms round trip | 59 | 36 to 38 |
+| 20 Mbit/s, 40 ms round trip | 36 to 37 | 33 |
+| 10 Mbit/s, 60 ms round trip | 22 to 25 | 35 |
+
+On iPhone 16 Pro (120 Hz) on localhost, the page shows 102 to 107 frames per second; drawing in
+the page, about 8 ms a frame without a GPU, is the limit. The host encodes a frame in 2 to 4 ms.
+Before the row comparison and level 4, whole damaged rectangles at level 1 cost 62 KB a frame,
+and the 20 Mbit/s link showed 26 frames per second. On these rows, level 4 makes 20% fewer bytes
+than level 1 for about three times the time: 37.5 KB in 4.8 ms against 46 KB in 1.6 ms with
+zlib-ng, and 37.5 KB in 6.2 ms against 53 KB in 2.5 ms with classic zlib. Filtering the rows as
+PNG does, or subtracting the previous frame, made them larger.
+
+Copy parts help only when content moves by whole pixels. While a finger drags a list they cut a
+frame to 4 to 8 KB, but momentum scrolling moves content by fractions of a pixel, the
+anti-aliased rows never match exactly, and every changed row is sent.
+
+**Hot reload.** The server lives in the tool, not the app, so a page stays connected while the
+app restarts. A new app's hello reaches pages only if it differs from the last, and its first
+frame sends pages whatever changed. Pages show the build's progress and errors as the window
+shows them in its title.
 
 ### Hot reload
 

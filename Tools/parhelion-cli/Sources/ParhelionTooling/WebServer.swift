@@ -13,15 +13,21 @@ import Glibc
 public final class WebServer: @unchecked Sendable {
     public enum ServerError: Error, CustomStringConvertible {
         case invalidAddress(String)
-        case cannotListen(address: String, port: UInt16, reason: String)
+        case cannotListen(address: String, port: UInt16, errno: Int32)
 
         public var description: String {
             switch self {
             case .invalidAddress(let address):
                 "\(address) is not an IP address to listen on, such as 127.0.0.1 or 0.0.0.0."
-            case .cannotListen(let address, let port, let reason):
-                "Could not listen on \(address) port \(port): \(reason)."
+            case .cannotListen(let address, let port, let error):
+                "Could not listen on \(address) port \(port): \(String(cString: strerror(error)))."
             }
+        }
+
+        /// Whether another program already listens on the port.
+        public var isAddressInUse: Bool {
+            if case .cannotListen(_, _, EADDRINUSE) = self { return true }
+            return false
         }
     }
 
@@ -200,9 +206,9 @@ public final class WebServer: @unchecked Sendable {
         defer { freeaddrinfo(results) }
 
         func failure(_ descriptor: Int32?) -> ServerError {
-            let reason = String(cString: strerror(errno))
+            let error = errno
             if let descriptor { _ = Glibc.close(descriptor) }
-            return .cannotListen(address: address, port: port, reason: reason)
+            return .cannotListen(address: address, port: port, errno: error)
         }
         let descriptor = socket(info.pointee.ai_family, Int32(SOCK_STREAM.rawValue), 0)
         guard descriptor >= 0 else { throw failure(nil) }

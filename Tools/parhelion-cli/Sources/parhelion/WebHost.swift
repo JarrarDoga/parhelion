@@ -55,11 +55,8 @@ final class WebHost: PreviewSurface {
                     address: address, port: port, showsBezel: bezel, log: log)
                 interruption.onInterrupt = { [preview] in preview.wake() }
                 return
-            } catch WebServer.ServerError.cannotListen(let address, let port, let reason)
-                where reason.contains("in use")
-            {
-                lastError = WebServer.ServerError.cannotListen(
-                    address: address, port: port, reason: reason)
+            } catch let error as WebServer.ServerError where error.isAddressInUse {
+                lastError = error
             }
         }
         throw lastError!
@@ -174,7 +171,9 @@ final class MirroredSurface: PreviewSurface {
 
 /// Turns Control-C and `SIGTERM` into a request to close, so the tool
 /// stops the app the way closing the window does. A window gets this from
-/// SDL; a web host has no window.
+/// SDL; a web host has no window. Dispatch catches the signals with a
+/// handler of its own, which `exec` resets, so the app and builds still
+/// get the default handling.
 final class Interruption: @unchecked Sendable {
     private let lock = NSLock()
     private var interrupted = false
