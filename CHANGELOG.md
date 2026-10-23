@@ -164,6 +164,26 @@ may contain breaking changes.
 - `tag(_:includeOptional:)`, which identifies a view among a container's choices and records a
   `tag` attribute. Inside such a container, the views of a `ForEach` element are tagged with the
   element's identifier.
+- `TabView`, with `selection:`, `Tab` (with a title and a symbol, a value, a role, or a custom
+  label), `Tab(role: .search)`, `TabRole`, `TabContent`, `TabContentBuilder`, and the older
+  `tabItem(_:)` with `tag(_:)`. Only the selected tab is on screen, and every tab keeps its state and its
+  navigation stack while another is selected. A tab view without a binding keeps its own
+  selection.
+- iOS 27's floating glass tab bar, from the iOS 27 UI Kit: a 62-point capsule 21 points from the
+  sides and the bottom of the screen, below the safe area, with a gray highlight behind the
+  selected tab, its symbol and title in the tint color, and the search tab in a circle of its own.
+  Each tab is a `Button` node, so taps by identifier, by title, by position, and with the mouse
+  select it. Lists and scroll views in a tab scroll under the bar and can scroll their end above
+  it.
+- `Label`, with `labelStyle(_:)`: `.automatic`, `.titleAndIcon`, `.titleOnly`, `.iconOnly`, and
+  custom `LabelStyle` types. In a toolbar, a label shows only its icon.
+- Symbol images drawn with [Phosphor Icons](https://phosphoricons.com) (MIT): 246 SF Symbol names,
+  listed in `Symbols/symbols.txt`, map to 245 Phosphor icons, in Phosphor's fill weight for names
+  that end in `.fill`. `Scripts/embed-symbols.sh` generates their SVG path data into source. A
+  name Parhelion cannot draw is a ring, and its node records `missingSymbol=true`.
+- `Path(svgPathData:)` in `ParhelionRender`, which reads SVG path data, including arcs.
+- `EnvironmentValues.imageScale`.
+- A `Tabs` example with three tabs and a search tab, shown in the README.
 
 ### Changed
 
@@ -173,6 +193,9 @@ may contain breaking changes.
 - Rectangles render through a fast path, so a full frame takes about 7 ms in a debug build
   instead of 45 ms.
 - Build errors from `parhelion run` are plain text, without the compiler's color codes.
+- Symbol images take their size from the font around them as well as the image scale, and
+  `imageScale(_:)` applies to every image inside the view it modifies, as in SwiftUI. A symbol
+  image records its font as a `font` attribute when it is not the body style.
 - A child outside its parent's bounds, such as a view moved by `offset`, receives taps, except
   inside a scroll view.
 - Rounded rectangles fill their interiors as rectangles and rasterize only their corners, and a

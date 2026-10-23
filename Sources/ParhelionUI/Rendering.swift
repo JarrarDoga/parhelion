@@ -225,6 +225,8 @@ struct TreeRenderer {
         case toolbarGroup
         /// An alert, whose buttons are capsules.
         case alert
+        /// A tab bar, whose buttons are its tabs.
+        case tabBar
     }
 
     /// Draws a node and its children.
@@ -273,9 +275,7 @@ struct TreeRenderer {
                 node, in: frame, style: foreground ?? "primary", paint: paint, into: &canvas)
 
         case "Image":
-            if let name = node.attributes["systemName"] {
-                drawSymbol(name, in: frame, color: paint(foreground ?? "primary"), into: &canvas)
-            }
+            drawSymbol(node, in: frame, color: paint(foreground ?? "primary"), into: &canvas)
 
         case "Button":
             let style = BuiltInButtonStyle(rawValue: node.attributes["buttonStyle"] ?? "")
@@ -336,6 +336,10 @@ struct TreeRenderer {
         case "NavigationBar":
             container = .navigationBar
 
+        case "TabBar":
+            drawTabBar(node, in: frame, opacity: opacity, paint: paint, into: &canvas)
+            container = .tabBar
+
         case "List":
             drawList(node, in: frame, paint: paint, into: &canvas)
 
@@ -394,6 +398,12 @@ struct TreeRenderer {
             // yet.
             canvas.fill(frame, cornerRadius: radius, color: paint(ColorPalette.tertiaryFillStyle))
             return own ?? (isDestructive ? "red" : "primary")
+        case .tabBar:
+            // The bar draws the highlight. The selected tab is in the tint
+            // color, and the others in the glass label color, as in the iOS
+            // 27 UI Kit.
+            return own
+                ?? (node.attributes["selected"] == "true" ? "tint" : ColorPalette.glassLabelStyle)
         case .navigationBar, .standard:
             break
         }
@@ -687,34 +697,6 @@ struct TreeRenderer {
         }
     }
 
-    /// Draws a symbol. Parhelion has no SF Symbols yet: chevrons are drawn as
-    /// chevrons, and every other symbol as a ring.
-    private func drawSymbol(
-        _ name: String, in frame: CGRect, color: RGBA, into canvas: inout Canvas
-    ) {
-        let side = min(frame.width, frame.height)
-        switch name {
-        case "chevron.backward", "chevron.left", "chevron.forward", "chevron.right":
-            // The proportions of the back button's chevron, a 17-point
-            // symbol, which is a little taller than the symbol's side.
-            let symbol = LayoutDefaults.bodyFontSize
-            let size = LayoutDefaults.backChevronSize
-            let width = side * size.width / symbol
-            let height = side * size.height / symbol
-            let rect = CGRect(
-                x: frame.midX - width / 2, y: frame.midY - height / 2, width: width,
-                height: height)
-            let pointingLeft = name == "chevron.backward" || name == "chevron.left"
-            canvas.fill(
-                Self.chevron(
-                    in: rect, pointingLeft: pointingLeft,
-                    thickness: side * LayoutDefaults.backChevronThickness / symbol),
-                color: color)
-        default:
-            drawSymbolPlaceholder(in: frame, color: color, into: &canvas)
-        }
-    }
-
     /// A chevron that fills `rect`, drawn as a stroke of the given
     /// thickness with a mitered tip.
     static func chevron(in rect: CGRect, pointingLeft: Bool, thickness: CGFloat) -> Path {
@@ -746,20 +728,5 @@ struct TreeRenderer {
         path.addLine(to: offset(top, first, -half))
         path.closeSubpath()
         return path
-    }
-
-    /// Draws a symbol Parhelion cannot draw yet as a ring.
-    private func drawSymbolPlaceholder(in frame: CGRect, color: RGBA, into canvas: inout Canvas) {
-        let side = min(frame.width, frame.height)
-        let stroke = max(side * 0.09, 1)
-        let outer = CGRect(
-            x: frame.midX - side / 2 + stroke / 2,
-            y: frame.midY - side / 2 + stroke / 2,
-            width: side - stroke,
-            height: side - stroke
-        )
-        var ring = Path(ellipseIn: outer)
-        ring.addPath(Path(ellipseIn: outer.insetBy(dx: stroke, dy: stroke), reversed: true))
-        canvas.fill(ring, color: color)
     }
 }

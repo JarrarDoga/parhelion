@@ -163,7 +163,15 @@ device for the system interface it draws over the tree.
   evaluated in place of the label.
 - **Backgrounds** fill the bounds at their position in the modifier chain. Each node records those
   bounds in `modifierFrames`.
-- **Symbols** draw as placeholder rings until an open-source icon set replaces SF Symbols.
+- **Symbols** are drawn with [Phosphor Icons](https://phosphoricons.com), because Apple's license
+  does not allow shipping SF Symbols outside Apple platforms
+  ([ADR 0007](adr/0007-phosphor-symbol-images.md)). `Symbols/symbols.txt` maps common SF Symbol
+  names to Phosphor icons, and `Scripts/embed-symbols.sh` generates their SVG path data, regular
+  and fill weights, into source. A name with a `.fill` suffix draws the fill weight. Every lookup
+  goes through `SymbolLibrary.resolve`, which returns an outline in a unit square and the source
+  that drew it: the back button's chevrons are Parhelion's own, and a name no source has is a
+  ring, whose node records `missingSymbol=true`. A symbol is a square as wide as its font's size,
+  scaled by its image scale, and Phosphor's 256-unit grid spans 4/3 of that side.
 - **Rectangles**, most of what an interface draws, skip the general rasterizer: each pixel's
   coverage is its exact overlap with the rectangle, and fully covered runs are written as whole
   32-bit words. A typical screen renders in under 1 ms in an optimized build.
@@ -282,6 +290,27 @@ and an inline title center in the top 44-point row. A large title starts 54 poin
 leading margin, so the buttons stay above it. In a sheet the bar records `presentation=sheet`
 and is 16 points taller, with the row 16 points below the sheet's top. A bar with principal
 items or without a title always uses the inline layout.
+
+### Tab views
+
+A `TabView` evaluates every tab on every update, each at its own path, so a tab keeps its state
+and its navigation stacks while another tab is selected. Only the selected tab's nodes are in the
+tree, followed by a `TabBar` node with one `Button` per tab: the tab's symbol, in the fill
+variant, above its title. The selected tab's button records `selected=true`, and a search tab's
+records `role=search` and its title as `label`. Tapping a button sets the selection binding to
+the tab's value, or, without a binding, the tab view's own selection, which it keeps as host state
+at its path. Tabs come from `Tab` values through `TabContentBuilder`, or, for views with
+`tabItem(_:)`, from each view the content resolves to, labeled by the first symbol and text in its
+tab item and selected by its `tag`, or a `ForEach` element's identifier.
+
+Layout floats the bar over the content, 21 points above the bottom of the screen when the tab view
+reaches the bottom of the safe area, as the iOS 27 UI Kit does. Tabs share the capsule's width
+equally, and a search tab is a circle at the trailing end. A list or scroll view, alone or as a
+navigation stack's screen, fills the tab view and scrolls under the bar: the layout engine records
+the bar's top while it places the tab, and a scroll view that reaches below it gets that much
+extra room at the end of its content, so its last row can scroll above the bar. Other content is
+centered above the bar. The renderer draws the bar with the small glass of toolbar buttons and a
+gray highlight behind the selected tab, whose symbol and title take the tint color.
 
 ### Presentations
 

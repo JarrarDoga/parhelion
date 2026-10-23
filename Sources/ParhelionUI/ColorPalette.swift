@@ -211,6 +211,10 @@ enum ColorPalette {
     /// SwiftUI's default button style on iOS.
     static let pressedOpacity = 0.25
 
+    /// The highlight behind the selected tab in the tab bar: 120,120,128 at
+    /// 16%, a full capsule, in the iOS 27 UI Kit.
+    static let tabBarSelection = RGBA(red: 120, green: 120, blue: 128, alpha: 41)
+
     private static func rgbaComponents(_ name: String) -> [Double]? {
         guard name.hasPrefix("rgba("), name.hasSuffix(")") else { return nil }
         let values = name.dropFirst(5).dropLast().split(separator: ",").compactMap {
