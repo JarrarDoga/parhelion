@@ -161,6 +161,9 @@ may contain breaking changes.
 - `PARHELION_REFRESH_RATE`, which makes the window host assume a display refresh rate, for testing
   frame pacing on a display without real vsync.
 - iPhone 18 Pro and iPhone 18 Pro Max presets, with their smaller Dynamic Island.
+- `tag(_:includeOptional:)`, which identifies a view among a container's choices and records a
+  `tag` attribute. Inside such a container, the views of a `ForEach` element are tagged with the
+  element's identifier.
 
 ### Changed
 

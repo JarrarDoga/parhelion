@@ -43,8 +43,14 @@ extension ForEach where Data.Element: Identifiable, ID == Data.Element.ID {
 extension ForEach: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         data.flatMap { element in
-            let identity = String(describing: element[keyPath: id])
-            return evaluator.evaluate(content(element), at: path.appending("ForEach[\(identity)]"))
+            let elementID = element[keyPath: id]
+            let identity = String(describing: elementID)
+            let nodes = evaluator.evaluate(
+                content(element), at: path.appending("ForEach[\(identity)]"))
+            // In a container that chooses among tagged views, such as a
+            // Picker, an element's views are tagged with its identifier.
+            evaluator.environment.tagCollector?.recordImplicit(elementID, for: nodes)
+            return nodes
         }
     }
 }
