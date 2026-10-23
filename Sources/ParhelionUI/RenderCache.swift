@@ -177,8 +177,10 @@ final class RenderCache {
         }
         // Only a surface that stays where it was is worth keeping: one that
         // moves or fades would be kept and dropped every frame.
+        let replaced = glass[key].map(Self.bytes(of:)) ?? 0
         let keep =
-            previousGlass.contains(key) && glassBytes + region.area * 8 <= Self.glassByteLimit
+            previousGlass.contains(key)
+            && glassBytes - replaced + region.area * 8 <= Self.glassByteLimit
         let before = keep ? canvas.pixels(in: region) : []
         canvas.drawGlass(
             rect, cornerRadius: cornerRadius, style: style, material: material, tint: tint,
