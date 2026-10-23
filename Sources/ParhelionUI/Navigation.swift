@@ -175,7 +175,9 @@ extension NavigationLink where Label == Text, Destination == Never {
 extension NavigationLink: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         let ownPath = path.appending("NavigationLink")
-        if let navigation = evaluator.navigation {
+        var attributes: [String: String] = [:]
+        evaluator.markDisabled(&attributes)
+        if let navigation = evaluator.navigation, evaluator.environment.isEnabled {
             switch target {
             case .destination(let destination):
                 navigation.linkDestinations[ownPath.id] = destination
@@ -191,6 +193,7 @@ extension NavigationLink: PrimitiveView {
             ViewNode(
                 id: ownPath.id,
                 kind: "NavigationLink",
+                attributes: attributes,
                 children: evaluator.evaluate(label, at: ownPath)
             )
         ]

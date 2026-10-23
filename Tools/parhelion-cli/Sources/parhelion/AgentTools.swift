@@ -51,9 +51,11 @@ enum AgentTools {
             name: "tap",
             title: "Tap",
             description: """
-                Taps a button or navigation link, or focuses a text field. Give exactly one \
-                of: id (a node identifier from get_view_tree), label (the exact text of a \
-                button or navigation link; the back button's label is the previous title), \
+                Taps a control or focuses a text field: a button, a navigation link, a \
+                toggle's Switch, a stepper's Increment or Decrement, a picker's button or \
+                PickerOption, or a slider's track, whose knob moves to the point. Give exactly \
+                one of: id (a node identifier from get_view_tree), label (the exact text or \
+                label attribute of a control; the back button's label is the previous title), \
                 or x and y (a point on the screen, in points).
                 """,
             inputSchema: #"""
@@ -117,8 +119,9 @@ enum AgentTools {
             name: "drag",
             title: "Drag",
             description: """
-                Drags from one point to another over a duration, as a finger would. A fast drag \
-                over a scroll view leaves it coasting; call wait to let it settle.
+                Drags from one point to another over a duration, as a finger would. A drag that \
+                starts on a slider moves its knob. A fast drag over a scroll view leaves it \
+                coasting; call wait to let it settle.
                 """,
             inputSchema: #"""
                 {"type": "object", "properties": {

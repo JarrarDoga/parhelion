@@ -315,7 +315,7 @@ gray highlight behind the selected tab, whose symbol and title take the tint col
 ### Presentations
 
 A sheet, full-screen cover, or alert is a modifier that registers a presentation with the
-evaluator while it is presented. After the main tree, the host evaluates each presentation's
+evaluator while it is presented; an open menu picker registers a menu the same way. After the main tree, the host evaluates each presentation's
 content, which can present more, and adds it to the root of the tree as a `Sheet`,
 `FullScreenCover`, or `Alert` node, in the order the views asked. Layout places these nodes on the
 screen instead of in the root's implicit stack.
@@ -386,12 +386,44 @@ it is offered. It draws its text, or its placeholder in the tertiary color, shif
 to keep the caret in view, and draws a caret in the tint color while focused. There is no text
 selection yet.
 
+### Controls
+
+`Toggle`, `Slider`, `Stepper`, `Picker`, and `LabeledContent` are primitive views whose parts are
+nodes of their own, so that every part a person can press has a frame and an identifier. The
+sizes and colors come from Apple's iOS 27 UI Kit. Layout and drawing for them live in
+`LayoutEngine+Controls.swift` and `Rendering+Controls.swift`, which the layout engine and the
+renderer call for the kinds they do not handle themselves.
+
+- **Rows.** A toggle, a stepper, labeled content, and a menu picker with a label fill the width
+  they are offered, with the label at the leading edge and the control at the trailing edge. In
+  a list, a row that holds a switch, a stepper, or a segmented control gets smaller vertical
+  insets, so it stays 52 points tall, as in the kit. `Form` is an inset grouped `List`.
+- **Parts that respond.** A toggle's `Switch`, a stepper's two `StepperButton` halves, and a
+  picker's `PickerOption` nodes and `PopUpButton` register actions as buttons do, and carry a
+  `label` attribute or text, so `tap(_:)`, `tapButton(labeled:)`, `tap(at:)`, and the pointer
+  methods all reach them. `tapButton(labeled:)` matches any node with an action.
+- **Sliders** follow a press instead of a tap. A slider keeps its binding and range in host
+  storage under its `SliderTrack`, which outlives an update; `pointerDown` takes the knob before
+  the press can become a scroll, `pointerMoved` moves it, and `pointerUp` and `tap(at:)` move it to
+  the point.
+- **Animation.** A switch's knob and a segmented picker's selection capsule animate with an
+  implicit spring when the value changes, so content that depends on the value changes at once,
+  as in SwiftUI. A switch's track color follows its knob as drawn.
+- **Menus.** An open menu picker presents a `Menu` node at the root, like an alert, which is
+  placed level with its button after everything below it is placed. While it is open it is the
+  `interactiveRoot`; its node covers the screen and closes the menu when a tap misses its items.
+- **Tags.** `tag(_:includeOptional:)` records a value that `Evaluator.evaluateTagged` returns to
+  the container evaluating the content, such as a picker. Inside such a container, `ForEach`
+  tags its elements' views with their identifiers.
+- **`disabled(_:)`** turns off `EnvironmentValues.isEnabled`. Controls, buttons, links, and text
+  fields under it register no actions, record `disabled=true`, and draw dimmed.
+
 ### Interaction
 
-`ViewHost` delivers taps by node identifier (`tap(_:)`), by button label
-(`tapButton(labeled:)`), or by screen position (`tap(at:)`). A tap at a position goes to the
-frontmost button whose frame contains the point. Every failure is a typed `InteractionError` that names the
-problem, so an agent can recover without parsing messages.
+`ViewHost` delivers taps by node identifier (`tap(_:)`), by label (`tapButton(labeled:)`), or by
+screen position (`tap(at:)`). A tap at a position goes to the frontmost node with an action whose
+frame contains the point, or moves a slider's knob there. Every failure is a typed
+`InteractionError` that names the problem, so an agent can recover without parsing messages.
 
 ### The preview window
 

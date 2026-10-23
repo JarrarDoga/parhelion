@@ -97,7 +97,7 @@ extension List: PrimitiveView {
                     return child
                 }
                 var row = child
-                var insets = LayoutDefaults.listRowInsets
+                var insets = child.controlRowInsets(LayoutDefaults.listRowInsets)
                 if row.kind == "NavigationLink" {
                     // Leave room for the disclosure indicator.
                     insets.trailing +=
@@ -205,7 +205,17 @@ extension Section: PrimitiveView {
             children.append(
                 ViewNode(id: headerPath.id, kind: "SectionHeader", children: headerNodes))
         }
-        children += evaluator.evaluate(content, at: ownPath)
+        for node in evaluator.evaluate(content, at: ownPath) {
+            // An inline picker in a list section adds its rows to the
+            // section.
+            if inList, node.kind == "Section" {
+                children += node.children.filter {
+                    $0.kind != "SectionHeader" && $0.kind != "SectionFooter"
+                }
+            } else {
+                children.append(node)
+            }
+        }
         let footerPath = ownPath.appending("footer")
         let footerNodes = evaluator.withEnvironment(labelFont(LayoutDefaults.listFooterFont)) {
             evaluator.evaluate(footer, at: footerPath)

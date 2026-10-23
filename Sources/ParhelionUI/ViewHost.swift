@@ -197,8 +197,10 @@ public final class ViewHost {
     ///
     /// The tap goes to the frontmost node that contains the point and
     /// responds to taps. Later siblings are in front of earlier ones, and
-    /// children are in front of their parents.
+    /// children are in front of their parents. A tap on a slider's track
+    /// moves its knob there.
     public func tap(at point: CGPoint) throws(InteractionError) {
+        if tapSlider(at: point) { return }
         guard let target = frontmostTappableNode(at: point, in: interactiveRoot) else {
             throw .nothingTappable(at: point)
         }
@@ -239,7 +241,9 @@ public final class ViewHost {
     /// momentum, as touching a scrolling list does on iOS.
     public func pointerDown(at point: CGPoint) {
         momentum.removeAll()
-        let button = frontmostTappableNode(at: point, in: interactiveRoot)?.id
+        // A press on a slider takes its knob, before it can become a scroll.
+        let button =
+            beginSliderDrag(at: point) ?? frontmostTappableNode(at: point, in: interactiveRoot)?.id
         press = Press(
             start: point,
             last: point,
@@ -264,6 +268,7 @@ public final class ViewHost {
             press.last = point
             self.press = press
         }
+        if let button = press.button, dragSlider(button, to: point) { return }
         let moved = CGSize(width: point.x - press.start.x, height: point.y - press.start.y)
         if press.scrollView == nil, press.sheet == nil,
             hypot(moved.width, moved.height) > LayoutDefaults.dragThreshold
@@ -307,6 +312,7 @@ public final class ViewHost {
         guard let press else { return nil }
         self.press = nil
         pressedNodeID = nil
+        if let button = press.button, endSliderDrag(button, at: point) { return button }
 
         if let sheet = press.sheet {
             let distance = scrolling.presentationOffsets[sheet] ?? 0
@@ -628,14 +634,23 @@ public final class ViewHost {
         return front.id
     }
 
-    /// Taps the one button or navigation link whose label is exactly
-    /// `label`. Only the frontmost sheet or alert is searched while one is
-    /// presented.
+    /// Taps the one control whose label is exactly `label`: a button, a
+    /// navigation link, a toggle's switch, a stepper's `Increment` or
+    /// `Decrement`, or a picker's option. Only the frontmost sheet, alert, or
+    /// menu is searched while one is presented.
     public func tapButton(labeled label: String) throws(InteractionError) {
         let matches = interactiveRoot.allNodes.filter {
-            ($0.kind == "Button" || $0.kind == "NavigationLink") && $0.label == label
+            actions[$0.id] != nil && $0.label == label
         }
-        guard let button = matches.first else { throw .noButton(label: label) }
+        guard let button = matches.first else {
+            // A disabled control has the label but takes no taps.
+            if let disabled = interactiveRoot.allNodes.first(where: {
+                $0.isDisabled && $0.label == label
+            }) {
+                throw .notTappable(disabled.id)
+            }
+            throw .noButton(label: label)
+        }
         guard matches.count == 1 else {
             throw .ambiguousButton(label: label, matches: matches.map(\.id))
         }

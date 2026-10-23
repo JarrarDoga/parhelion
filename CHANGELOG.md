@@ -184,8 +184,38 @@ may contain breaking changes.
 - `Path(svgPathData:)` in `ParhelionRender`, which reads SVG path data, including arcs.
 - `EnvironmentValues.imageScale`.
 - A `Tabs` example with three tabs and a search tab, shown in the README.
+- `Toggle`, drawn as iOS 27's 64 × 28 switch at the trailing edge of its row. The `Switch` node
+  responds to taps and carries the toggle's label, and its knob slides with a spring while
+  content that depends on the value changes at once. `toggleStyle(_:)` accepts `.automatic` and
+  `.switch`.
+- `LabeledContent`, with its content at the trailing edge in the secondary color, `Divider`, and
+  `Form`, which is an inset grouped list. A row that holds a switch stays 52 points tall.
+- `disabled(_:)` and `EnvironmentValues.isEnabled`. Disabled buttons, links, text fields, and
+  controls record `disabled=true`, draw dimmed, and do not respond to input.
+- `Stepper`, with a value and bounds or with actions: a 92 × 32 capsule whose halves are
+  `StepperButton` nodes labeled `Decrement` and `Increment`. A half turns off at the end of the
+  range.
+- `Slider`, with bounds, steps, a label, value labels, and `onEditingChanged`. The node records
+  `value`, `bounds`, `step`, and `label`. A press on the track drags the knob, which becomes a
+  glass lens; a tap on the track moves the knob there. `tap(at:)`, the pointer methods, and
+  `parhelion mcp`'s tap and drag all drive it, and a drag on a slider in a list does not scroll.
+- `Picker`, with `pickerStyle(_:)` and the `.segmented`, `.menu`, `.inline`, `.navigationLink`,
+  and `.automatic` styles. Options are tagged views or `ForEach` elements, and each is a
+  `PickerOption` that responds to taps and to its label. A segmented picker is the iOS 27 UI
+  Kit's 32-point capsule, whose white selection slides. A menu picker, which `.automatic` is,
+  shows its value and up and down chevrons, and opens iOS 27's 250-point glass `Menu` at the root
+  of the tree, which a tap outside closes. An inline picker in a list is a section of rows with a
+  checkmark, under its label; a navigation-link picker pushes the options and goes back when one
+  is chosen. The node records `pickerStyle` and `selection`.
+- The `Settings` example, a form with each control: `swift run Settings`, or
+  `parhelion run --product Settings`.
 
 ### Changed
+
+- `ViewHost.tapButton(labeled:)` taps any control with the label, such as a toggle's switch, and
+  reports a disabled control as not tappable.
+
+- `parhelion mcp`'s `tap` and `drag` tools describe the controls they drive.
 
 - Screenshots from `parhelion mcp` and `--png` images show the status bar and the home indicator,
   as Simulator screenshots do.

@@ -223,3 +223,71 @@ enum ColorPalette {
         return values.count == 4 ? values : nil
     }
 }
+
+// MARK: - Controls
+
+extension ColorPalette {
+    /// The opacity of a control turned off with `disabled(_:)`, 50% in the
+    /// iOS 27 UI Kit's disabled switches, sliders, and segmented controls.
+    static let disabledOpacity = 0.5
+
+    /// The track of a switch that is off, 60,60,67 at 30% in the iOS 27 UI
+    /// Kit.
+    static let switchOffTrack = RGBA(red: 60, green: 60, blue: 67, alpha: 77)
+
+    /// The track of a switch that is on when no tint is set: the system
+    /// green, as in the iOS 27 UI Kit.
+    static let switchOnTrackStyle = "green"
+
+    /// The knob of a switch or a slider, white in the iOS 27 UI Kit.
+    static let knob = RGBA.white
+
+    /// The track of a slider, 120 gray at 20% in the iOS 27 UI Kit. The part
+    /// before the knob takes the tint color.
+    static let sliderTrack = RGBA(red: 120, green: 120, blue: 120, alpha: 51)
+
+    /// The shadows under a slider's knob, black at 12% 6 points down with a
+    /// blur of 13 and half a point down with a blur of 4, in the iOS 27 UI Kit.
+    static let sliderKnobShadows = [
+        GlassMaterial.Shadow(
+            color: RGBA(red: 0, green: 0, blue: 0, alpha: 31), offset: 6, blur: 13),
+        GlassMaterial.Shadow(
+            color: RGBA(red: 0, green: 0, blue: 0, alpha: 31), offset: 0.5, blur: 4),
+    ]
+
+    /// The fill of a stepper and a segmented control: the tertiary fill,
+    /// 118,118,128 at 12%, in the iOS 27 UI Kit.
+    static let controlFill = tertiaryFill
+
+    /// The line between a stepper's halves, 60,60,67 at 30% in the iOS 27 UI
+    /// Kit.
+    static let stepperSeparator = RGBA(red: 60, green: 60, blue: 67, alpha: 77)
+
+    /// The color a pressed half of a stepper adds, black at 8%, drawn
+    /// plus-darker in the iOS 27 UI Kit.
+    static let stepperPressed = RGBA(red: 0, green: 0, blue: 0, alpha: 20)
+
+    /// The shadow of a segmented control's selected segment, black at 6%, 2
+    /// points down with a blur of 20, in the iOS 27 UI Kit. The segment is
+    /// white.
+    static let segmentShadow = GlassMaterial.Shadow(
+        color: RGBA(red: 0, green: 0, blue: 0, alpha: 15), offset: 2, blur: 20)
+    static let selectedSegment = RGBA.white
+
+    /// The glass of a menu, from the iOS 27 UI Kit's iPhone menu: large
+    /// glass with the backdrop blurred with a radius of 15, and a tint of 204
+    /// gray at 70%, lighten, under 191 gray at 10%, darken.
+    static let menuGlass: GlassMaterial = {
+        var material = largeGlass
+        material.blurRadius = 15
+        material.tint = [
+            .init(color: RGBA(red: 204, green: 204, blue: 204, alpha: 179), blendMode: .lighten),
+            .init(color: RGBA(red: 191, green: 191, blue: 191, alpha: 26), blendMode: .darken),
+        ]
+        return material
+    }()
+
+    /// The highlight of a pressed menu item, 237 gray drawn plus-darker in the
+    /// iOS 27 UI Kit.
+    static let menuHighlight = RGBA(red: 237, green: 237, blue: 237)
+}

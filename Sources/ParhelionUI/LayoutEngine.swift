@@ -61,16 +61,20 @@ struct LayoutEngine {
         var root = root
         root.frame = CGRect(origin: .zero, size: device.screenSize)
         let content = root.children.filter { !$0.isPresentation }
-        root.children =
-            placeCentered(content, id: root.id, in: device.safeArea)
-            + root.children.filter(\.isPresentation).map(placePresentation)
+        var placed = placeCentered(content, id: root.id, in: device.safeArea)
+        // A menu is placed next to its button, which is in what is below it.
+        for presentation in root.children.filter(\.isPresentation) {
+            placed.append(placePresentation(presentation, over: placed))
+        }
+        root.children = placed
         return root
     }
 
     // MARK: - Presentations
 
-    /// Places a sheet, full-screen cover, or alert on the screen.
-    private func placePresentation(_ node: ViewNode) -> ViewNode {
+    /// Places a sheet, full-screen cover, alert, or menu on the screen, over
+    /// the nodes placed before it.
+    private func placePresentation(_ node: ViewNode, over below: [ViewNode]) -> ViewNode {
         var node = node
         let screen = CGRect(origin: .zero, size: device.screenSize)
         let safeArea = device.safeArea
@@ -101,6 +105,8 @@ struct LayoutEngine {
                 x: frame.minX, y: frame.minY, width: frame.width,
                 height: max(frame.height - max(device.safeAreaInsets.bottom - inset, 0), 0))
             node.children = placeCentered(node.children, id: node.id, in: content)
+        case "Menu":
+            node = placeMenu(node, over: below)
         default:
             node.frame = screen
             node.children = placeCentered(node.children, id: node.id, in: safeArea)
@@ -414,7 +420,8 @@ struct LayoutEngine {
             }
             return labelSize(node, proposal)
         default:
-            return overlaySize(node.children, proposal)
+            return controlSize(node, proposal, parentAxis: parentAxis)
+                ?? overlaySize(node.children, proposal)
         }
     }
 
@@ -681,6 +688,10 @@ struct LayoutEngine {
                 return place(child, in: align(size, in: rect, alignment), parentAxis: nil)
             }
         default:
+            if let children = placeControl(node, in: rect) {
+                node.children = children
+                break
+            }
             node.children = node.children.map { child in
                 let size = sizeThatFits(child, proposal, parentAxis: nil)
                 return place(child, in: align(size, in: rect, .center), parentAxis: nil)
