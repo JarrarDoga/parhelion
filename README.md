@@ -141,9 +141,10 @@ without watching, use `parhelion preview .build/debug/Counter`.
 
 The window shows the screen inside a phone, like the iOS Simulator, with the status bar, the
 Dynamic Island, and the home indicator. `--device` picks the iPhone to simulate: iPhone 16 (the
-default), 16 Plus, 16 Pro, 16 Pro Max, 16e, 17, 17 Pro, 17 Pro Max, or Air, as in
-`parhelion run --device "iPhone 17 Pro"`. `--no-bezel` shows the screen without the phone around
-it. `--zoom` changes the window size, and `--scale` changes the pixels per point the app renders at.
+default), 16 Plus, 16 Pro, 16 Pro Max, 16e, 17, 17 Pro, 17 Pro Max, Air, 18 Pro, or 18 Pro Max,
+as in `parhelion run --device "iPhone 18 Pro Max"`. `--no-bezel` shows the screen without the
+phone around it. `--zoom` changes the window size, and `--scale` changes the pixels per point the
+app renders at.
 
 Animation in the window follows the display: the window waits for each refresh, at 60, 180, or
 240 Hz, and the app draws each frame for the moment it will be on screen. It never runs faster

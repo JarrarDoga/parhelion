@@ -160,6 +160,7 @@ may contain breaking changes.
   refreshes.
 - `PARHELION_REFRESH_RATE`, which makes the window host assume a display refresh rate, for testing
   frame pacing on a display without real vsync.
+- iPhone 18 Pro and iPhone 18 Pro Max presets, with their smaller Dynamic Island.
 
 ### Changed
 

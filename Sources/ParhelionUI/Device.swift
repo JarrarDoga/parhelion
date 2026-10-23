@@ -140,6 +140,21 @@ extension Device {
         "iPhone Air", width: 420, height: 912, top: 68, cornerRadius: 62, islandY: 20,
         proMotion: true)
 
+    // Assumed: the iPhone 18 Pro models keep the 17 Pro panels' insets,
+    // corner radius, and home indicator, which no source states yet. Their
+    // smaller Dynamic Island is a measurement of Apple's product bezel
+    // images, calibrated against the 17 Pro's.
+
+    /// iPhone 18 Pro in portrait: 402 × 874 points.
+    public static let iPhone18Pro = dynamicIslandPhone(
+        "iPhone 18 Pro", width: 402, height: 874, top: 62, cornerRadius: 62, islandY: 14,
+        islandWidth: 94.67, proMotion: true)
+
+    /// iPhone 18 Pro Max in portrait: 440 × 956 points.
+    public static let iPhone18ProMax = dynamicIslandPhone(
+        "iPhone 18 Pro Max", width: 440, height: 956, top: 62, cornerRadius: 62, islandY: 14,
+        islandWidth: 94.67, proMotion: true)
+
     /// A phone with a Dynamic Island centered at the top, 34 points of safe
     /// area at the bottom, and a home indicator, at 120 frames per second
     /// with ProMotion and 60 without.
@@ -164,7 +179,7 @@ extension Device {
     /// Every device preset, in the order `parhelion` lists them.
     public static let all: [Device] = [
         .iPhone16, .iPhone16Plus, .iPhone16Pro, .iPhone16ProMax, .iPhone16e, .iPhone17,
-        .iPhone17Pro, .iPhone17ProMax, .iPhoneAir,
+        .iPhone17Pro, .iPhone17ProMax, .iPhoneAir, .iPhone18Pro, .iPhone18ProMax,
     ]
 
     /// The preset to simulate when a window host or `PARHELION_DEVICE` asks
