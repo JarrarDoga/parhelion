@@ -62,6 +62,45 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [x] `sheet` and `alert`
 - [x] Animations
 
+## 0.7: Real apps (in progress)
+
+- [ ] `@Observable`, `@Bindable`, bindings into models and collections, `Group`, `AnyView`, and
+      `onAppear`, `onChange`, and `task` ([#26](https://github.com/JarrarDoga/parhelion/issues/26))
+- [ ] `Toggle`, `Slider`, `Stepper`, `Picker`, `LabeledContent`, and `Divider` with iOS 27's look
+      ([#27](https://github.com/JarrarDoga/parhelion/issues/27))
+- [ ] `TabView` with iOS 27's glass tab bar, `Label`, and open-source symbol images in place of SF
+      Symbols ([#28](https://github.com/JarrarDoga/parhelion/issues/28))
+- [ ] Dark mode, Dynamic Type, the scroll edge effect, asset catalog images, `AsyncImage`, grids,
+      and more styling modifiers ([#30](https://github.com/JarrarDoga/parhelion/issues/30))
+
+## 0.8: Agent workflow
+
+- [ ] A manual clock, accessibility identifiers, recorded interaction tests, and snapshot tests
+      ([#31](https://github.com/JarrarDoga/parhelion/issues/31))
+
+## 0.9: Preview anywhere (in progress)
+
+- [ ] The preview in a browser, from any device, over a WebSocket
+      ([#25](https://github.com/JarrarDoga/parhelion/issues/25))
+- [ ] The preview in terminals that support the Kitty graphics protocol
+
+## 0.10: Device loop
+
+- [ ] Build, install, and run the same sources on a real iPhone with xtool
+      ([#32](https://github.com/JarrarDoga/parhelion/issues/32))
+
+## 1.0: Release
+
+- [ ] API documentation with DocC
+- [ ] Before the repository goes public: private vulnerability reporting, a contact in the code of
+      conduct, and no pull requests from forks on the self-hosted runners
+- [ ] A stable preview protocol and command-line interface
+
+## Exploring
+
+- Previewing React Native and Expo apps through an out-of-tree platform
+  ([#29](https://github.com/JarrarDoga/parhelion/issues/29))
+
 ## Continuous: Fidelity
 
 - [x] Device chrome: the status bar, the Dynamic Island, the home indicator, rounded screen
@@ -69,6 +108,8 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [x] iOS 27 typography with Inter in four weights, system colors, large navigation titles, and
       inset grouped list metrics
 - [x] iOS 27 Liquid Glass: toolbar and back buttons, alerts, sheets, and button styles
+- [x] Animation paced to the simulated iPhone's refresh rate, and iPhone 18 Pro presets
+- [ ] Faster Liquid Glass, by caching glass between frames, so alerts and sheets hold 120 Hz
 - [ ] The scroll edge effect, with content laid out under the navigation bar
 - [ ] Letter spacing, to bring Inter's widths closer to San Francisco's
 - [ ] CI on macOS and on Linux arm64
