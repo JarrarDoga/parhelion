@@ -199,6 +199,14 @@ may contain breaking changes.
   `value`, `bounds`, `step`, and `label`. A press on the track drags the knob, which becomes a
   glass lens; a tap on the track moves the knob there. `tap(at:)`, the pointer methods, and
   `parhelion mcp`'s tap and drag all drive it, and a drag on a slider in a list does not scroll.
+- `Picker`, with `pickerStyle(_:)` and the `.segmented`, `.menu`, `.inline`, `.navigationLink`,
+  and `.automatic` styles. Options are tagged views or `ForEach` elements, and each is a
+  `PickerOption` that responds to taps and to its label. A segmented picker is the iOS 27 UI
+  Kit's 32-point capsule, whose white selection slides. A menu picker, which `.automatic` is,
+  shows its value and up and down chevrons, and opens iOS 27's 250-point glass `Menu` at the root
+  of the tree, which a tap outside closes. An inline picker in a list is a section of rows with a
+  checkmark, under its label; a navigation-link picker pushes the options and goes back when one
+  is chosen. The node records `pickerStyle` and `selection`.
 
 ### Changed
 

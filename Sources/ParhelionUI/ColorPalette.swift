@@ -266,4 +266,28 @@ extension ColorPalette {
     /// The color a pressed half of a stepper adds, black at 8%, drawn
     /// plus-darker in the iOS 27 UI Kit.
     static let stepperPressed = RGBA(red: 0, green: 0, blue: 0, alpha: 20)
+
+    /// The shadow of a segmented control's selected segment, black at 6%, 2
+    /// points down with a blur of 20, in the iOS 27 UI Kit. The segment is
+    /// white.
+    static let segmentShadow = GlassMaterial.Shadow(
+        color: RGBA(red: 0, green: 0, blue: 0, alpha: 15), offset: 2, blur: 20)
+    static let selectedSegment = RGBA.white
+
+    /// The glass of a menu, from the iOS 27 UI Kit's iPhone menu: large
+    /// glass with the backdrop blurred with a radius of 15, and a tint of 204
+    /// gray at 70%, lighten, under 191 gray at 10%, darken.
+    static let menuGlass: GlassMaterial = {
+        var material = largeGlass
+        material.blurRadius = 15
+        material.tint = [
+            .init(color: RGBA(red: 204, green: 204, blue: 204, alpha: 179), blendMode: .lighten),
+            .init(color: RGBA(red: 191, green: 191, blue: 191, alpha: 26), blendMode: .darken),
+        ]
+        return material
+    }()
+
+    /// The highlight of a pressed menu item, 237 gray drawn plus-darker in the
+    /// iOS 27 UI Kit.
+    static let menuHighlight = RGBA(red: 237, green: 237, blue: 237)
 }

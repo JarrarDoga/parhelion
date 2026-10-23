@@ -113,7 +113,7 @@ final class AnimationEngine {
         func animation(for id: NodeID, kind: String?) -> Animation? {
             if let implicit = request.implicit[id] { return implicit }
             if let transaction = request.transaction { return transaction }
-            if let kind, ["Sheet", "FullScreenCover", "Alert"].contains(kind) {
+            if let kind, ["Sheet", "FullScreenCover", "Alert", "Menu"].contains(kind) {
                 return LayoutDefaults.presentationAnimation
             }
             return nil

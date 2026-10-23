@@ -26,6 +26,16 @@ extension LayoutEngine {
             return CGSize(
                 width: proposal.width ?? LayoutDefaults.sliderIdealTrackWidth,
                 height: LayoutDefaults.sliderHeight)
+        case "Picker":
+            return pickerSize(node, proposal)
+        case "PickerOption":
+            return sizeThatFits(Self.stack("ZStack", node), proposal, parentAxis: nil)
+        case "PopUpButton":
+            return sizeThatFits(Self.popUpStack(node), proposal, parentAxis: nil)
+        case "MenuIndicator":
+            return LayoutDefaults.menuIndicatorSize
+        case "SegmentIndicator":
+            return .zero
         case "Knob":
             return .zero
         case "Divider":
@@ -46,7 +56,23 @@ extension LayoutEngine {
             return placeRow(node, in: rect)
         case "Slider":
             return placeSlider(node, in: rect)
-        case "Switch", "Knob", "Divider", "StepperButton", "SliderTrack":
+        case "Picker":
+            return placePicker(node, in: rect)
+        case "PickerOption":
+            // The option's view sits at the leading edge, centered
+            // vertically.
+            return node.children.map { child in
+                let size = sizeThatFits(child, ProposedSize(rect.size), parentAxis: nil)
+                return place(
+                    child,
+                    in: CGRect(
+                        x: rect.minX, y: rect.midY - size.height / 2, width: size.width,
+                        height: size.height), parentAxis: nil)
+            }
+        case "PopUpButton":
+            return place(Self.popUpStack(node), in: rect, parentAxis: nil).children
+        case "Switch", "Knob", "Divider", "StepperButton", "SliderTrack", "MenuIndicator",
+            "SegmentIndicator":
             return node.children
         default:
             return nil
@@ -242,7 +268,182 @@ extension LayoutEngine {
     }
 }
 
+extension LayoutEngine {
+    // MARK: - Pickers
+
+    /// A node's children in a stack of the given kind, for measuring and
+    /// placing them together.
+    static func stack(_ kind: String, _ node: ViewNode, spacing: CGFloat? = nil) -> ViewNode {
+        var attributes: [String: String] = [:]
+        if let spacing { attributes["spacing"] = formatPoints(spacing) }
+        if kind == "VStack" { attributes["alignment"] = "leading" }
+        return ViewNode(id: node.id, kind: kind, attributes: attributes, children: node.children)
+    }
+
+    /// A menu picker's button: the selected option and the up and down
+    /// chevrons, side by side.
+    static func popUpStack(_ node: ViewNode) -> ViewNode {
+        stack("HStack", node, spacing: LayoutDefaults.menuIndicatorSpacing)
+    }
+
+    private func pickerSize(_ node: ViewNode, _ proposal: ProposedSize) -> CGSize {
+        switch node.attributes["pickerStyle"] {
+        case "segmented":
+            let segments = node.children.filter { $0.kind == "PickerOption" }
+            let widest =
+                segments.map {
+                    sizeThatFits($0, .unspecified, parentAxis: nil).width
+                        + 2 * LayoutDefaults.segmentPadding
+                }.max() ?? 0
+            let count = CGFloat(segments.count)
+            let ideal =
+                widest * count + 2 * LayoutDefaults.segmentInset
+                + LayoutDefaults.segmentSpacing * max(count - 1, 0)
+            return CGSize(
+                width: proposal.width ?? ideal, height: LayoutDefaults.segmentedControlHeight)
+        case "inline":
+            let size = sizeThatFits(Self.stack("VStack", node), proposal, parentAxis: nil)
+            let checkmark =
+                LayoutDefaults.listCheckmarkColumn.width + LayoutDefaults.listCheckmarkSpacing
+            return CGSize(width: proposal.width ?? size.width + checkmark, height: size.height)
+        default:
+            // A menu picker with a label is a row; without one, it is its
+            // button.
+            if node.children.contains(where: { !Self.isTrailingPart($0) }) {
+                return rowLayout(node, ProposedSize(width: proposal.width, height: nil)).size
+            }
+            return sizeThatFits(Self.stack("ZStack", node), proposal, parentAxis: nil)
+        }
+    }
+
+    private func placePicker(_ node: ViewNode, in rect: CGRect) -> [ViewNode] {
+        switch node.attributes["pickerStyle"] {
+        case "segmented":
+            return placeSegments(node, in: rect)
+        case "inline":
+            // Options fill the width, so the checkmark can sit at the trailing
+            // edge.
+            var y = rect.minY
+            return node.children.map { option in
+                let size = sizeThatFits(option, ProposedSize(rect.size), parentAxis: nil)
+                let frame = CGRect(x: rect.minX, y: y, width: rect.width, height: size.height)
+                y += size.height + LayoutDefaults.stackSpacing
+                return place(option, in: frame, parentAxis: nil)
+            }
+        default:
+            if node.children.contains(where: { !Self.isTrailingPart($0) }) {
+                return placeRow(node, in: rect)
+            }
+            return node.children.map { place($0, in: rect, parentAxis: nil) }
+        }
+    }
+
+    /// Places a segmented control's segments side by side in equal widths,
+    /// with their labels centered, and the selected segment's capsule under
+    /// the selected one.
+    private func placeSegments(_ node: ViewNode, in rect: CGRect) -> [ViewNode] {
+        let inset = LayoutDefaults.segmentInset
+        let spacing = LayoutDefaults.segmentSpacing
+        let count = CGFloat(node.children.filter { $0.kind == "PickerOption" }.count)
+        let width = max((rect.width - 2 * inset - spacing * max(count - 1, 0)) / max(count, 1), 0)
+        var x = rect.minX + inset
+        var selected: CGRect?
+        var children = node.children.map { child -> ViewNode in
+            guard child.kind == "PickerOption" else { return child }
+            var segment = child
+            let frame = CGRect(
+                x: x, y: rect.minY + inset, width: width, height: max(rect.height - 2 * inset, 0))
+            x += width + spacing
+            segment.frame = frame
+            segment.children = segment.children.map { label in
+                let size = sizeThatFits(label, ProposedSize(frame.size), parentAxis: nil)
+                return place(
+                    label,
+                    in: CGRect(
+                        x: frame.midX - size.width / 2, y: frame.midY - size.height / 2,
+                        width: size.width, height: size.height), parentAxis: nil)
+            }
+            if segment.attributes["selected"] == "true" { selected = frame }
+            return segment
+        }
+        for index in children.indices where children[index].kind == "SegmentIndicator" {
+            children[index].frame = selected ?? .zero
+        }
+        return children
+    }
+
+    // MARK: - Menus
+
+    /// Places an open menu next to the button it opened from, in the screen
+    /// above everything else. The menu's node covers the screen, so that a
+    /// tap outside its items closes it; its items are 42-point cells inside
+    /// the menu's glass.
+    ///
+    /// Assumed: the menu's top edge is level with the button's, as iOS 27's
+    /// menus grow out of their buttons, and its trailing edge lines up with a
+    /// button in the trailing half of the screen. It stays inside the safe
+    /// area, 16 points from the edges.
+    func placeMenu(_ node: ViewNode, over below: [ViewNode]) -> ViewNode {
+        var node = node
+        let screen = CGRect(origin: .zero, size: device.screenSize)
+        let safeArea = device.safeArea
+        node.frame = screen
+        let anchor =
+            node.attributes["anchor"].flatMap { id in
+                below.lazy.compactMap { $0.node(withID: NodeID(id))?.frame }.first
+            } ?? CGRect(x: safeArea.midX, y: safeArea.midY, width: 0, height: 0)
+
+        let margin = LayoutDefaults.menuMargin
+        let padding = LayoutDefaults.menuPadding
+        let insets = LayoutDefaults.menuItemInsets
+        let width = min(LayoutDefaults.menuWidth, max(safeArea.width - 2 * margin, 0))
+        let cellWidth = max(width - 2 * padding, 0)
+        let labelWidth = max(cellWidth - insets.horizontal, 0)
+        let heights = node.children.map { item in
+            let label = sizeThatFits(
+                Self.stack("ZStack", item), ProposedSize(width: labelWidth, height: nil),
+                parentAxis: nil)
+            return max(label.height + insets.vertical, LayoutDefaults.menuItemHeight)
+        }
+        let height = heights.reduce(0, +) + 2 * padding
+        var x = anchor.midX >= safeArea.midX ? anchor.maxX - width : anchor.minX
+        x = min(max(x, safeArea.minX + margin), safeArea.maxX - margin - width)
+        var y = anchor.minY
+        if y + height > safeArea.maxY - margin {
+            y = max(safeArea.maxY - margin - height, safeArea.minY + margin)
+        }
+
+        var top = y + padding
+        node.children = zip(node.children, heights).map { item, rowHeight in
+            var item = item
+            let cell = CGRect(x: x + padding, y: top, width: cellWidth, height: rowHeight)
+            top += rowHeight
+            item.frame = cell
+            let content = cell.inset(by: insets)
+            item.children = item.children.map { child in
+                let size = sizeThatFits(child, ProposedSize(content.size), parentAxis: nil)
+                return place(
+                    child,
+                    in: CGRect(
+                        x: content.minX, y: content.midY - size.height / 2, width: size.width,
+                        height: size.height), parentAxis: nil)
+            }
+            return item
+        }
+        return node
+    }
+}
+
 extension ViewNode {
+    /// The panel of an open menu: its items' cells and the padding around
+    /// them.
+    var menuPanel: CGRect? {
+        let cells = children.compactMap(\.frame)
+        guard let first = cells.first else { return nil }
+        let padding = LayoutDefaults.menuPadding
+        return cells.dropFirst().reduce(first) { $0.union($1) }.insetBy(dx: -padding, dy: -padding)
+    }
+
     /// The insets of this node as a list row: a control taller than a line of
     /// text gets smaller vertical insets, so that its row stays as tall as a
     /// row of text.
@@ -251,6 +452,14 @@ extension ViewNode {
         switch kind {
         case "Toggle": height = LayoutDefaults.switchSize.height
         case "Stepper": height = LayoutDefaults.stepperButtonSize.height
+        case "Picker" where attributes["pickerStyle"] == "segmented":
+            height = LayoutDefaults.segmentedControlHeight
+        case "PickerOption":
+            // Leave room for the checkmark.
+            var insets = insets
+            insets.trailing +=
+                LayoutDefaults.listCheckmarkColumn.width + LayoutDefaults.listCheckmarkSpacing
+            return insets
         default: return insets
         }
         var insets = insets

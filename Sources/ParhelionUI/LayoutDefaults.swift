@@ -438,4 +438,87 @@ extension LayoutDefaults {
     /// from the iOS 27 UI Kit's semibold 17-point `minus` and `plus`.
     static let stepperSymbolSize: CGFloat = 13.5
     static let stepperSymbolThickness: CGFloat = 2
+
+    /// The height of a segmented control, the iOS 27 UI Kit's small
+    /// segmented control, which `UISegmentedControl` matches.
+    static let segmentedControlHeight: CGFloat = 32
+
+    /// The space between a segmented control's edge and its segments, and
+    /// between segments, in the iOS 27 UI Kit.
+    static let segmentInset: CGFloat = 2
+    static let segmentSpacing: CGFloat = 4
+
+    /// The font of a segment's label, medium 13.33 points in the iOS 27 UI
+    /// Kit, and semibold for the selected segment.
+    static let segmentFont = Font.system(size: 13.33, weight: .medium)
+
+    /// Assumed: the space between a segment's label and its ends, for the
+    /// width of a segmented control that is offered no width. Segments share
+    /// the width equally, as `UISegmentedControl`'s do.
+    static let segmentPadding: CGFloat = 12
+
+    /// How far the glass lens of a pressed segment reaches past the segment:
+    /// an 80 × 28 segment's lens is 100 × 42 in the iOS 27 UI Kit.
+    static let pressedSegmentOutset = CGSize(width: 10, height: 7)
+
+    /// Assumed: the animation of the selected segment's capsule when the
+    /// selection changes.
+    static let segmentAnimation = Animation.snappy(duration: 0.3)
+
+    /// The size of the `chevron.up.chevron.down` symbol of a menu picker's
+    /// button, a 12 × 22 regular 17-point glyph, and its space from the
+    /// value, in the iOS 27 UI Kit's pop-up button.
+    static let menuIndicatorSize = CGSize(width: 12, height: 22)
+    static let menuIndicatorSpacing: CGFloat = 10
+
+    /// Assumed: the size of each chevron of the `chevron.up.chevron.down`
+    /// symbol, its stroke, and the space between the two.
+    static let menuIndicatorChevronSize = CGSize(width: 8, height: 4.5)
+    static let menuIndicatorChevronThickness: CGFloat = 1.6
+    static let menuIndicatorChevronGap: CGFloat = 3
+
+    /// The width of a menu on iPhone, 250 points in the iOS 27 UI Kit.
+    static let menuWidth: CGFloat = 250
+
+    /// The corner radius of a menu, continuous, in the iOS 27 UI Kit.
+    static let menuCornerRadius: CGFloat = 32
+
+    /// The space between a menu's edge and its items, in the iOS 27 UI Kit.
+    static let menuPadding: CGFloat = 10
+
+    /// The height of a menu item with one line of text, in the iOS 27 UI Kit.
+    static let menuItemHeight: CGFloat = 42
+
+    /// The insets of a menu item's text in its 230-point cell: 40 points from
+    /// the leading edge, after the checkmark's column, in the iOS 27 UI Kit,
+    /// and 10 above and below, which centers a 22-point line of body text in
+    /// the kit's 42-point item, as the kit centers its 20-point line.
+    /// Assumed: 16 from the trailing edge.
+    static let menuItemInsets = EdgeInsets(top: 10, leading: 40, bottom: 10, trailing: 16)
+
+    /// The space between a menu item's cell and its checkmark's 14-point
+    /// column, in the iOS 27 UI Kit.
+    static let menuCheckmarkInset: CGFloat = 16
+    static let menuCheckmarkColumn = CGSize(width: 14, height: 20)
+
+    /// The corner radius of a pressed menu item's highlight, in the iOS 27 UI
+    /// Kit.
+    static let menuHighlightCornerRadius: CGFloat = 20
+
+    /// The space between a menu and the edges of the screen, 16 points in the
+    /// iOS 27 UI Kit's example.
+    static let menuMargin: CGFloat = 16
+
+    /// The column at the trailing edge of a list row that holds a
+    /// checkmark, the iOS 27 UI Kit's 22-point glyph box, and its space from
+    /// the row's content. Assumed: the space.
+    static let listCheckmarkColumn = CGSize(width: 22, height: 22)
+    static let listCheckmarkSpacing: CGFloat = 12
+
+    /// Assumed: the size and stroke of a checkmark, measured from the iOS 27
+    /// UI Kit's semibold `checkmark`: 17 points in lists and 15 in menus.
+    static let listCheckmarkSize = CGSize(width: 15, height: 14)
+    static let listCheckmarkThickness: CGFloat = 2.2
+    static let menuCheckmarkSize = CGSize(width: 13, height: 12)
+    static let menuCheckmarkThickness: CGFloat = 2
 }

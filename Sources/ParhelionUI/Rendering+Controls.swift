@@ -48,9 +48,179 @@ extension TreeRenderer {
         case "StepperButton":
             drawStepperSymbol(node, in: frame, style: style, into: &canvas)
             return true
+        case "Picker":
+            drawPicker(node, in: frame, style: style, into: &canvas)
+            return false
+        case "SegmentIndicator":
+            let shadow = ColorPalette.segmentShadow
+            canvas.drawShadow(
+                of: frame, cornerRadius: frame.height / 2, style: .continuous,
+                color: style.paint(shadow.color), offset: CGSize(width: 0, height: shadow.offset),
+                blur: shadow.blur)
+            canvas.fill(
+                frame, cornerRadius: frame.height / 2, style: .continuous,
+                color: style.paint(ColorPalette.selectedSegment))
+            return true
+        case "PickerOption":
+            // A selected row of an inline picker in a list has a checkmark
+            // at its trailing edge. Segments and menu items are drawn by
+            // their picker and menu.
+            if let cell = node.listRowFrame, node.attributes["selected"] == "true" {
+                drawListCheckmark(in: cell, color: style.paint("primary"), into: &canvas)
+            }
+            return false
+        case "PopUpButton":
+            if node.id == pressedNodeID { opacity *= ColorPalette.pressedOpacity }
+            foreground = foreground ?? "tint"
+            return false
+        case "MenuIndicator":
+            drawMenuIndicator(in: frame, color: style.paint(foreground ?? "tint"), into: &canvas)
+            return true
+        case "Menu":
+            drawMenu(node, style: style, into: &canvas)
+            foreground = foreground ?? "primary"
+            return false
         default:
             return false
         }
+    }
+
+    /// Draws a segmented control's capsule and the glass lens over a pressed
+    /// segment, or the checkmark of an inline picker outside a list. Its
+    /// selected segment's capsule draws itself.
+    private func drawPicker(
+        _ node: ViewNode, in frame: CGRect, style: ControlPaint, into canvas: inout Canvas
+    ) {
+        switch node.attributes["pickerStyle"] {
+        case "segmented":
+            canvas.fill(
+                frame, cornerRadius: frame.height / 2, style: .continuous,
+                color: style.paint(ColorPalette.controlFill))
+            if let pressed = node.children.first(where: { $0.id == pressedNodeID })?.frame {
+                let outset = LayoutDefaults.pressedSegmentOutset
+                let lens = pressed.insetBy(dx: -outset.width, dy: -outset.height)
+                canvas.drawGlass(
+                    lens, cornerRadius: lens.height / 2, material: ColorPalette.smallGlass,
+                    opacity: style.opacity)
+            }
+        case "inline":
+            for option in node.children where option.attributes["selected"] == "true" {
+                if let cell = option.frame {
+                    drawListCheckmark(in: cell, color: style.paint("primary"), into: &canvas)
+                }
+            }
+        default:
+            break
+        }
+    }
+
+    /// Draws an open menu's glass, the highlight of a pressed item, and the
+    /// checkmark of the selected one, in the column before its text.
+    private func drawMenu(_ node: ViewNode, style: ControlPaint, into canvas: inout Canvas) {
+        guard let panel = node.menuPanel else { return }
+        canvas.drawGlass(
+            panel, cornerRadius: LayoutDefaults.menuCornerRadius, style: .continuous,
+            material: ColorPalette.menuGlass, opacity: style.opacity)
+        for item in node.children {
+            guard let cell = item.frame else { continue }
+            if item.id == pressedNodeID {
+                let outerBlendMode = canvas.blendMode
+                canvas.blendMode = .plusDarker
+                canvas.fill(
+                    cell, cornerRadius: LayoutDefaults.menuHighlightCornerRadius,
+                    style: .continuous, color: style.paint(ColorPalette.menuHighlight))
+                canvas.blendMode = outerBlendMode
+            }
+            guard item.attributes["selected"] == "true" else { continue }
+            let column = LayoutDefaults.menuCheckmarkColumn
+            let size = LayoutDefaults.menuCheckmarkSize
+            let center = CGPoint(
+                x: cell.minX + LayoutDefaults.menuCheckmarkInset + column.width / 2, y: cell.midY)
+            canvas.fill(
+                Self.checkmark(
+                    in: CGRect(
+                        x: center.x - size.width / 2, y: center.y - size.height / 2,
+                        width: size.width, height: size.height),
+                    thickness: LayoutDefaults.menuCheckmarkThickness),
+                color: style.paint("primary"))
+        }
+    }
+
+    /// Draws a list row's checkmark in the column at the trailing edge of its
+    /// cell.
+    private func drawListCheckmark(in cell: CGRect, color: RGBA, into canvas: inout Canvas) {
+        let column = LayoutDefaults.listCheckmarkColumn
+        let size = LayoutDefaults.listCheckmarkSize
+        let center = CGPoint(
+            x: cell.maxX - LayoutDefaults.listRowInsets.trailing - column.width / 2,
+            y: cell.midY)
+        canvas.fill(
+            Self.checkmark(
+                in: CGRect(
+                    x: center.x - size.width / 2, y: center.y - size.height / 2,
+                    width: size.width, height: size.height),
+                thickness: LayoutDefaults.listCheckmarkThickness),
+            color: color)
+    }
+
+    /// Draws `chevron.up.chevron.down`: a chevron pointing up above one
+    /// pointing down, centered in `frame`.
+    private func drawMenuIndicator(in frame: CGRect, color: RGBA, into canvas: inout Canvas) {
+        let size = LayoutDefaults.menuIndicatorChevronSize
+        let thickness = LayoutDefaults.menuIndicatorChevronThickness
+        let gap = LayoutDefaults.menuIndicatorChevronGap
+        let left = frame.midX - size.width / 2
+        let right = frame.midX + size.width / 2
+        let upTop = frame.midY - gap / 2 - size.height
+        let downBottom = frame.midY + gap / 2 + size.height
+        canvas.fill(
+            Self.polyline(
+                CGPoint(x: left, y: upTop + size.height), CGPoint(x: frame.midX, y: upTop),
+                CGPoint(x: right, y: upTop + size.height), thickness: thickness),
+            color: color)
+        canvas.fill(
+            Self.polyline(
+                CGPoint(x: left, y: downBottom - size.height),
+                CGPoint(x: frame.midX, y: downBottom),
+                CGPoint(x: right, y: downBottom - size.height), thickness: thickness),
+            color: color)
+    }
+
+    /// A checkmark that fills `rect`, drawn as a stroke.
+    static func checkmark(in rect: CGRect, thickness: CGFloat) -> Path {
+        let half = thickness / 2
+        return polyline(
+            CGPoint(x: rect.minX + half, y: rect.minY + rect.height * 0.55),
+            CGPoint(x: rect.minX + rect.width * 0.37, y: rect.maxY - half),
+            CGPoint(x: rect.maxX - half, y: rect.minY + half), thickness: thickness)
+    }
+
+    /// Two line segments, `a` to `b` and `b` to `c`, stroked with the given
+    /// thickness and joined with a miter at `b`, as `chevron(in:)` draws.
+    static func polyline(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint, thickness: CGFloat) -> Path {
+        let half = thickness / 2
+        func normal(_ p: CGPoint, _ q: CGPoint) -> CGPoint {
+            let length = max(hypot(q.x - p.x, q.y - p.y), 0.0001)
+            return CGPoint(x: -(q.y - p.y) / length, y: (q.x - p.x) / length)
+        }
+        func offset(_ point: CGPoint, _ direction: CGPoint, _ distance: CGFloat) -> CGPoint {
+            CGPoint(x: point.x + direction.x * distance, y: point.y + direction.y * distance)
+        }
+        let first = normal(a, b)
+        let second = normal(b, c)
+        let sum = CGPoint(x: first.x + second.x, y: first.y + second.y)
+        let sumLength = max(hypot(sum.x, sum.y), 0.0001)
+        let miter = CGPoint(x: sum.x / sumLength, y: sum.y / sumLength)
+        let miterLength = half / max(miter.x * first.x + miter.y * first.y, 0.1)
+        var path = Path()
+        path.move(to: offset(a, first, half))
+        path.addLine(to: offset(b, miter, miterLength))
+        path.addLine(to: offset(c, second, half))
+        path.addLine(to: offset(c, second, -half))
+        path.addLine(to: offset(b, miter, -miterLength))
+        path.addLine(to: offset(a, first, -half))
+        path.closeSubpath()
+        return path
     }
 
     /// Draws a slider's track, tinted up to the knob's center as drawn, and

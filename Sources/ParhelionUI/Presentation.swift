@@ -19,10 +19,10 @@ struct Presentation {
 }
 
 extension ViewNode {
-    /// Whether this node is a sheet, a full-screen cover, or an alert at the
-    /// root of the tree.
+    /// Whether this node is a sheet, a full-screen cover, an alert, or a
+    /// picker's menu at the root of the tree.
     var isPresentation: Bool {
-        kind == "Sheet" || kind == "FullScreenCover" || kind == "Alert"
+        kind == "Sheet" || kind == "FullScreenCover" || kind == "Alert" || kind == "Menu"
     }
 }
 
