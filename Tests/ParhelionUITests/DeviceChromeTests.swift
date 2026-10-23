@@ -133,6 +133,19 @@ struct DeviceChromeTests {
         #expect(error.description.hasPrefix("Unknown device \"iPhone 6\". Use one of: iPhone 16,"))
     }
 
+    @Test("ProMotion presets show up to 120 frames per second, the rest 60")
+    func frameRates() {
+        let sixty: Set<String> = ["iPhone 16", "iPhone 16 Plus", "iPhone 16e"]
+        for device in Device.all {
+            #expect(
+                device.maximumFramesPerSecond == (sixty.contains(device.name) ? 60 : 120),
+                "\(device.name)")
+        }
+        #expect(
+            Device(name: "Custom", screenSize: .zero, safeAreaInsets: EdgeInsets())
+                .maximumFramesPerSecond == 60)
+    }
+
     @Test("The chrome is drawn once and reused while the scale stays the same")
     func overlayCache() {
         let host = ViewHost(EmptyView(), device: device)

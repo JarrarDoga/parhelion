@@ -25,6 +25,9 @@ changing anything under `Sources/`.
 - Check it without a display:
   `SDL_VIDEODRIVER=offscreen Tools/parhelion-cli/.build/debug/parhelion preview --exit-after-first-frame .build/debug/Counter`.
 - Set `PARHELION_DEBUG=1` to trace events and messages in the host and the app.
+- Set `PARHELION_REFRESH_RATE=240` to make the window host assume a display's refresh rate, for
+  testing frame pacing where vsync is not real, such as with `SDL_VIDEODRIVER=offscreen`. With
+  `PARHELION_DEBUG=1`, the `present at` lines show the time between frames.
 - `swift test --package-path Tools/parhelion-cli` tests package inspection, runner generation,
   file watching, and the MCP server in `ParhelionTooling`.
 - `parhelion run --exit-after-first-frame --package-path Tools/parhelion-cli/Fixtures/LibraryApp`

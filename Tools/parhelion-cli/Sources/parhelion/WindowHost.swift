@@ -118,14 +118,21 @@ final class WindowHost {
         _ = SDL_SetWindowTitle(window, title)
     }
 
-    /// Reads the refresh rate of the display the window is on.
+    /// Reads the refresh rate of the display the window is on, or the rate
+    /// `PARHELION_REFRESH_RATE` sets, for testing pacing on a display
+    /// without real vsync.
     private func readRefreshPeriod() {
-        let display = SDL_GetDisplayForWindow(window)
-        guard display != 0, let mode = SDL_GetCurrentDisplayMode(display) else { return }
-        let period = FramePacer.refreshPeriod(
-            numerator: mode.pointee.refresh_rate_numerator,
-            denominator: mode.pointee.refresh_rate_denominator,
-            rate: mode.pointee.refresh_rate)
+        let period: UInt64
+        if let rate = refreshRateOverride {
+            period = FramePacer.refreshPeriod(numerator: 0, denominator: 0, rate: rate)
+        } else {
+            let display = SDL_GetDisplayForWindow(window)
+            guard display != 0, let mode = SDL_GetCurrentDisplayMode(display) else { return }
+            period = FramePacer.refreshPeriod(
+                numerator: mode.pointee.refresh_rate_numerator,
+                denominator: mode.pointee.refresh_rate_denominator,
+                rate: mode.pointee.refresh_rate)
+        }
         if period != refreshPeriod {
             refreshPeriod = period
             debugLog(String(format: "display refresh %.3f Hz", 1e9 / Double(period)))
@@ -381,6 +388,11 @@ func debugLog(_ message: @autoclosure () -> String) {
 /// Whether `PARHELION_DEBUG` is set, read once: the frame loop logs every
 /// present.
 let isDebugLogging = ProcessInfo.processInfo.environment["PARHELION_DEBUG"] != nil
+
+/// The display refresh rate `PARHELION_REFRESH_RATE` asks the window host to
+/// assume, in hertz.
+private let refreshRateOverride = ProcessInfo.processInfo.environment["PARHELION_REFRESH_RATE"]
+    .flatMap(Float.init).flatMap { $0 > 1 ? $0 : nil }
 
 struct SDLError: Error, CustomStringConvertible {
     let description: String

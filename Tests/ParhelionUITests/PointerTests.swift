@@ -99,7 +99,7 @@ struct PreviewSessionTests {
             hello
                 == PreviewHello(
                     appName: "Counter", screenWidth: 50, screenHeight: 50, scale: 1,
-                    deviceName: "Test", displayCornerRadius: 0,
+                    deviceName: "Test", displayCornerRadius: 0, maximumFramesPerSecond: 60,
                     capabilities: PreviewCapability.all))
 
         var frames: [PreviewFrame] = []

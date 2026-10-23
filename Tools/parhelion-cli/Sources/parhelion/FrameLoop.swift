@@ -12,13 +12,15 @@ import ParhelionTooling
 /// tick until shortly before the next refresh, uploads it, presents (which
 /// waits for the refresh), and sends the next tick. Otherwise a pass blocks
 /// until input, a frame, or `idleTimeout`, so an idle preview uses no CPU.
-/// ``FramePacer`` holds the timing rules.
+/// ``FramePacer`` holds the timing rules, including the simulated screen's
+/// frame rate.
 final class FrameLoop {
     private let window: WindowHost
     private var pacer: FramePacer
     /// The app the pacer's timing belongs to.
     private var appIdentity: ObjectIdentifier?
     private var lastPresent: UInt64 = 0
+    private var lastTickSent: UInt64 = 0
     private var needsRedraw = false
     private var announcedSoftwarePacing = false
 
@@ -43,6 +45,7 @@ final class FrameLoop {
         if appIdentity != app.map(ObjectIdentifier.init) {
             appIdentity = app.map(ObjectIdentifier.init)
             pacer.reset()
+            if let app { pacer.setMaximumFramesPerSecond(app.hello.maximumFramesPerSecond) }
         }
         pacer.setRefreshPeriod(window.refreshPeriod)
         // An app that exited mid-animation still says it animates; without
@@ -70,16 +73,18 @@ final class FrameLoop {
         } else {
             events = window.events(waitingUpTo: idleTimeout)
         }
-        for event in events {
-            switch event {
-            case .close: return .close
-            case .input(let message): app?.send(message)
-            case .redraw: needsRedraw = true
-            }
-        }
+        if handle(events, app: app) { return .close }
 
-        if let answer = app?.takeAnswer() {
+        let answer = app?.takeAnswer()
+        if let answer {
             pacer.noteAnswer(target: answer.target, at: answer.arrival)
+            if isDebugLogging {
+                debugLog(
+                    String(
+                        format: "answer after %.3f ms, %d refreshes per frame",
+                        PreviewClock.milliseconds(answer.arrival - lastTickSent),
+                        pacer.framesPerTick))
+            }
         }
         var presentedFrame = false
         if let app, let frame = app.takeFrame() {
@@ -101,11 +106,23 @@ final class FrameLoop {
         // loop waits for the refresh itself, on a grid of whole periods, so
         // the small overshoot of each wait does not accumulate.
         var presentTime: UInt64?
-        if !pacer.hasVSync {
-            if !announcedSoftwarePacing {
-                announcedSoftwarePacing = true
-                debugLog("presenting does not wait for the display; pacing with a timer")
-            }
+        var heldRefresh: UInt64?
+        if !pacer.hasVSync, !announcedSoftwarePacing {
+            announcedSoftwarePacing = true
+            debugLog("presenting does not wait for the display; pacing with a timer")
+        }
+        if ticking, presentedFrame {
+            // A fast app answers long before its frame is due when each frame
+            // stays up for more than one refresh, to match the simulated
+            // screen. The frame waits, so the app runs no faster.
+            let start = PreviewClock.now()
+            let refresh = pacer.earliestRefresh(after: lastPresent)
+            let time = pacer.presentTime(forRefreshAt: refresh, now: start)
+            if time > start { heldRefresh = refresh }
+            if wait(until: time, app: app) { return .close }
+            if !pacer.hasVSync { presentTime = time }
+        }
+        if !pacer.hasVSync, presentTime == nil {
             let now = PreviewClock.now()
             let next = pacer.nextPresentTime(after: lastPresent, now: now)
             if next > now { SDL_DelayPrecise(next - now) }
@@ -123,14 +140,46 @@ final class FrameLoop {
         }
         // Only paced presents tell whether vsync waits: presents for input
         // arrive at the pointer's rate.
-        if ticking { pacer.notePresented(at: now) }
+        if ticking { pacer.notePresented(at: now, heldFor: heldRefresh) }
         lastPresent = now
 
         if let app = live, app.usesHostClock, app.isAnimating, pacer.shouldTick(now: now) {
             let target = pacer.targetTime(afterPresentAt: now)
             app.send(.tick(PreviewTick(targetTime: target, refreshPeriod: pacer.refreshPeriod)))
             pacer.noteTickSent(target: target, at: now)
+            lastTickSent = now
         }
         return .running(presentedFrame: presentedFrame)
+    }
+
+    /// Forwards input to the app and notes redraws. Returns whether the user
+    /// closed the window.
+    private func handle(_ events: [WindowHost.Event], app: AppConnection?) -> Bool {
+        for event in events {
+            switch event {
+            case .close: return true
+            case .input(let message): app?.send(message)
+            case .redraw: needsRedraw = true
+            }
+        }
+        return false
+    }
+
+    /// Handles events until shortly before `time`, then waits out the rest
+    /// precisely. Returns whether the user closed the window.
+    private func wait(until time: UInt64, app: AppConnection?) -> Bool {
+        while true {
+            let now = PreviewClock.now()
+            guard time > now else { return false }
+            let remaining = time - now
+            guard remaining > 2_000_000 else {
+                SDL_DelayPrecise(remaining)
+                return false
+            }
+            // Whole milliseconds, leaving at least one for the precise wait.
+            let events = window.events(
+                waitingUpTo: Double((remaining - 1_000_000) / 1_000_000) / 1000)
+            if handle(events, app: app) { return true }
+        }
     }
 }
