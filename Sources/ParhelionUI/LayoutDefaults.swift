@@ -307,9 +307,9 @@ enum LayoutDefaults {
     /// pushed screen moves toward the leading edge.
     static let navigationParallax: CGFloat = 0.3
 
-    /// Assumed: the side of a symbol image relative to the font size, for
-    /// each image scale. Parhelion has no SF Symbols, so every symbol is a
-    /// square of this size.
+    /// Assumed: the side of a symbol image in the body font, for each image
+    /// scale. Every symbol is a square of this size, scaled by its font's
+    /// size.
     static func symbolSide(for scale: Image.Scale) -> CGFloat {
         switch scale {
         case .small: bodyFontSize * 0.78
@@ -317,4 +317,50 @@ enum LayoutDefaults {
         case .large: bodyFontSize * 1.29
         }
     }
+
+    /// The height of the tab bar: a 62-point glass capsule in the iOS 27 UI
+    /// Kit's iPhone tab bar.
+    static let tabBarHeight: CGFloat = 62
+
+    /// The space between the tab bar and the sides of the screen, 21 points
+    /// in the iOS 27 UI Kit.
+    static let tabBarMargin: CGFloat = 21
+
+    /// The space between the bottom of the tab bar and the bottom of the
+    /// screen: 21 points in the iOS 27 UI Kit, so the bar floats above the
+    /// home indicator, 13 points below the safe area.
+    static let tabBarBottomMargin: CGFloat = 21
+
+    /// The space between the tab bar's capsule and the tabs in it: tabs are
+    /// 54 points tall, 4 points from the top and bottom and 8 from the ends,
+    /// and share the width equally, in the iOS 27 UI Kit.
+    static let tabBarItemInsets = EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8)
+
+    /// How far the selected tab's highlight reaches past the tab at each
+    /// end: 4 points in the iOS 27 UI Kit, so it is 4 points from the ends
+    /// of the capsule.
+    static let tabBarSelectionOutset: CGFloat = 4
+
+    /// The space between the tabs' capsule and the search tab's circle, 8
+    /// points in the iOS 27 UI Kit. The circle is as tall as the bar.
+    static let tabBarSearchSpacing: CGFloat = 8
+
+    /// The distance from the top of a tab to the middle of its symbol: the
+    /// kit's symbol is on a 28-point line 7 points from the top of the tab.
+    /// Assumed: the symbol is centered on that line.
+    static let tabBarSymbolCenter: CGFloat = 21
+
+    /// The distance from the top of a tab to the top of its title, 36 points
+    /// in the iOS 27 UI Kit.
+    static let tabBarTitleTop: CGFloat = 36
+
+    /// The font of a tab's symbol, semibold 18 points in the iOS 27 UI Kit.
+    static let tabBarSymbolFont = Font.system(size: 18, weight: .semibold)
+
+    /// The font of the search tab's symbol, semibold 17 points in the iOS 27
+    /// UI Kit.
+    static let tabBarSearchSymbolFont = Font.system(size: 17, weight: .semibold)
+
+    /// The font of a tab's title, semibold 10 points in the iOS 27 UI Kit.
+    static let tabBarTitleFont = Font.system(size: 10, weight: .semibold)
 }

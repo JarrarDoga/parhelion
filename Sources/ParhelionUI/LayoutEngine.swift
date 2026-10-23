@@ -206,7 +206,7 @@ struct LayoutEngine {
     /// Proposes `rect` to content and centers it there, as the root and a
     /// navigation stack do. Several views behave like an implicit vertical
     /// stack.
-    private func placeCentered(_ children: [ViewNode], id: NodeID, in rect: CGRect) -> [ViewNode] {
+    func placeCentered(_ children: [ViewNode], id: NodeID, in rect: CGRect) -> [ViewNode] {
         let content = Self.implicitStack(children, id: id)
         let size = sizeThatFits(content, ProposedSize(rect.size), parentAxis: nil)
         let origin = CGPoint(
@@ -328,8 +328,7 @@ struct LayoutEngine {
 
         case "Image":
             guard node.attributes["systemName"] != nil else { return .zero }
-            let scale = node.attributes["imageScale"].flatMap(Image.Scale.init) ?? .medium
-            let side = LayoutDefaults.symbolSide(for: scale)
+            let side = Image.symbolSide(of: node)
             return CGSize(width: side, height: side)
 
         case "Color":
@@ -353,7 +352,7 @@ struct LayoutEngine {
 
         case "VStack":
             return stackLayout(node, proposal, axis: .vertical).size
-        case "HStack":
+        case "HStack", "Label":
             return stackLayout(node, proposal, axis: .horizontal).size
         case "ScrollView", "List":
             // A scroll view takes the space it is offered, and its content's
@@ -380,6 +379,8 @@ struct LayoutEngine {
                 width: proposal.width ?? size.width,
                 height: proposal.height ?? size.height + barHeight
             )
+        case "TabView":
+            return tabViewSize(node, proposal)
         case "NavigationBar":
             let width = node.children.reduce(0) {
                 $0 + sizeThatFits($1, ProposedSize(width: nil, height: nil), parentAxis: nil).width
@@ -612,7 +613,7 @@ struct LayoutEngine {
         let proposal = ProposedSize(rect.size)
 
         switch node.kind {
-        case "VStack", "HStack":
+        case "VStack", "HStack", "Label":
             let axis: LayoutAxis = node.kind == "VStack" ? .vertical : .horizontal
             node.children = placeStack(node, in: rect, axis: axis)
         case "ScrollView", "List":
@@ -649,6 +650,8 @@ struct LayoutEngine {
             node.children =
                 (bar.map { [place($0, in: barRect, parentAxis: nil)] } ?? [])
                 + placeCentered(content, id: node.id, in: contentRect)
+        case "TabView":
+            node.children = placeTabView(node, in: rect)
         case "NavigationBar":
             node.children = placeNavigationBar(
                 node.children, in: rect, largeTitle: node.attributes["titleDisplayMode"] == "large",
@@ -760,7 +763,8 @@ struct LayoutEngine {
     /// button or link whose label is one.
     static func isSymbolItem(_ node: ViewNode) -> Bool {
         func isSymbol(_ node: ViewNode) -> Bool {
-            node.kind == "Image" && node.attributes["systemName"] != nil
+            if node.kind == "Label", node.children.count == 1 { return isSymbol(node.children[0]) }
+            return node.kind == "Image" && node.attributes["systemName"] != nil
         }
         if node.kind == "Button" || node.kind == "NavigationLink" {
             return node.children.count == 1 && isSymbol(node.children[0])
@@ -896,9 +900,13 @@ struct LayoutEngine {
             scrollContentProposal(node, ProposedSize(rect.size)),
             parentAxis: nil
         )
+        // Content that scrolls under a bar floating over the bottom of the
+        // scroll view, such as the tab bar, can scroll up above the bar.
+        let bottomInset =
+            axis == .vertical ? max(rect.maxY - (scrolling.obscuredBottom ?? rect.maxY), 0) : 0
         let maxOffset = CGPoint(
             x: max(contentSize.width - rect.width, 0),
-            y: max(contentSize.height - rect.height, 0)
+            y: max(contentSize.height + bottomInset - rect.height, 0)
         )
         let requested = scrolling.offsets[node.id] ?? .zero
         let offset = CGPoint(
@@ -908,7 +916,8 @@ struct LayoutEngine {
         scrolling.metrics[node.id] = ScrollMetrics(
             viewport: rect,
             contentSize: contentSize,
-            offset: offset
+            offset: offset,
+            bottomInset: bottomInset
         )
         node.attributes["contentSize"] =
             "\(formatPoints(contentSize.width)) × \(formatPoints(contentSize.height))"
@@ -1007,12 +1016,15 @@ struct ScrollMetrics: Equatable {
     var contentSize: CGSize
     /// How far the content is scrolled, clamped to the content.
     var offset: CGPoint
+    /// Extra room below the content, for a bar that floats over the bottom
+    /// of the scroll view.
+    var bottomInset: CGFloat = 0
 
     /// The largest offset on each axis.
     var maxOffset: CGPoint {
         CGPoint(
             x: max(contentSize.width - viewport.width, 0),
-            y: max(contentSize.height - viewport.height, 0)
+            y: max(contentSize.height + bottomInset - viewport.height, 0)
         )
     }
 }
@@ -1027,4 +1039,7 @@ final class ScrollLayout {
     /// sheet's identifier.
     var presentationOffsets: [NodeID: CGFloat] = [:]
     var metrics: [NodeID: ScrollMetrics] = [:]
+    /// The top of a bar that floats over the scroll views being placed, such
+    /// as the tab bar, in screen points.
+    var obscuredBottom: CGFloat?
 }

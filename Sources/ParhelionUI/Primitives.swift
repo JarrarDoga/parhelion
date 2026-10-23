@@ -67,11 +67,13 @@ public struct Image: View, Equatable, Sendable {
 
 extension Image: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
-        let attributes: [String: String] =
-            switch source {
-            case .named(let name): ["name": name]
-            case .systemName(let name): ["systemName": name]
-            }
+        var attributes: [String: String]
+        switch source {
+        case .named(let name):
+            attributes = ["name": name]
+        case .systemName(let name):
+            attributes = symbolAttributes(name, in: evaluator.environment)
+        }
         return [ViewNode(id: path.appending("Image").id, kind: "Image", attributes: attributes)]
     }
 }

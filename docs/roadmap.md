@@ -114,6 +114,6 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [ ] Letter spacing, to bring Inter's widths closer to San Francisco's
 - [ ] CI on macOS and on Linux arm64
 - [ ] Verify each constant in `LayoutDefaults.swift` against Apple's SwiftUI
-- [ ] Symbol images: substitute an open-source icon set for SF Symbols
+- [x] Symbol images: substitute an open-source icon set for SF Symbols
 - [ ] A macOS CI job that resolves the same views with Apple's SwiftUI and compares the trees
 - [ ] Layout comparison against Apple's SwiftUI for the supported views

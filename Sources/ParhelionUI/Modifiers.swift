@@ -175,8 +175,8 @@ extension View {
         attributeModifier("foregroundStyle", style.styleName)
     }
 
-    /// Sets the relative size of symbol images.
+    /// Sets the relative size of symbol images in this view and its content.
     public func imageScale(_ scale: Image.Scale) -> some View {
-        attributeModifier("imageScale", scale.rawValue)
+        environment(\.imageScale, scale)
     }
 }

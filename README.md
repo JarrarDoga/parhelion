@@ -87,6 +87,18 @@ through the app with `ViewHost`:
   <img src="docs/images/tasks-sheet.png" alt="The New task sheet: Cancel on a glass capsule and a blue Add button above a title field." width="190">
 </p>
 
+The `Tabs` example shows iOS 27's floating glass tab bar, with three tabs and a search tab that
+each keep their own navigation stack, and symbol images drawn with
+[Phosphor Icons](https://phosphoricons.com). Its images come from
+`PARHELION_README_IMAGES=docs/images swift test --filter writeTabsReadmeImages`:
+
+<p align="center">
+  <img src="docs/images/tabs-places.png" alt="The Places tab: a list of places, each with a Phosphor symbol, scrolling under a glass tab bar with Places selected and a separate search circle." width="190">
+  <img src="docs/images/tabs-place.png" alt="The Café screen pushed in the Places tab: a large blue cup symbol, a visit count, and a Visit button above the tab bar." width="190">
+  <img src="docs/images/tabs-settings.png" alt="The Settings tab: grouped rows labeled with bell, lock, sun, and person symbols, with Settings selected in the tab bar." width="190">
+  <img src="docs/images/tabs-search.png" alt="The search tab: a search field and matching places, with the search circle highlighted." width="190">
+</p>
+
 The bundled `HelloParhelion` example is the app that `xtool new` generates, copied without changes:
 
 ```console
@@ -187,16 +199,16 @@ works.
 
 | Area | Supported today |
 | --- | --- |
-| Views | `Text`, `Image`, `Button`, `TextField`, `VStack`, `HStack`, `ZStack`, `Spacer`, `Color`, `ScrollView`, `List`, `Section`, `ForEach`, `NavigationStack`, `NavigationLink`, `EmptyView`; sheets, full-screen covers, and alerts |
+| Views | `Text`, `Image`, `Label`, `Button`, `TextField`, `VStack`, `HStack`, `ZStack`, `Spacer`, `Color`, `ScrollView`, `List`, `Section`, `ForEach`, `NavigationStack`, `NavigationLink`, `TabView` and `Tab`, `EmptyView`; sheets, full-screen covers, and alerts |
 | Builders | Multiple children, `if`/`else`, optional content |
 | State | `@State` and `@Binding`, with SwiftUI's structural identity and lifetime rules; `@Environment` with `dismiss`, `isPresented`, and custom keys |
-| Modifiers | `padding`, `frame` (fixed and flexible), `background`, `foregroundStyle`, `font`, `fontWeight`, `bold`, `imageScale`, `listStyle`, `navigationTitle`, `navigationBarTitleDisplayMode`, `navigationDestination`, `toolbar`, `opacity`, `offset`, `animation`, `transition`, and `Color.opacity` |
+| Modifiers | `padding`, `frame` (fixed and flexible), `background`, `foregroundStyle`, `font`, `fontWeight`, `bold`, `imageScale`, `labelStyle`, `tabItem`, `listStyle`, `navigationTitle`, `navigationBarTitleDisplayMode`, `navigationDestination`, `toolbar`, `opacity`, `offset`, `animation`, `transition`, and `Color.opacity` |
 | Animation | `withAnimation` and `animation(_:value:)` with timing curves and springs on a deterministic clock; opacity, move, slide, offset, and push transitions; animated navigation and presentations |
 | Layout | SwiftUI's propose-and-respond stack algorithm, iOS text styles and text wrapping with the bundled Inter font in four weights, large and inline navigation titles, the screens and safe areas of nine iPhones from iPhone 16 to iPhone 17 Pro Max |
 | Input | Tap by node, by button label, or by screen position; press, drag away to cancel, and release with the mouse; scroll by dragging with momentum, or with the mouse wheel and trackpad; type into text fields, with the caret keys, Backspace, Delete, and Tab between fields |
 | Window | `parhelion run` with hot reload that keeps `Codable` state, and `parhelion preview`; an SDL3 window host for Wayland and X11 that shows the screen in a phone bezel |
 | Agents | `parhelion mcp`, with or without a window |
-| Rendering | Anti-aliased shapes and Inter text drawn in pure Swift at any scale, with PNG output; iOS 27's system colors and inset grouped lists; the status bar, Dynamic Island or notch, home indicator, and rounded screen corners; SF Symbols draw as placeholder rings |
+| Rendering | Anti-aliased shapes and Inter text drawn in pure Swift at any scale, with PNG output; iOS 27's system colors and inset grouped lists; the status bar, Dynamic Island or notch, home indicator, and rounded screen corners; the floating glass tab bar; SF Symbol names drawn with Phosphor Icons, and other names as placeholder rings |
 | App | `App`, `Scene`, `WindowGroup`, with a headless runner |
 
 Not yet available: text selection, letter spacing, iOS 27's Liquid Glass toolbar buttons, alerts,
