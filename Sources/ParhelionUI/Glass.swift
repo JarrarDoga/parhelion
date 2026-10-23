@@ -12,16 +12,16 @@ import Foundation
 /// that out: in a flat screenshot, glass reads as glass mostly from its
 /// shape, its shadow, and its edges. The materials Parhelion uses are in
 /// ``ColorPalette``.
-struct GlassMaterial: Equatable {
+struct GlassMaterial: Hashable {
     /// A blurred drop shadow under the glass.
-    struct Shadow: Equatable {
+    struct Shadow: Hashable {
         var color: RGBA
         var offset: CGFloat
         var blur: Double
     }
 
     /// One layer of the glass's tint, blended over the blurred backdrop.
-    struct TintLayer: Equatable {
+    struct TintLayer: Hashable {
         var color: RGBA
         var blendMode: Canvas.BlendMode
     }
@@ -133,6 +133,40 @@ extension Canvas {
                 rect, cornerRadius: cornerRadius, style: style, lineWidth: material.rimWidth,
                 alignment: .outside, color: faded(material.rim))
         }
+    }
+
+    /// Every pixel that `drawGlass` can read or change for the same
+    /// rectangle, material, and tint, within the canvas: the shadow and its
+    /// reach, the pixels the blur and the flat-backdrop check read, and the
+    /// ring outside the edge. Whatever the clip, the glass's pixels depend
+    /// only on the pixels here before it is drawn, so they can be reused
+    /// when those are unchanged.
+    func glassRegion(_ rect: CGRect, material: GlassMaterial, tint: RGBA?) -> PixelBox {
+        func box(_ rect: CGRect, padding: Int) -> PixelBox {
+            PixelBox(
+                minX: Int((Double(rect.minX) * scale).rounded(.down)) - padding,
+                minY: Int((Double(rect.minY) * scale).rounded(.down)) - padding,
+                maxX: Int((Double(rect.maxX) * scale).rounded(.up)) + padding,
+                maxY: Int((Double(rect.maxY) * scale).rounded(.up)) + padding)
+        }
+        // A pixel more on every side covers rounding.
+        var outset = material.rimWidth
+        if tint == nil { outset = max(outset, CGFloat(material.blurRadius * 1.5)) }
+        var region = box(rect.insetBy(dx: -outset, dy: -outset), padding: 1)
+        region = region.union(
+            box(
+                rect.offsetBy(dx: 0, dy: material.shadow.offset),
+                padding: Canvas.shadowReach(blur: material.shadow.blur, scale: scale) + 1))
+        if tint == nil, material.blurRadius > 0 {
+            region = region.union(
+                box(rect, padding: Canvas.blurReach(radius: material.blurRadius, scale: scale) + 1))
+        }
+        // The pixel whose color a flat backdrop takes, which is inside the
+        // canvas even when the rectangle is not.
+        let x = min(max(Int(Double(rect.midX) * scale), 0), width - 1)
+        let y = min(max(Int(Double(rect.midY) * scale), 0), height - 1)
+        region = region.union(PixelBox(minX: x, minY: y, maxX: x + 1, maxY: y + 1))
+        return region.intersection(bounds)
     }
 
     /// Whether every pixel in a rectangle given in points, within the canvas

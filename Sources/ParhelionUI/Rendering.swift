@@ -39,7 +39,8 @@ extension ViewHost {
             device: device,
             pressedNodeID: pressedNodeID,
             focusedNodeID: focusedNodeID,
-            caretOffset: caretOffset
+            caretOffset: caretOffset,
+            cache: renderCache
         )
         var overlay: CanvasOverlay?
         if chrome != .none {
@@ -66,18 +67,138 @@ struct TreeRenderer {
     /// The text field being edited, which draws a caret.
     var focusedNodeID: NodeID?
     var caretOffset = 0
+    /// Drawing kept from earlier frames, or `nil` to draw everything.
+    var cache: RenderCache?
 
     func render(_ root: ViewNode, scale: Double, chrome: CanvasOverlay? = nil) -> Canvas {
-        var canvas = Canvas(
+        cache?.beginFrame()
+        let front = root.children.lastIndex { $0.isPresentation }
+        defer { cache?.endFrame(presenting: front != nil) }
+        var canvas: Canvas
+        // The root draws nothing of its own, so its children can be drawn
+        // one at a time: those beneath the frontmost presentation, which
+        // the cache can keep, and the rest.
+        if root.kind == "Root", root.modifiers.isEmpty, root.frame != nil {
+            let inherited = Inherited(
+                foreground: root.attributes["foregroundStyle"], tint: root.attributes["tint"],
+                opacity: root.opacity)
+            var backdropGeneration: Int?
+            var rest = root.children[...]
+            if let cache, let front {
+                (canvas, backdropGeneration) = backdrop(
+                    root.children[..<front], inherited: inherited, scale: scale, cache: cache)
+                rest = root.children[front...]
+            } else {
+                canvas = blankCanvas(scale: scale)
+            }
+            for child in rest {
+                drawChildOfRoot(
+                    child, inherited: inherited, over: backdropGeneration, into: &canvas)
+                backdropGeneration = nil
+            }
+        } else {
+            canvas = blankCanvas(scale: scale)
+            draw(root, inherited: Inherited(), into: &canvas)
+        }
+        // The system interface is above everything the app presents.
+        if let chrome { canvas.draw(chrome) }
+        return canvas
+    }
+
+    private func blankCanvas(scale: Double) -> Canvas {
+        Canvas(
             width: Double(device.screenSize.width),
             height: Double(device.screenSize.height),
             scale: scale,
             background: ColorPalette.background
         )
-        draw(root, inherited: Inherited(), into: &canvas)
-        // The system interface is above everything the app presents.
-        if let chrome { canvas.draw(chrome) }
-        return canvas
+    }
+
+    /// The screen beneath the frontmost presentation, from the cache when
+    /// nothing in it changed, and the generation of the cached backdrop.
+    private func backdrop(
+        _ nodes: ArraySlice<ViewNode>, inherited: Inherited, scale: Double, cache: RenderCache
+    ) -> (Canvas, Int) {
+        func contains(_ id: NodeID?) -> Bool {
+            guard let id else { return false }
+            return nodes.contains { $0.node(withID: id) != nil }
+        }
+        let isFocused = contains(focusedNodeID)
+        let key = RenderCache.BackdropKey(
+            scale: scale, device: device, nodes: Array(nodes),
+            pressedNodeID: contains(pressedNodeID) ? pressedNodeID : nil,
+            focusedNodeID: isFocused ? focusedNodeID : nil, caretOffset: isFocused ? caretOffset : 0
+        )
+        if let kept = cache.backdrop, kept.key == key {
+            return (kept.canvas, kept.generation)
+        }
+        var canvas = blankCanvas(scale: scale)
+        for node in nodes {
+            drawChildOfRoot(node, inherited: inherited, over: nil, into: &canvas)
+        }
+        return (canvas, cache.keepBackdrop(canvas, key: key))
+    }
+
+    /// Draws one of the root's children. A presentation that is fading in
+    /// or out draws as one group, as Core Animation fades a layer: at full
+    /// opacity, then blended over what is beneath it with its opacity.
+    /// Fading each part on its own would show the blur of its glass at full
+    /// strength from the first frame of the fade. When the presentation is
+    /// drawn straight over the cached backdrop, whose generation is given,
+    /// the cache keeps it at full opacity, so each frame of the fade is one
+    /// blend, and the frame where it reaches full opacity is the layer.
+    private func drawChildOfRoot(
+        _ node: ViewNode, inherited: Inherited, over backdropGeneration: Int?,
+        into canvas: inout Canvas
+    ) {
+        guard node.isPresentation, node.frame != nil else {
+            draw(node, inherited: inherited, into: &canvas)
+            return
+        }
+        let opacity = inherited.opacity * node.opacity
+        var opaque = node
+        opaque.attributes["opacity"] = nil
+        let key = backdropGeneration.map {
+            RenderCache.LayerKey(
+                backdropGeneration: $0, node: opaque, pressedNodeID: pressedNodeID,
+                focusedNodeID: focusedNodeID, caretOffset: caretOffset)
+        }
+        guard opacity < 1 else {
+            if let cache, let key, let kept = cache.layer(for: key) {
+                canvas = kept
+            } else {
+                draw(node, inherited: inherited, into: &canvas)
+            }
+            return
+        }
+        var layer: Canvas
+        if let cache, let key, let kept = cache.layer(for: key) {
+            layer = kept
+        } else {
+            var full = inherited
+            full.opacity = 1
+            layer = canvas
+            draw(opaque, inherited: full, into: &layer)
+            if let cache, let key { cache.keepLayer(layer, key: key) }
+        }
+        canvas = Canvas(blending: layer, over: canvas, opacity: opacity)
+    }
+
+    /// Draws glass, or copies it from an earlier frame through the cache.
+    private func drawGlass(
+        _ rect: CGRect, cornerRadius: CGFloat, style: Path.CornerStyle = .circular,
+        material: GlassMaterial, tint: RGBA? = nil, opacity: Double = 1,
+        into canvas: inout Canvas
+    ) {
+        if let cache {
+            cache.drawGlass(
+                rect, cornerRadius: cornerRadius, style: style, material: material, tint: tint,
+                opacity: opacity, into: &canvas)
+        } else {
+            canvas.drawGlass(
+                rect, cornerRadius: cornerRadius, style: style, material: material, tint: tint,
+                opacity: opacity)
+        }
     }
 
     /// What a node inherits from its ancestors when it is drawn.
@@ -178,14 +299,14 @@ struct TreeRenderer {
             let radius = min(frame.width, frame.height) / 2
             if node.attributes["glass"] == "prominent" {
                 let fill = node.children.first?.attributes["tint"] ?? tint ?? "tint"
-                canvas.drawGlass(
+                drawGlass(
                     frame, cornerRadius: radius, material: ColorPalette.prominentGlass,
-                    tint: ColorPalette.color(named: fill), opacity: opacity)
+                    tint: ColorPalette.color(named: fill), opacity: opacity, into: &canvas)
                 foreground = node.attributes["foregroundStyle"] ?? "white"
             } else {
-                canvas.drawGlass(
+                drawGlass(
                     frame, cornerRadius: radius, material: ColorPalette.smallGlass,
-                    opacity: opacity)
+                    opacity: opacity, into: &canvas)
                 foreground = node.attributes["foregroundStyle"] ?? ColorPalette.glassLabelStyle
             }
             container = .toolbarGroup
@@ -259,8 +380,9 @@ struct TreeRenderer {
         switch container {
         case .navigationBar where node.id.rawValue.hasSuffix("/bar/back"):
             // The back button is a glass circle.
-            canvas.drawGlass(
-                frame, cornerRadius: radius, material: ColorPalette.smallGlass, opacity: opacity)
+            drawGlass(
+                frame, cornerRadius: radius, material: ColorPalette.smallGlass, opacity: opacity,
+                into: &canvas)
             return own ?? ColorPalette.glassLabelStyle
         case .toolbarGroup:
             // The group draws the glass. An explicit tint colors the label.
@@ -285,14 +407,15 @@ struct TreeRenderer {
             canvas.fill(frame, cornerRadius: radius, color: paint(accent))
             return own ?? "white"
         case .glass:
-            canvas.drawGlass(
-                frame, cornerRadius: radius, material: ColorPalette.smallGlass, opacity: opacity)
+            drawGlass(
+                frame, cornerRadius: radius, material: ColorPalette.smallGlass, opacity: opacity,
+                into: &canvas)
             return own ?? (isDestructive ? "red" : ColorPalette.glassLabelStyle)
         case .glassProminent:
-            canvas.drawGlass(
+            drawGlass(
                 frame, cornerRadius: radius, material: ColorPalette.prominentGlass,
                 tint: ColorPalette.color(named: isDestructive ? "red" : tint ?? "tint"),
-                opacity: opacity)
+                opacity: opacity, into: &canvas)
             return own ?? "white"
         case .plain:
             // Assumed: a plain button's label keeps the foreground style
@@ -463,9 +586,9 @@ struct TreeRenderer {
     ) {
         let screen = CGRect(origin: .zero, size: device.screenSize)
         canvas.fill(screen, color: paint(ColorPalette.alertDim))
-        canvas.drawGlass(
+        drawGlass(
             frame, cornerRadius: LayoutDefaults.alertCornerRadius, style: .continuous,
-            material: ColorPalette.largeGlass, opacity: opacity)
+            material: ColorPalette.largeGlass, opacity: opacity, into: &canvas)
     }
 
     /// Draws the dimmed screen behind a sheet, and the sheet: opaque with
@@ -484,9 +607,9 @@ struct TreeRenderer {
         canvas.fill(screen, color: paint(dim))
 
         if frame.minX > 0.5 {
-            canvas.drawGlass(
+            drawGlass(
                 frame, cornerRadius: LayoutDefaults.partialSheetCornerRadius, style: .continuous,
-                material: ColorPalette.partialSheetGlass, opacity: opacity)
+                material: ColorPalette.partialSheetGlass, opacity: opacity, into: &canvas)
         } else {
             let radius = LayoutDefaults.sheetCornerRadius
             let shadow = ColorPalette.sheetShadow

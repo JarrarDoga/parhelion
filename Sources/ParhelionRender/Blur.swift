@@ -558,13 +558,37 @@ extension Canvas {
 
 /// A rectangle of pixels, from `(minX, minY)` up to, not including,
 /// `(maxX, maxY)`.
-struct PixelBox {
-    var minX: Int
-    var minY: Int
-    var maxX: Int
-    var maxY: Int
+package struct PixelBox: Hashable, Sendable {
+    package var minX: Int
+    package var minY: Int
+    package var maxX: Int
+    package var maxY: Int
 
-    var isEmpty: Bool { maxX <= minX || maxY <= minY }
+    package init(minX: Int, minY: Int, maxX: Int, maxY: Int) {
+        self.minX = minX
+        self.minY = minY
+        self.maxX = maxX
+        self.maxY = maxY
+    }
+
+    package var isEmpty: Bool { maxX <= minX || maxY <= minY }
+
+    /// The number of pixels in the box.
+    package var area: Int { isEmpty ? 0 : (maxX - minX) * (maxY - minY) }
+
+    /// The smallest box that contains both boxes.
+    package func union(_ other: PixelBox) -> PixelBox {
+        PixelBox(
+            minX: min(minX, other.minX), minY: min(minY, other.minY),
+            maxX: max(maxX, other.maxX), maxY: max(maxY, other.maxY))
+    }
+
+    /// The pixels in both boxes.
+    package func intersection(_ other: PixelBox) -> PixelBox {
+        PixelBox(
+            minX: max(minX, other.minX), minY: max(minY, other.minY),
+            maxX: min(maxX, other.maxX), maxY: min(maxY, other.maxY))
+    }
 }
 
 /// A shape's coverage of the pixels in a box, for blurs and for cutting
