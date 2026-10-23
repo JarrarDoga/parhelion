@@ -70,6 +70,9 @@ public final class ViewHost {
     var navigationChanges: [NodeID: NavigationDirection] = [:]
     private var presentedCache: ViewNode?
     private var hasLaidOut = false
+    private let observation = ObservationScope()
+    /// Lifecycle actions and `task` work. See HostTasks.swift.
+    let lifecycle = ViewLifecycle()
 
     /// Whether a state change is waiting for the next ``update()``.
     public private(set) var needsUpdate = false
@@ -128,6 +131,7 @@ public final class ViewHost {
         self.layoutEngine = LayoutEngine(device: device, scrolling: scrolling)
         pendingState = snapshot.flatMap(Self.decodeSnapshot) ?? [:]
         evaluate()
+        update()
     }
 
     init(
@@ -140,6 +144,7 @@ public final class ViewHost {
         self.layoutEngine = LayoutEngine(device: device, scrolling: scrolling)
         pendingState = snapshot.flatMap(Self.decodeSnapshot) ?? [:]
         evaluate()
+        update()
     }
 
     // MARK: - State snapshots
@@ -173,10 +178,34 @@ public final class ViewHost {
     }
 
     /// Resolves the tree again if any state changed since the last update.
+    ///
+    /// Every method that delivers input calls it first, so that input
+    /// reaches the views on screen now, not those of an earlier update,
+    /// even when a task or another thread changed state since.
+    ///
+    /// The actions of `onAppear`, `onChange(of:)`, and other modifiers run
+    /// after the tree is resolved, and when they change state, the tree is
+    /// resolved again, up to ``maximumUpdatePasses`` times.
     public func update() {
-        guard needsUpdate else { return }
-        evaluate()
+        var passes = 0
+        while needsUpdate {
+            guard passes < Self.maximumUpdatePasses else {
+                // Left waiting, the change would make a preview session
+                // update again on every turn of its loop.
+                needsUpdate = false
+                lifecycle.warnAboutEndlessUpdates(after: passes)
+                return
+            }
+            evaluate()
+            passes += 1
+        }
     }
+
+    /// How many times one ``update()`` resolves the tree. If state is still
+    /// changing then, as when an `onChange(of:)` action changes the value it
+    /// watches, the host writes a warning and stops until the next change,
+    /// so that such views cannot hang the host or keep it busy.
+    public static let maximumUpdatePasses = 64
 
     /// The part of the tree that receives input: the frontmost sheet or
     /// alert, or the whole tree when nothing is presented.
@@ -186,6 +215,7 @@ public final class ViewHost {
 
     /// Taps the node with the given identifier, then updates the tree.
     public func tap(_ id: NodeID) throws(InteractionError) {
+        update()
         guard root.node(withID: id) != nil else { throw .nodeNotFound(id) }
         guard interactiveRoot.node(withID: id) != nil else { throw .covered(id) }
         guard let action = actions[id] else { throw .notTappable(id) }
@@ -200,6 +230,7 @@ public final class ViewHost {
     /// children are in front of their parents. A tap on a slider's track
     /// moves its knob there.
     public func tap(at point: CGPoint) throws(InteractionError) {
+        update()
         if tapSlider(at: point) { return }
         guard let target = frontmostTappableNode(at: point, in: interactiveRoot) else {
             throw .nothingTappable(at: point)
@@ -240,6 +271,7 @@ public final class ViewHost {
     /// Starts a press at a point on the screen. A press stops any scroll
     /// momentum, as touching a scrolling list does on iOS.
     public func pointerDown(at point: CGPoint) {
+        update()
         momentum.removeAll()
         // A press on a slider takes its knob, before it can become a scroll.
         let button =
@@ -263,6 +295,7 @@ public final class ViewHost {
     /// turns into a scroll: the button press is cancelled and the content
     /// follows the pointer.
     public func pointerMoved(to point: CGPoint) {
+        update()
         guard var press else { return }
         defer {
             press.last = point
@@ -309,6 +342,7 @@ public final class ViewHost {
     ///   did not tap anything.
     @discardableResult
     public func pointerUp(at point: CGPoint) -> NodeID? {
+        update()
         guard let press else { return nil }
         self.press = nil
         pressedNodeID = nil
@@ -375,6 +409,7 @@ public final class ViewHost {
     /// Focuses a text field and puts the caret at the end of its text, or
     /// ends editing when `id` is `nil`.
     public func focus(_ id: NodeID?) throws(InteractionError) {
+        update()
         guard let id else {
             focusedNodeID = nil
             return
@@ -389,6 +424,7 @@ public final class ViewHost {
     /// Inserts text at the caret of the focused field, then updates the
     /// tree. Does nothing if no field is focused.
     public func typeText(_ text: String) {
+        update()
         guard let id = focusedNodeID, let field = textFields[id] else { return }
         var value = field.wrappedValue
         let index = value.index(value.startIndex, offsetBy: min(caretOffset, value.count))
@@ -400,6 +436,7 @@ public final class ViewHost {
 
     /// Applies an editing or focus key.
     public func press(_ key: Key) {
+        update()
         switch key {
         case .tab, .backTab:
             moveFocus(forward: key == .tab)
@@ -483,6 +520,7 @@ public final class ViewHost {
     /// - Returns: Whether anything scrolled.
     @discardableResult
     public func scroll(by delta: CGSize, at point: CGPoint) -> Bool {
+        update()
         guard let scrollView = innermostScrollView(at: point, along: delta, requireRoom: true)
         else { return false }
         momentum[scrollView] = nil
@@ -492,6 +530,7 @@ public final class ViewHost {
 
     /// Scrolls a scroll view to an offset, clamped to its content.
     public func scroll(_ id: NodeID, to offset: CGPoint) throws(InteractionError) {
+        update()
         guard scrolling.metrics[id] != nil else {
             throw root.node(withID: id) == nil ? .nodeNotFound(id) : .notScrollable(id)
         }
@@ -639,6 +678,7 @@ public final class ViewHost {
     /// `Decrement`, or a picker's option. Only the frontmost sheet, alert, or
     /// menu is searched while one is presented.
     public func tapButton(labeled label: String) throws(InteractionError) {
+        update()
         let matches = interactiveRoot.allNodes.filter {
             actions[$0.id] != nil && $0.label == label
         }
@@ -713,15 +753,20 @@ public final class ViewHost {
         visitedNavigationStacks = []
         visitedAnimationKeys = []
         let evaluator = Evaluator(host: self)
-        var children = evaluator.evaluate(rootView, at: ViewPath())
-        // Presented content can present more, so the list grows as it goes.
-        var index = 0
         var presented: [NodeID: Presentation] = [:]
-        while index < evaluator.presentations.count {
-            let presentation = evaluator.presentations[index]
-            children.append(presentation.makeNode(evaluator))
-            presented[presentation.id] = presentation
-            index += 1
+        // A change to an observable property that a view reads marks the
+        // host as needing an update.
+        let children = observation.track(for: self) {
+            var children = evaluator.evaluate(rootView, at: ViewPath())
+            // Presented content can present more, so the list grows as it goes.
+            var index = 0
+            while index < evaluator.presentations.count {
+                let presentation = evaluator.presentations[index]
+                children.append(presentation.makeNode(evaluator))
+                presented[presentation.id] = presentation
+                index += 1
+            }
+            return children
         }
         resolvedRoot = ViewNode(id: "", kind: "Root", children: children)
         actions = evaluator.actions
@@ -749,12 +794,9 @@ public final class ViewHost {
         storage = storage.filter { visitedKeys.contains($0.key) }
         navigationState = navigationState.filter { visitedNavigationStacks.contains($0.key) }
 
+        lifecycle.apply(evaluator.lifecycle, to: resolvedRoot)
         // A dismissed sheet's onDismiss runs after it leaves the tree.
-        let callbacks = dismissed.compactMap(\.onDismiss)
-        if !callbacks.isEmpty {
-            callbacks.forEach { $0() }
-            update()
-        }
+        dismissed.compactMap(\.onDismiss).forEach { $0() }
     }
 
     /// Lays out the evaluated tree again, for example after scrolling.

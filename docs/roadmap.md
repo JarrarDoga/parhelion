@@ -10,9 +10,9 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [x] `padding`, `foregroundStyle`, and `imageScale`
 - [x] `App`, `Scene`, `WindowGroup`, and a headless runner
 - [x] `import SwiftUI` source compatibility on Linux
-- [ ] `@Environment` and the environment values that modifiers read
+- [x] `@Environment` and the environment values that modifiers read
 - [x] `ForEach`
-- [ ] `Group` and `AnyView`
+- [x] `Group` and `AnyView`
 - [x] `font`, `bold`, `frame`, and `background` modifiers
 - [ ] API documentation with DocC
 

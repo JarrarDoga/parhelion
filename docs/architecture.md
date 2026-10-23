@@ -85,7 +85,40 @@ Writing to a `State` marks the host as needing an update. `ViewHost.tap` runs th
 then updates, so a test or an agent always observes a consistent tree.
 
 `@Binding` is a pair of get and set closures. `$value` on a `State` produces a binding that
-writes through to the host-owned storage.
+writes through to the host-owned storage. `$value.name` is a binding to one property, and a
+binding to a mutable collection is a collection of bindings to its elements, which is how
+`ForEach($items) { $item in ... }` hands each row its element. A binding to an `Identifiable`
+element, or one from `ForEach` with an `id` key path, finds its element by identifier on every
+read and write, so a row's binding stays with its element when earlier elements are inserted or
+removed; other element bindings follow their position. Once its element is gone, a binding
+returns the last value it read or wrote, and writes to it do nothing.
+
+An app's own `@State` belongs to the host too. The root of the tree is the app, which installs
+its dynamic properties under the app's type name, such as `LibraryApp._library`, and evaluates
+the first window's content in its place.
+
+### Observation
+
+`@Observable` models use the Swift toolchain's Observation module; `import SwiftUI` re-exports it,
+and Foundation, as Apple's SwiftUI makes both available.
+Each evaluation of the tree runs inside `withObservationTracking`, which records every
+observable property that a `body`, a binding, or presented content reads. The first change to any
+of them marks the host as needing an update, the same way a `State` write does, so `@State`
+holding a model, `@Bindable`, and models in the environment all invalidate the same way.
+
+- Observation calls back before the change, on the thread that makes it. On the main actor the
+  host is marked at once, so a change inside `withAnimation` animates. From another thread the
+  mark waits for the main queue.
+- Tracking ends with the first change, and each evaluation tracks again. Observation starts
+  watching only after an evaluation returns, so the previous evaluation's tracking stays active
+  until then, and a change that another thread makes during an evaluation, to a property the
+  previous one read too, is not lost. A property that an evaluation reads for the first time and
+  another thread changes before the evaluation returns is missed until the next update.
+- After an evaluation is tracked, the host changes a private observable value that the previous
+  evaluation read, which ends the previous tracking even when only `@State` changed, so
+  trackings never pile up in a model.
+- A view does not track its own reads, and the host does not re-evaluate only the views whose
+  properties changed: evaluation is still a full pass.
 
 ### The view tree
 
@@ -344,6 +377,35 @@ the evaluator installs a view's dynamic properties. Presented content and pushed
 `isPresented` and a `dismiss` action that sets their binding back or pops them. Other built-in
 values arrive with the modifiers that read them.
 
+`environment(_:)` places an observable object in the environment by its type, and
+`@Environment(Model.self)` reads it; reading one that no view above placed stops the app, as in
+SwiftUI. The values that views commonly read describe the simulated iPhone: `colorScheme` is
+`light`, `dynamicTypeSize` is `large`, the size classes are compact across and regular down, and
+`locale` is US English.
+
+### Lifecycle and tasks
+
+`onAppear`, `onDisappear`, `onChange(of:)`, and `task` record themselves with the evaluator as
+they are evaluated, outermost first, keyed by structural position and their order there. After
+each update, the host compares the records with the last update's:
+
+- A view is on screen when one of the nodes it resolved to is in the tree. Screens beneath the
+  top of a navigation stack are evaluated but not in the tree, so a push makes the screen beneath
+  disappear, and a pop makes it appear again.
+- The host cancels the tasks of views that left, starts the tasks of views that arrived, and
+  restarts a `task(id:)` whose id changed. Then it runs `onDisappear`, `onAppear`, and
+  `onChange` actions, in that order. Assumed: SwiftUI does not document this order.
+- An action that changes state starts another update, up to `ViewHost.maximumUpdatePasses` in a
+  row. If state is still changing then, as when an `onChange(of:)` action changes the value it
+  watches, the host writes one warning that names the actions of the last update, and stops
+  until the next change, so that a preview session does not update on every turn of its loop.
+- Tasks run on the main actor. Cancelling a task asks it to stop, as Swift's cancellation does;
+  a cancelled run keeps going until it returns, and its changes apply like any other, though
+  `@State` of a view that left went with the view. `pendingTaskCount` counts every run that
+  has not returned, cancelled or not, and `waitForTasks()` waits until there are none, updating
+  the tree as they change state, so no task changes state after it returns. Tests await it;
+  agents see the count in every reply.
+
 ### Animation
 
 `ViewHost.root` always holds final values: when a change animates, the tree, hit testing, and
@@ -424,6 +486,9 @@ renderer call for the kinds they do not handle themselves.
 screen position (`tap(at:)`). A tap at a position goes to the frontmost node with an action whose
 frame contains the point, or moves a slider's knob there. Every failure is a typed
 `InteractionError` that names the problem, so an agent can recover without parsing messages.
+Every method that delivers input, and every command from an agent, first updates the tree if
+state changed since the last update, so input reaches the views on screen now, even after a task
+or another thread changed state.
 
 ### The preview window
 
@@ -478,6 +543,14 @@ hosts from before a capability keep working with newer ones
   a `frameUpdate` message that names a slot, the damaged rectangle, whether the app is animating,
   and the tick it answers. The host uploads from the slot and sends `releaseSlot`. Without a free
   slot, the pixels travel in the message.
+
+**Main-actor work.** The app receives the host's messages on a background thread. Its main
+thread waits in the main run loop, so the main actor's work runs while nothing arrives: `task`
+actions, `Task`s that buttons start, and changes to models made on other threads. When that work
+changes state, the session updates and sends a frame, as it does after input, before it applies
+the next message. (A session that a
+test runs on the main actor cannot run the main queue from inside it, so it only waits for
+messages.)
 
 An app that is not welcomed sends plain frames and keeps its own schedule: 60 frames per second
 on a fixed grid, with the clock moved to the current time before each frame. A welcomed app
@@ -594,7 +667,8 @@ shows them in its title.
 4. If the build succeeds, it sends `close`. The app writes `ViewHost.stateSnapshot()` to the file
    named in `PARHELION_PREVIEW_STATE` and exits. The host starts the new build with the same
    variable, and the new `ViewHost` restores each `Codable` state whose structural position and
-   type still match. When the new app's first frame is on screen, the tool prints the time from
+   type still match. An `@Observable` model is kept the same way when it is `Codable` and is held
+   in `@State`, in a view or in the app; models elsewhere start over. When the new app's first frame is on screen, the tool prints the time from
    the change, split into build and restart.
 
 **Build mode.** A debug build compiles the app at `-Onone`, so an edit rebuilds incrementally in
@@ -628,6 +702,10 @@ input and output:
    with its state, as hot reload does. If the build fails, the old app keeps running and the
    tool result is the compiler errors, as plain text with paths to the app's own files.
 
+Every reply also says whether anything is animating and how many `task` actions are running.
+The `wait` tool returns as soon as both are done, or after the time the agent gave; when nothing
+was running to begin with, it waits the whole time, so untracked work has time to run.
+
 A failed tool call is a result with `isError`, so the model reads the message and tries again.
 Only malformed requests are JSON-RPC errors. With `--window`, the same app also appears in a
 preview window: the protocol moves to a background thread, SDL keeps the main thread, and
@@ -640,8 +718,8 @@ protocol can request frames and send input without a window.
 
 `App`, `Scene`, and `WindowGroup` mirror SwiftUI so an app's `@main` type compiles. Under
 Parhelion, `App.main()` runs a preview session when a window host started the app. Otherwise it
-runs headlessly: it resolves the first window and prints the tree, or writes it to a PNG file
-with `--png`.
+runs headlessly: it resolves the first window, lets `task` work finish for up to five seconds,
+and prints the tree, or writes it to a PNG file with `--png`.
 
 ## Planned layers
 

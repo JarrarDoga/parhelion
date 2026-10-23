@@ -47,6 +47,8 @@ final class Evaluator {
     var presentationDragIndicator = Visibility.automatic
     private(set) var actions: [NodeID: @MainActor () -> Void] = [:]
     private(set) var textFields: [NodeID: Binding<String>] = [:]
+    /// The lifecycle modifiers evaluated, for the host to act on.
+    let lifecycle = LifecycleRecord()
 
     init(host: ViewHost) {
         self.host = host
@@ -96,8 +98,10 @@ final class Evaluator {
         view.body
     }
 
-    private func installDynamicProperties(of view: any View, at path: ViewPath) {
-        for child in Mirror(reflecting: view).children {
+    /// Installs the dynamic properties of a view, or of an app, whose own
+    /// path is `path`.
+    func installDynamicProperties(of value: Any, at path: ViewPath) {
+        for child in Mirror(reflecting: value).children {
             if let property = child.value as? any EnvironmentInstallable {
                 property.install(environment)
                 continue

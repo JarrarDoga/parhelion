@@ -243,13 +243,20 @@ public struct PreviewReply: Codable, Equatable, Sendable {
     public var revision: Int
     /// Whether anything is still moving, such as scroll momentum.
     public var isAnimating: Bool
+    /// How many `task` actions of the views on screen have not finished, or
+    /// `nil` from an app built before replies reported them.
+    public var pendingTasks: Int?
 
-    public init(ok: Bool, message: String, png: Data? = nil, revision: Int, isAnimating: Bool) {
+    public init(
+        ok: Bool, message: String, png: Data? = nil, revision: Int, isAnimating: Bool,
+        pendingTasks: Int? = nil
+    ) {
         self.ok = ok
         self.message = message
         self.png = png
         self.revision = revision
         self.isAnimating = isAnimating
+        self.pendingTasks = pendingTasks
     }
 }
 

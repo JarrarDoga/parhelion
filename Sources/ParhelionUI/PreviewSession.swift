@@ -24,12 +24,21 @@ import ParhelionPreview
 ///
 /// With ``PreviewCapability/sharedFrames``, frames go into slots of a
 /// ``SharedFrameBuffer`` and only their slot numbers cross the socket.
+///
+/// Messages are received on a background thread. In an app, the main thread
+/// runs main-actor work while it waits for them, such as `task` actions and
+/// `Task`s that buttons start, and draws the changes that work makes.
 @MainActor
 final class PreviewSession {
     let host: ViewHost
     let channel: PreviewChannel
     let scale: Double
     let appName: String
+    /// Whether the session runs main-actor work while it waits, by running
+    /// the main run loop. That is possible only when the session itself is
+    /// not main-actor work, as in `App.main()`; a test that runs a session
+    /// leaves it off, and the session then only waits for messages.
+    let runsMainActorWork: Bool
 
     /// How many frames the shared memory holds: one the host is copying, one
     /// waiting for it, and one to draw the next frame into.
@@ -41,11 +50,15 @@ final class PreviewSession {
     /// draws on its own schedule instead.
     static let tickTimeout: UInt64 = 100_000_000
 
-    init(host: ViewHost, channel: PreviewChannel, scale: Double, appName: String) {
+    init(
+        host: ViewHost, channel: PreviewChannel, scale: Double, appName: String,
+        runsMainActorWork: Bool = false
+    ) {
         self.host = host
         self.channel = channel
         self.scale = scale
         self.appName = appName
+        self.runsMainActorWork = runsMainActorWork
     }
 
     /// The moment the app's clock shows.
@@ -88,16 +101,19 @@ final class PreviewSession {
                 )
             )
         )
+        let inbox = HostMessageInbox(channel: channel, wakesMainRunLoop: runsMainActorWork)
         try sendFrame(target: 0)
         while true {
-            let message: HostMessage?
+            let event: WaitResult
             do {
-                message = try channel.receiveHostMessage(timeout: waitTimeout())
+                event = try nextEvent(in: inbox, timeout: waitTimeout())
             } catch PreviewChannel.ChannelError.closed {
                 return
             }
             let now = PreviewClock.now()
-            guard let message else {
+            let message: HostMessage?
+            switch event {
+            case .timedOut:
                 // The session's own schedule: the host does not tick, or its
                 // ticks stopped arriving.
                 scheduleOwnFrame(after: now)
@@ -106,8 +122,14 @@ final class PreviewSession {
                     try sendFrame(target: 0)
                 }
                 continue
+            case .message(let received):
+                message = received
+            case .stateChanged:
+                // Main-actor work, such as a task, changed state. It is drawn
+                // like a change from input.
+                message = nil
             }
-            if case .tick = message {
+            if let message, case .tick = message {
                 guard try handle(message) else { return }
                 continue
             }
@@ -115,9 +137,42 @@ final class PreviewSession {
             // ticking, in which case the clock already shows the next frame.
             let ticking = hostIsTicking(at: now)
             if !ticking { host.advanceTime(by: timeline.advance(to: now)) }
-            guard try handle(message) else { return }
+            if let message {
+                guard try handle(message) else { return }
+            } else {
+                host.update()
+            }
             if host.revision != sentRevision, !ticking {
                 try sendFrame(target: 0)
+            }
+        }
+    }
+
+    /// What ended a wait for a message.
+    private enum WaitResult {
+        case message(HostMessage)
+        case timedOut
+        /// Main-actor work changed the host's state.
+        case stateChanged
+    }
+
+    /// Waits up to `timeout` seconds for the host's next message, or
+    /// forever when `timeout` is `nil`. Meanwhile it runs main-actor work if
+    /// the session does that, and stops waiting as soon as the work changes
+    /// state. A change of state comes before a message that is waiting, so
+    /// that the change is drawn and input reaches the views it made.
+    private func nextEvent(in inbox: HostMessageInbox, timeout: Double?) throws -> WaitResult {
+        let deadline = timeout.map { Date(timeIntervalSinceNow: $0) } ?? .distantFuture
+        while true {
+            if host.needsUpdate { return .stateChanged }
+            if let received = inbox.take() { return .message(try received.get()) }
+            guard Date() < deadline else { return .timedOut }
+            if runsMainActorWork {
+                // Returns after the main queue runs work, including the wake
+                // that the inbox sends with each message.
+                _ = RunLoop.main.run(mode: .default, before: deadline)
+            } else {
+                inbox.wait(until: timeout == nil ? nil : deadline)
             }
         }
     }
@@ -300,6 +355,65 @@ final class PreviewSession {
     }
 }
 
+/// The host's messages, received on a background thread so that the main
+/// thread can do other work while it waits for them. A channel may receive
+/// on one thread while it sends on another.
+final class HostMessageInbox: @unchecked Sendable {
+    private let condition = NSCondition()
+    private var received: [Result<HostMessage, any Error>] = []
+    private let wakesMainRunLoop: Bool
+
+    init(channel: PreviewChannel, wakesMainRunLoop: Bool) {
+        self.wakesMainRunLoop = wakesMainRunLoop
+        nonisolated(unsafe) let channel = channel
+        let thread = Thread { [self] in
+            while true {
+                do {
+                    guard let message = try channel.receiveHostMessage() else { continue }
+                    deliver(.success(message))
+                    if case .close = message { return }
+                } catch {
+                    deliver(.failure(error))
+                    return
+                }
+            }
+        }
+        thread.name = "Parhelion preview messages"
+        thread.start()
+    }
+
+    private func deliver(_ result: Result<HostMessage, any Error>) {
+        condition.lock()
+        received.append(result)
+        condition.signal()
+        condition.unlock()
+        // Wakes a main thread that waits in the run loop.
+        if wakesMainRunLoop { DispatchQueue.main.async {} }
+    }
+
+    /// The oldest message not taken yet, or the error that ended receiving.
+    func take() -> Result<HostMessage, any Error>? {
+        condition.lock()
+        defer { condition.unlock() }
+        return received.isEmpty ? nil : received.removeFirst()
+    }
+
+    /// Blocks until a message is waiting or `deadline`, if any, passes.
+    func wait(until deadline: Date?) {
+        condition.lock()
+        defer { condition.unlock() }
+        while received.isEmpty {
+            if let deadline {
+                if !condition.wait(until: deadline) { return }
+            } else {
+                // Not `wait(until: .distantFuture)`, which overflows when
+                // Foundation converts it to nanoseconds.
+                condition.wait()
+            }
+        }
+    }
+}
+
 /// Prints a trace line to standard error when `PARHELION_DEBUG` is set.
 private func debugLog(_ message: @autoclosure () -> String) {
     guard ProcessInfo.processInfo.environment["PARHELION_DEBUG"] != nil else { return }
@@ -326,7 +440,8 @@ extension PreviewSession {
                 host: ViewHost(anyRootView: content, device: device, restoring: savedState),
                 channel: channel,
                 scale: scale,
-                appName: appName
+                appName: appName,
+                runsMainActorWork: true
             )
             try session.run()
             channel.close()

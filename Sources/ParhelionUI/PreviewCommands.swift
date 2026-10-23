@@ -12,14 +12,18 @@ struct InspectionReport: Codable {
     var caretOffset: Int?
     var pressedNodeID: NodeID?
     var isAnimating: Bool
+    var pendingTasks: Int
 }
 
 extension ViewHost {
     /// Runs a tool's command and describes the result.
     func execute(_ command: PreviewCommand) -> PreviewReply {
+        // A command sees, and acts on, the views on screen now.
+        update()
         func reply(_ ok: Bool, _ message: String, png: Data? = nil) -> PreviewReply {
             PreviewReply(
-                ok: ok, message: message, png: png, revision: revision, isAnimating: isAnimating)
+                ok: ok, message: message, png: png, revision: revision, isAnimating: isAnimating,
+                pendingTasks: pendingTaskCount)
         }
         do {
             switch command {
@@ -123,6 +127,9 @@ extension ViewHost {
         var header = "revision \(revision)"
         if let focusedNodeID { header += " · editing \(focusedNodeID) at character \(caretOffset)" }
         if isAnimating { header += " · animating" }
+        if pendingTaskCount > 0 {
+            header += " · \(pendingTaskCount) task\(pendingTaskCount == 1 ? "" : "s") running"
+        }
         return header + "\n" + root.outline(includeIDs: true, includeFrames: true)
     }
 
@@ -133,7 +140,8 @@ extension ViewHost {
             focusedNodeID: focusedNodeID,
             caretOffset: focusedNodeID == nil ? nil : caretOffset,
             pressedNodeID: pressedNodeID,
-            isAnimating: isAnimating
+            isAnimating: isAnimating,
+            pendingTasks: pendingTaskCount
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]

@@ -1,3 +1,5 @@
+import Observation
+
 /// A key for a value in ``EnvironmentValues``, mirroring SwiftUI's
 /// `EnvironmentKey`.
 public protocol EnvironmentKey {
@@ -14,12 +16,27 @@ public protocol EnvironmentKey {
 /// with ``View/environment(_:_:)``.
 public struct EnvironmentValues {
     private var values: [ObjectIdentifier: Any] = [:]
+    /// Observable objects set with ``View/environment(_:)``, by type.
+    private var objects: [ObjectIdentifier: AnyObject] = [:]
 
     public init() {}
 
     public subscript<K: EnvironmentKey>(key: K.Type) -> K.Value {
-        get { values[ObjectIdentifier(key)] as? K.Value ?? K.defaultValue }
-        set { values[ObjectIdentifier(key)] = newValue }
+        get {
+            guard let value = values[ObjectIdentifier(key)] else { return K.defaultValue }
+            return value as? K.Value ?? K.defaultValue
+        }
+        // Boxed, so that setting an optional value to `nil` stores `nil`
+        // instead of removing the value.
+        set { values[ObjectIdentifier(key)] = .some(newValue as Any) }
+    }
+
+    func object<T: AnyObject>(of type: T.Type) -> T? {
+        objects[ObjectIdentifier(type)] as? T
+    }
+
+    mutating func setObject<T: AnyObject>(_ object: T?, of type: T.Type) {
+        objects[ObjectIdentifier(type)] = object
     }
 }
 
@@ -29,16 +46,36 @@ public struct EnvironmentValues {
 /// The host sets the value before it reads the view's `body`.
 @propertyWrapper
 public struct Environment<Value>: DynamicProperty {
-    private let keyPath: KeyPath<EnvironmentValues, Value>
+    private let read: (EnvironmentValues) -> Value
     let box = EnvironmentBox()
 
     public init(_ keyPath: KeyPath<EnvironmentValues, Value>) {
-        self.keyPath = keyPath
+        read = { $0[keyPath: keyPath] }
+    }
+
+    /// Reads the observable object of a type that a view above placed in
+    /// the environment with ``View/environment(_:)``. Reading it stops the
+    /// app if no view above did, as in SwiftUI.
+    public init(_ objectType: Value.Type) where Value: AnyObject, Value: Observable {
+        read = { values in
+            guard let object = values.object(of: Value.self) else {
+                fatalError(
+                    "No Observable object of type \(Value.self) found. A View.environment(_:) "
+                        + "for \(Value.self) may be missing as an ancestor of this view.")
+            }
+            return object
+        }
+    }
+
+    /// Reads the observable object of a type that a view above placed in
+    /// the environment, or `nil` if none did.
+    public init<T>(_ objectType: T.Type) where Value == T?, T: AnyObject, T: Observable {
+        read = { $0.object(of: T.self) }
     }
 
     @MainActor
     public var wrappedValue: Value {
-        box.values[keyPath: keyPath]
+        read(box.values)
     }
 }
 
@@ -64,6 +101,13 @@ extension View {
         _ keyPath: WritableKeyPath<EnvironmentValues, V>, _ value: V
     ) -> some View {
         EnvironmentWriter(content: self) { $0[keyPath: keyPath] = value }
+    }
+
+    /// Places an observable object in the environment of this view and its
+    /// content, where `@Environment(Model.self)` reads it. Passing `nil`
+    /// removes an object of that type that a view above placed.
+    public func environment<T>(_ object: T?) -> some View where T: AnyObject, T: Observable {
+        EnvironmentWriter(content: self) { $0.setObject(object, of: T.self) }
     }
 }
 

@@ -14,7 +14,12 @@ import Foundation
 /// `--png PATH` to draw the screen to a PNG file instead, with the status bar
 /// and the home indicator, at `--scale` pixels per point (2 by default). Set
 /// `PARHELION_DEVICE` to a preset's name, such as "iPhone 17 Pro", to
-/// simulate that device.
+/// simulate that device. Without a window, the app first lets `task` work
+/// finish, for up to five seconds, so that the output shows what it loaded.
+///
+/// The app's own `@State` belongs to the host, as a view's does: it is
+/// keyed by the app's type name, kept in state snapshots, and changing it
+/// updates the tree.
 @MainActor
 @preconcurrency
 public protocol App {
@@ -29,15 +34,17 @@ public protocol App {
 extension App {
     public static func main() {
         let app = Self()
-        guard let content = windowContent(of: app.body) else {
+        guard windowContent(of: app.body) != nil else {
             FileHandle.standardError.write(Data("parhelion: the app declares no window.\n".utf8))
             exit(1)
         }
+        let content = AppRoot(app: app)
         #if canImport(Glibc)
         let appName = String(describing: Self.self)
         if PreviewSession.runIfRequested(content: content, appName: appName) { return }
         #endif
         let host = ViewHost(anyRootView: content, device: simulatedDevice())
+        host.runTasks(until: Date(timeIntervalSinceNow: 5))
         let arguments = CommandLine.arguments
         if let pngPath = value(after: "--png", in: arguments) {
             let scale = value(after: "--scale", in: arguments).flatMap(Double.init) ?? 2
@@ -127,6 +134,28 @@ public struct WindowGroup<Content: View>: Scene {
 
 extension WindowGroup: WindowContentProviding {
     var windowContent: any View { content }
+}
+
+/// The root view of an app. It installs the app's own dynamic properties,
+/// such as `@State`, the way the evaluator installs a view's, and then
+/// evaluates the first window's content in its place, so that the content's
+/// identifiers do not change.
+struct AppRoot<Root: App>: View {
+    typealias Body = Never
+
+    let app: Root
+
+    var body: Never {
+        fatalError("AppRoot is a primitive view and has no body.")
+    }
+}
+
+extension AppRoot: PrimitiveView {
+    func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
+        evaluator.installDynamicProperties(of: app, at: path.appending(baseTypeName(of: Root.self)))
+        guard let content = windowContent(of: app.body) else { return [] }
+        return evaluator.evaluate(content, at: path)
+    }
 }
 
 @MainActor
