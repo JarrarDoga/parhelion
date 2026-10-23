@@ -17,11 +17,18 @@ struct Run: ParsableCommand {
             one library product, the shape xtool apps use, run the library's @main \
             type through a generated runner package in .build/parhelion-runner.
 
+            With --web, the app appears on a web page instead of a window, at the \
+            URL that parhelion prints, and no display is needed. The page stays \
+            connected across reloads and shows build errors. Press Control-C to \
+            quit.
+
             Example: parhelion run --package-path ~/Code/MyApp
             """
     )
 
     @OptionGroup var window: WindowOptions
+
+    @OptionGroup var web: WebOptions
 
     @Option(help: "The directory of the app's package.")
     var packagePath = "."
@@ -48,15 +55,23 @@ struct Run: ParsableCommand {
         let plan = try RunPlan.make(for: package, at: packagePath, product: product)
         let builder = AppBuilder(plan: plan, configuration: configuration.rawValue)
         let watcher = SourceWatcher(root: plan.watchRoot)
+        // The page is up before the first build, so it can show the build's errors.
+        let webHost = web.isEnabled ? try WebHost(options: web, bezel: window.bezel) : nil
+        if let webHost { print(webHost.announcement) }
 
         print("Building \(plan.product): \(builder.modeDescription)...")
+        webHost?.setStatus(.building)
         var outcome = builder.build()
         while !outcome.succeeded {
             report(outcome, from: builder)
+            webHost?.setStatus(.buildFailed(builder.errorSummary(outcome.output)))
             if window.exitAfterFirstFrame { throw ExitCode.failure }
             print("Fix the errors and save. Waiting for changes...")
-            while !watcher.waitForChanges(timeout: nil) {}
+            while !watcher.waitForChanges(timeout: 0.25) {
+                if webHost?.isInterrupted == true { return }
+            }
             print("Building \(plan.product)...")
+            webHost?.setStatus(.building)
             outcome = builder.build()
         }
         let executable = try builder.executablePath()
@@ -70,6 +85,7 @@ struct Run: ParsableCommand {
         let socketPath = makeSocketPath()
         let listener = try PreviewListener(path: socketPath)
         let wakeBox = WakeBox()
+        if let webHost { wakeBox.set(webHost.waker) }
         var environment = window.environment(socketPath: socketPath)
         environment[previewStateEnvironmentKey] = stateFile
         func launch() throws -> AppConnection {
@@ -83,14 +99,22 @@ struct Run: ParsableCommand {
         }
 
         var app: AppConnection? = try launch()
-        let host = try window.openWindow(for: app!.hello)
-        wakeBox.set(host.waker)
-        let title = WindowOptions.title(for: app!.hello)
-        print("Running \(app!.hello.appName). Save a file to reload. Close the window to quit.")
+        let surface: PreviewSurface
+        if let webHost {
+            surface = webHost
+            print("Running \(app!.hello.appName). Save a file to reload. Press Control-C to quit.")
+        } else {
+            let host = try window.openWindow(for: app!.hello)
+            wakeBox.set(host.waker)
+            surface = host
+            print(
+                "Running \(app!.hello.appName). Save a file to reload. Close the window to quit.")
+        }
+        surface.setStatus(.running)
 
-        let loop = FrameLoop(window: host)
+        let loop = FrameLoop(surface: surface)
         let rebuild = BackgroundBuild()
-        let changes = ChangeMonitor(watcher: watcher, wake: host.waker)
+        let changes = ChangeMonitor(watcher: watcher, wake: surface.waker)
         var reportedExit = false
         // The reload in progress: when the change was seen, and how long
         // its build took, until the new app's first frame is on screen.
@@ -119,21 +143,23 @@ struct Run: ParsableCommand {
 
             if let current = app, current.isDisconnected, !reportedExit {
                 reportedExit = true
-                print("The app exited. Save a file to rebuild and start it again.")
+                let message = "The app exited. Save a file to rebuild and start it again."
+                print(message)
+                surface.setStatus(.stopped(message))
             }
 
             // Changes during a build start another build after it.
             if !rebuild.isRunning, let time = changes.take() {
                 print("Change detected. Rebuilding...")
-                host.setTitle("\(title) — Rebuilding…")
+                surface.setStatus(.building)
                 changedAt = time
-                rebuild.start(builder, wake: host.waker)
+                rebuild.start(builder, wake: surface.waker)
             }
 
             if let outcome = rebuild.takeResult() {
                 guard outcome.succeeded else {
                     report(outcome, from: builder)
-                    host.setTitle("\(title) — Build failed")
+                    surface.setStatus(.buildFailed(builder.errorSummary(outcome.output)))
                     continue
                 }
                 let compiled = AppBuilder.compiledModules(in: outcome.output)
@@ -145,12 +171,12 @@ struct Run: ParsableCommand {
                 do {
                     app = try launch()
                     reportedExit = false
-                    host.setTitle(title)
+                    surface.setStatus(.running)
                     reload = (changedAt ?? restartedAt, outcome.duration, restartedAt)
                 } catch {
                     app = nil
                     print("The rebuilt app did not start: \(error)")
-                    host.setTitle("\(title) — Not running")
+                    surface.setStatus(.stopped("The rebuilt app did not start: \(error)"))
                 }
             }
         }
