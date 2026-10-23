@@ -364,3 +364,42 @@ enum LayoutDefaults {
     /// The font of a tab's title, semibold 10 points in the iOS 27 UI Kit.
     static let tabBarTitleFont = Font.system(size: 10, weight: .semibold)
 }
+
+// MARK: - Controls
+
+extension LayoutDefaults {
+    /// Assumed: the space between a control's label at the leading edge and
+    /// the control at the trailing edge, at the least.
+    static let controlLabelSpacing: CGFloat = 16
+
+    /// Assumed: the size of a switch, 64 × 28 points in the iOS 27 UI Kit,
+    /// with fully rounded ends.
+    static let switchSize = CGSize(width: 64, height: 28)
+
+    /// Assumed: the size of a switch's knob, a 38 × 24 capsule 2 points
+    /// inside the track, in the iOS 27 UI Kit.
+    static let switchKnobSize = CGSize(width: 38, height: 24)
+
+    /// Assumed: the space between a switch's knob and the ends of its track.
+    static let switchKnobInset: CGFloat = 2
+
+    /// Assumed: the size of the glass lens a switch's knob becomes while the
+    /// switch is pressed, 58 × 38 around the knob's center in the iOS 27 UI
+    /// Kit.
+    static let switchPressedKnobSize = CGSize(width: 58, height: 38)
+
+    /// Assumed: the animation of a switch's knob when its value changes.
+    static let switchAnimation = Animation.snappy(duration: 0.3)
+
+    /// Assumed: the vertical insets of a list row that holds a control
+    /// taller than a line of text, so that the row stays 52 points tall as in
+    /// the iOS 27 UI Kit: a switch sits 12 points from the top and bottom,
+    /// and a stepper or segmented control 10.
+    static func controlRowVerticalInset(controlHeight: CGFloat) -> CGFloat {
+        max((listRowMinHeight - controlHeight) / 2, 0)
+    }
+
+    /// Assumed: the thickness of a `Divider`, one pixel on a 3× screen, like
+    /// a list's separators.
+    static let dividerThickness: CGFloat = 1.0 / 3
+}

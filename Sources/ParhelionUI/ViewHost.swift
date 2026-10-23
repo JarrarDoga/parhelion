@@ -628,14 +628,23 @@ public final class ViewHost {
         return front.id
     }
 
-    /// Taps the one button or navigation link whose label is exactly
-    /// `label`. Only the frontmost sheet or alert is searched while one is
-    /// presented.
+    /// Taps the one control whose label is exactly `label`: a button, a
+    /// navigation link, a toggle's switch, a stepper's `Increment` or
+    /// `Decrement`, or a picker's option. Only the frontmost sheet, alert, or
+    /// menu is searched while one is presented.
     public func tapButton(labeled label: String) throws(InteractionError) {
         let matches = interactiveRoot.allNodes.filter {
-            ($0.kind == "Button" || $0.kind == "NavigationLink") && $0.label == label
+            actions[$0.id] != nil && $0.label == label
         }
-        guard let button = matches.first else { throw .noButton(label: label) }
+        guard let button = matches.first else {
+            // A disabled control has the label but takes no taps.
+            if let disabled = interactiveRoot.allNodes.first(where: {
+                $0.isDisabled && $0.label == label
+            }) {
+                throw .notTappable(disabled.id)
+            }
+            throw .noButton(label: label)
+        }
         guard matches.count == 1 else {
             throw .ambiguousButton(label: label, matches: matches.map(\.id))
         }

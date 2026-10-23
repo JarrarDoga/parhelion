@@ -125,9 +125,13 @@ extension Button where Label == Text {
 extension Button: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         let ownPath = path.appending("Button")
-        evaluator.registerAction(action, for: ownPath.id)
         let environment = evaluator.environment
         var attributes = role.map { ["role": $0.name] } ?? [:]
+        if environment.isEnabled {
+            evaluator.registerAction(action, for: ownPath.id)
+        } else {
+            attributes["disabled"] = "true"
+        }
         let children: [ViewNode]
         switch environment.buttonStyle {
         case .custom(let style):

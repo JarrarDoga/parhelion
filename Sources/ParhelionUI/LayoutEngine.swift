@@ -414,7 +414,8 @@ struct LayoutEngine {
             }
             return labelSize(node, proposal)
         default:
-            return overlaySize(node.children, proposal)
+            return controlSize(node, proposal, parentAxis: parentAxis)
+                ?? overlaySize(node.children, proposal)
         }
     }
 
@@ -681,6 +682,10 @@ struct LayoutEngine {
                 return place(child, in: align(size, in: rect, alignment), parentAxis: nil)
             }
         default:
+            if let children = placeControl(node, in: rect) {
+                node.children = children
+                break
+            }
             node.children = node.children.map { child in
                 let size = sizeThatFits(child, proposal, parentAxis: nil)
                 return place(child, in: align(size, in: rect, .center), parentAxis: nil)

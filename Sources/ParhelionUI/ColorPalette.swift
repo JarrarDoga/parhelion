@@ -223,3 +223,23 @@ enum ColorPalette {
         return values.count == 4 ? values : nil
     }
 }
+
+// MARK: - Controls
+
+extension ColorPalette {
+    /// Assumed: the opacity of a control turned off with `disabled(_:)`, 50%
+    /// in the iOS 27 UI Kit's disabled switches, sliders, and segmented
+    /// controls.
+    static let disabledOpacity = 0.5
+
+    /// Assumed: the track of a switch that is off, 60,60,67 at 30% in the iOS
+    /// 27 UI Kit.
+    static let switchOffTrack = RGBA(red: 60, green: 60, blue: 67, alpha: 77)
+
+    /// Assumed: the track of a switch that is on when no tint is set: the
+    /// system green, as in the iOS 27 UI Kit.
+    static let switchOnTrackStyle = "green"
+
+    /// Assumed: the knob of a switch or a slider, white in the iOS 27 UI Kit.
+    static let knob = RGBA.white
+}

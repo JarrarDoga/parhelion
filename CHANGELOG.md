@@ -184,8 +184,19 @@ may contain breaking changes.
 - `Path(svgPathData:)` in `ParhelionRender`, which reads SVG path data, including arcs.
 - `EnvironmentValues.imageScale`.
 - A `Tabs` example with three tabs and a search tab, shown in the README.
+- `Toggle`, drawn as iOS 27's 64 × 28 switch at the trailing edge of its row. The `Switch` node
+  responds to taps and carries the toggle's label, and its knob slides with a spring while
+  content that depends on the value changes at once. `toggleStyle(_:)` accepts `.automatic` and
+  `.switch`.
+- `LabeledContent`, with its content at the trailing edge in the secondary color, `Divider`, and
+  `Form`, which is an inset grouped list. A row that holds a switch stays 52 points tall.
+- `disabled(_:)` and `EnvironmentValues.isEnabled`. Disabled buttons, links, text fields, and
+  controls record `disabled=true`, draw dimmed, and do not respond to input.
 
 ### Changed
+
+- `ViewHost.tapButton(labeled:)` taps any control with the label, such as a toggle's switch, and
+  reports a disabled control as not tappable.
 
 - Screenshots from `parhelion mcp` and `--png` images show the status bar and the home indicator,
   as Simulator screenshots do.

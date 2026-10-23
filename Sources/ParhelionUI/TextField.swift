@@ -30,14 +30,13 @@ public struct TextField: View {
 extension TextField: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         let ownPath = path.appending("TextField")
-        evaluator.registerTextField(text, for: ownPath.id)
-        return [
-            ViewNode(
-                id: ownPath.id,
-                kind: "TextField",
-                attributes: ["placeholder": placeholder, "value": text.wrappedValue]
-            )
-        ]
+        var attributes = ["placeholder": placeholder, "value": text.wrappedValue]
+        if evaluator.environment.isEnabled {
+            evaluator.registerTextField(text, for: ownPath.id)
+        } else {
+            attributes["disabled"] = "true"
+        }
+        return [ViewNode(id: ownPath.id, kind: "TextField", attributes: attributes)]
     }
 }
 

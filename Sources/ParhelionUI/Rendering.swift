@@ -261,6 +261,13 @@ struct TreeRenderer {
             canvas.fill(node.modifierFrames[index], color: paint(style))
         }
 
+        // Controls draw their parts in Rendering+Controls.swift.
+        if drawControl(
+            node, in: frame, foreground: &foreground, tint: tint, opacity: &opacity, into: &canvas)
+        {
+            return
+        }
+
         switch node.kind {
         case "Color":
             canvas.fill(frame, color: paint(node.attributes["color"] ?? "clear"))

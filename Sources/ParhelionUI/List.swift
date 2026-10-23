@@ -97,7 +97,7 @@ extension List: PrimitiveView {
                     return child
                 }
                 var row = child
-                var insets = LayoutDefaults.listRowInsets
+                var insets = child.controlRowInsets(LayoutDefaults.listRowInsets)
                 if row.kind == "NavigationLink" {
                     // Leave room for the disclosure indicator.
                     insets.trailing +=
