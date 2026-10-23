@@ -83,6 +83,7 @@ final class PreviewSession {
                     scale: scale,
                     deviceName: host.device.name,
                     displayCornerRadius: Double(host.device.displayCornerRadius),
+                    maximumFramesPerSecond: host.device.maximumFramesPerSecond,
                     capabilities: PreviewCapability.all
                 )
             )

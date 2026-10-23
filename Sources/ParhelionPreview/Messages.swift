@@ -47,6 +47,10 @@ public struct PreviewHello: Codable, Equatable, Sendable {
     /// The radius of the screen's rounded corners in points, which the
     /// window host uses to draw the device around the screen.
     public var displayCornerRadius: Double?
+    /// The most frames the simulated screen shows per second. The window
+    /// host shows the app no faster. Apps built before devices had a frame
+    /// rate leave it out, and the host then shows every refresh.
+    public var maximumFramesPerSecond: Int?
     /// The ``PreviewCapability`` values the app supports. Apps built before
     /// capabilities existed leave it out.
     public var capabilities: [String]?
@@ -58,6 +62,7 @@ public struct PreviewHello: Codable, Equatable, Sendable {
         scale: Double,
         deviceName: String? = nil,
         displayCornerRadius: Double? = nil,
+        maximumFramesPerSecond: Int? = nil,
         capabilities: [String]? = nil
     ) {
         self.appName = appName
@@ -66,6 +71,7 @@ public struct PreviewHello: Codable, Equatable, Sendable {
         self.scale = scale
         self.deviceName = deviceName
         self.displayCornerRadius = displayCornerRadius
+        self.maximumFramesPerSecond = maximumFramesPerSecond
         self.capabilities = capabilities
     }
 }

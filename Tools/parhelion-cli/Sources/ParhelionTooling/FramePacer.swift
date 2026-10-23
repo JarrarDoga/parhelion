@@ -15,6 +15,10 @@
 /// as one whose framework is built without optimization, so its frames are
 /// shown for equal numbers of refreshes instead of an uneven mix.
 ///
+/// The app is shown no faster than the screen it simulates: on a 240 Hz
+/// display, each frame of a 120 Hz iPhone stays up for two refreshes. See
+/// ``setMaximumFramesPerSecond(_:)``.
+///
 /// All times are nanoseconds of the clock the app and host share.
 public struct FramePacer: Equatable, Sendable {
     /// The display's refresh period.
@@ -25,9 +29,13 @@ public struct FramePacer: Equatable, Sendable {
     public private(set) var hasVSync: Bool
     /// How many refreshes each of the app's frames is shown for.
     public private(set) var framesPerTick = 1
+    /// The fewest refreshes each frame is shown for, so that the app runs no
+    /// faster than the simulated screen.
+    public private(set) var minimumFramesPerTick = 1
     /// The target time of the tick the app has not answered yet.
     public private(set) var outstandingTarget: UInt64?
 
+    private var maximumFramesPerSecond: Int?
     private var tickSentAt: UInt64 = 0
     private var lastPresent: UInt64?
     private var shortIntervals = 0
@@ -68,15 +76,45 @@ public struct FramePacer: Equatable, Sendable {
     public mutating func setRefreshPeriod(_ period: UInt64) {
         guard period > 0, period != refreshPeriod else { return }
         refreshPeriod = period
+        updateMinimumFramesPerTick()
+    }
+
+    /// Shows the app no faster than `rate` frames per second, the simulated
+    /// screen's rate, or as fast as the display refreshes for `nil`.
+    ///
+    /// Each frame stays up for the fewest whole refreshes that keep the rate
+    /// at or below `rate`: two at 240 Hz for a 120 Hz screen, and one on a
+    /// display no faster than the screen. On a display whose rate is not a
+    /// multiple of the screen's, the app runs slower than the screen rather
+    /// than faster: 72 Hz on a 144 Hz display for a 120 Hz screen.
+    public mutating func setMaximumFramesPerSecond(_ rate: Int?) {
+        guard rate != maximumFramesPerSecond else { return }
+        maximumFramesPerSecond = rate
+        updateMinimumFramesPerTick()
+    }
+
+    private mutating func updateMinimumFramesPerTick() {
+        minimumFramesPerTick = Self.minimumFramesPerTick(
+            refreshPeriod: refreshPeriod, maximumFramesPerSecond: maximumFramesPerSecond)
         roundTrips.removeAll()
-        framesPerTick = 1
+        framesPerTick = minimumFramesPerTick
+    }
+
+    static func minimumFramesPerTick(refreshPeriod: UInt64, maximumFramesPerSecond: Int?) -> Int {
+        guard let rate = maximumFramesPerSecond, rate > 0 else { return 1 }
+        // A display up to 1% faster than a multiple of the screen's rate,
+        // such as 120.5 Hz for a 120 Hz screen, counts as that multiple.
+        let screenPeriod = 1_000_000_000 / UInt64(rate)
+        let shortest = screenPeriod - screenPeriod / 100
+        let refreshes = (shortest + refreshPeriod - 1) / refreshPeriod
+        return Int(min(max(refreshes, 1), UInt64(maximumFramesPerTick)))
     }
 
     /// Forgets the app's timing, for a new app.
     public mutating func reset() {
         outstandingTarget = nil
         roundTrips.removeAll()
-        framesPerTick = 1
+        framesPerTick = minimumFramesPerTick
     }
 
     /// The time a tick sent right after a present at `time` asks the app to
@@ -104,14 +142,37 @@ public struct FramePacer: Equatable, Sendable {
         max(last + refreshPeriod, now)
     }
 
-    /// Records a present. If vsync is on but presents keep returning well
-    /// before a period has passed, the driver is not waiting for the
-    /// display, as with SDL's offscreen driver, and the pacer switches to
-    /// waiting itself.
-    public mutating func notePresented(at time: UInt64) {
+    /// The first refresh after a present at `last` that keeps the app at or
+    /// below the simulated screen's rate: the next one, or a later one on a
+    /// display faster than the screen.
+    public func earliestRefresh(after last: UInt64) -> UInt64 {
+        last + UInt64(minimumFramesPerTick) * refreshPeriod
+    }
+
+    /// When to present a frame so that it reaches the screen at `refresh`
+    /// and not sooner, or now if that time has passed.
+    ///
+    /// With vsync, presenting waits for the next refresh, so the frame goes
+    /// out a quarter period after the refresh before. Without, it goes out
+    /// at `refresh`. A fast app answers long before the refresh at
+    /// ``earliestRefresh(after:)``, and without the wait it would run at the
+    /// display's rate instead of the screen's.
+    public func presentTime(forRefreshAt refresh: UInt64, now: UInt64) -> UInt64 {
+        let time = hasVSync ? refresh - refreshPeriod + refreshPeriod / 4 : refresh
+        return max(time, now)
+    }
+
+    /// Records a present, which returned at `time`. If vsync is on but
+    /// presents keep returning well before the refresh they were for, the
+    /// driver is not waiting for the display, as with SDL's offscreen
+    /// driver, and the pacer switches to waiting itself. A present is for
+    /// the refresh after the last one, or for `refresh` when the frame was
+    /// held until shortly before it; see ``presentTime(forRefreshAt:now:)``.
+    public mutating func notePresented(at time: UInt64, heldFor refresh: UInt64? = nil) {
         defer { lastPresent = time }
         guard hasVSync, let lastPresent else { return }
-        if time - lastPresent < refreshPeriod / 2 {
+        let refresh = refresh ?? lastPresent + refreshPeriod
+        if time + refreshPeriod / 2 < refresh {
             shortIntervals += 1
             if shortIntervals >= Self.shortIntervalLimit { hasVSync = false }
         } else {
@@ -150,6 +211,7 @@ public struct FramePacer: Equatable, Sendable {
         // from frame to frame.
         let slowest = roundTrips.max() ?? 0
         let needed = (slowest + margin + refreshPeriod - 1) / refreshPeriod
-        framesPerTick = Int(min(max(needed, 1), UInt64(Self.maximumFramesPerTick)))
+        framesPerTick = Int(
+            min(max(needed, UInt64(minimumFramesPerTick)), UInt64(Self.maximumFramesPerTick)))
     }
 }

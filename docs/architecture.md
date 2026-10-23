@@ -388,7 +388,12 @@ hosts from before a capability keep working with newer ones
   the target and draws once; input that arrives in between changes state and is drawn on the next
   tick. The host waits for that frame until shortly before the refresh, so a frame that misses
   it is shown one refresh later and the previous frame stays up meanwhile. An app too slow for
-  every refresh is shown every second, third, or later refresh, evenly (`FramePacer`). If vsync
+  every refresh is shown every second, third, or later refresh, evenly (`FramePacer`). The app is
+  also shown no faster than the simulated screen's `maximumFramesPerSecond`, which the hello
+  carries: on a 240 Hz display, each frame of a 120 Hz iPhone stays up for two refreshes, and a
+  frame that arrives early waits until shortly before the refresh it is due at. On a display
+  whose rate is not a multiple of the screen's, the app runs slower than the screen, never
+  faster: 72 Hz on a 144 Hz display for a 120 Hz screen. If vsync
   is refused or presents return without waiting, the host waits for each refresh itself. When
   nothing moves, the host blocks on window events and the app on the socket.
 - **`sharedFrames`: frames in shared memory.** The app creates an anonymous file with three

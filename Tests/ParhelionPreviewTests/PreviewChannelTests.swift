@@ -141,6 +141,7 @@ struct WireCompatibilityTests {
         let json = #"{"appName":"Old","screenWidth":393,"screenHeight":852,"scale":2}"#
         let hello = try JSONDecoder().decode(PreviewHello.self, from: Data(json.utf8))
         #expect(hello.capabilities == nil)
+        #expect(hello.maximumFramesPerSecond == nil, "An older app's frame rate is unknown")
     }
 
     @Test("Timeouts round up to whole milliseconds, so waits never end early")

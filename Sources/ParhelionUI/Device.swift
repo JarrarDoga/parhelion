@@ -24,13 +24,19 @@ public struct Device: Hashable, Sendable {
     /// without one.
     public var homeIndicatorWidth: CGFloat?
 
+    /// The most frames the screen shows per second, like UIKit's
+    /// `UIScreen.maximumFramesPerSecond`: 120 for a ProMotion display, 60
+    /// otherwise. The preview window shows the app no faster than this.
+    public var maximumFramesPerSecond: Int
+
     public init(
         name: String,
         screenSize: CGSize,
         safeAreaInsets: EdgeInsets,
         displayCornerRadius: CGFloat = 0,
         sensorHousing: SensorHousing? = nil,
-        homeIndicatorWidth: CGFloat? = nil
+        homeIndicatorWidth: CGFloat? = nil,
+        maximumFramesPerSecond: Int = 60
     ) {
         self.name = name
         self.screenSize = screenSize
@@ -38,6 +44,7 @@ public struct Device: Hashable, Sendable {
         self.displayCornerRadius = displayCornerRadius
         self.sensorHousing = sensorHousing
         self.homeIndicatorWidth = homeIndicatorWidth
+        self.maximumFramesPerSecond = maximumFramesPerSecond
     }
 
     /// The safe area in screen coordinates.
@@ -92,11 +99,13 @@ extension Device {
 
     /// iPhone 16 Pro in portrait: 402 × 874 points.
     public static let iPhone16Pro = dynamicIslandPhone(
-        "iPhone 16 Pro", width: 402, height: 874, top: 62, cornerRadius: 62, islandY: 14)
+        "iPhone 16 Pro", width: 402, height: 874, top: 62, cornerRadius: 62, islandY: 14,
+        proMotion: true)
 
     /// iPhone 16 Pro Max in portrait: 440 × 956 points.
     public static let iPhone16ProMax = dynamicIslandPhone(
-        "iPhone 16 Pro Max", width: 440, height: 956, top: 62, cornerRadius: 62, islandY: 14)
+        "iPhone 16 Pro Max", width: 440, height: 956, top: 62, cornerRadius: 62, islandY: 14,
+        proMotion: true)
 
     /// iPhone 16e in portrait: 390 × 844 points, with a notch.
     public static let iPhone16e = Device(
@@ -107,30 +116,36 @@ extension Device {
         // Assumed: the iPhone 14's notch, the same panel.
         sensorHousing: .notch(CGRect(x: 115, y: 0, width: 160, height: 33.67), cornerRadius: 20),
         // Assumed: the width older 375-point-wide design kits use.
-        homeIndicatorWidth: 134
+        homeIndicatorWidth: 134,
+        maximumFramesPerSecond: 60
     )
 
     /// iPhone 17 in portrait: 402 × 874 points.
     public static let iPhone17 = dynamicIslandPhone(
-        "iPhone 17", width: 402, height: 874, top: 62, cornerRadius: 62, islandY: 14)
+        "iPhone 17", width: 402, height: 874, top: 62, cornerRadius: 62, islandY: 14,
+        proMotion: true)
 
     /// iPhone 17 Pro in portrait: 402 × 874 points.
     public static let iPhone17Pro = dynamicIslandPhone(
-        "iPhone 17 Pro", width: 402, height: 874, top: 62, cornerRadius: 62, islandY: 14)
+        "iPhone 17 Pro", width: 402, height: 874, top: 62, cornerRadius: 62, islandY: 14,
+        proMotion: true)
 
     /// iPhone 17 Pro Max in portrait: 440 × 956 points.
     public static let iPhone17ProMax = dynamicIslandPhone(
-        "iPhone 17 Pro Max", width: 440, height: 956, top: 62, cornerRadius: 62, islandY: 14)
+        "iPhone 17 Pro Max", width: 440, height: 956, top: 62, cornerRadius: 62, islandY: 14,
+        proMotion: true)
 
     /// iPhone Air in portrait: 420 × 912 points.
     public static let iPhoneAir = dynamicIslandPhone(
-        "iPhone Air", width: 420, height: 912, top: 68, cornerRadius: 62, islandY: 20)
+        "iPhone Air", width: 420, height: 912, top: 68, cornerRadius: 62, islandY: 20,
+        proMotion: true)
 
     /// A phone with a Dynamic Island centered at the top, 34 points of safe
-    /// area at the bottom, and a home indicator.
+    /// area at the bottom, and a home indicator, at 120 frames per second
+    /// with ProMotion and 60 without.
     private static func dynamicIslandPhone(
         _ name: String, width: CGFloat, height: CGFloat, top: CGFloat, cornerRadius: CGFloat,
-        islandY: CGFloat, islandWidth: CGFloat = 125.33
+        islandY: CGFloat, islandWidth: CGFloat = 125.33, proMotion: Bool = false
     ) -> Device {
         Device(
             name: name,
@@ -141,7 +156,8 @@ extension Device {
                 CGRect(
                     x: (width - islandWidth) / 2, y: islandY, width: islandWidth,
                     height: 36.67)),
-            homeIndicatorWidth: 144
+            homeIndicatorWidth: 144,
+            maximumFramesPerSecond: proMotion ? 120 : 60
         )
     }
 

@@ -146,7 +146,9 @@ default), 16 Plus, 16 Pro, 16 Pro Max, 16e, 17, 17 Pro, 17 Pro Max, or Air, as i
 it. `--zoom` changes the window size, and `--scale` changes the pixels per point the app renders at.
 
 Animation in the window follows the display: the window waits for each refresh, at 60, 180, or
-240 Hz, and the app draws each frame for the moment it will be on screen. By default
+240 Hz, and the app draws each frame for the moment it will be on screen. It never runs faster
+than the iPhone it simulates: 120 frames per second on models with ProMotion, which is every
+other refresh on a 240 Hz display, and 60 on iPhone 16, 16 Plus, and 16e. By default
 `parhelion run` builds your app without optimization, so a one-line edit rebuilds in about a
 second, and Parhelion with optimization, so frames render as fast as in a release build. If your
 package pins Parhelion to a version, SwiftPM does not allow that split, and `parhelion run`
