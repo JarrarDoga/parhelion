@@ -24,26 +24,68 @@ extension Binding: @MainActor Identifiable where Value: Identifiable {
 extension Binding where Value: MutableCollection {
     /// A binding to the element at `position`.
     ///
-    /// The binding keeps the value the element had when the binding was
-    /// made. If the collection no longer has `position`, for example because
-    /// a row's element was removed while the row was still on screen,
-    /// reading the binding returns that value and writing it does nothing.
+    /// When the element is `Identifiable`, the binding finds it by its
+    /// identifier on every read and write, so it stays with its element
+    /// when elements before it are inserted or removed. Otherwise it follows
+    /// `position`.
     @MainActor
     func element(at position: Value.Index) -> Binding<Value.Element> {
-        let last = wrappedValue[position]
-        func contains(_ collection: Value) -> Bool {
-            position >= collection.startIndex && position < collection.endIndex
+        element(at: position, identifiedBy: identifier(of:))
+    }
+
+    /// A binding to the element at `position`, which finds the element again
+    /// by the value `identity` gives it, or by `position` when `identity`
+    /// gives `nil`.
+    ///
+    /// Once the element is gone, for example because a row's element was
+    /// removed while the row was still on screen, reading the binding
+    /// returns the last value it read or wrote, and writing it does nothing.
+    @MainActor
+    func element(
+        at position: Value.Index,
+        identifiedBy identity: @escaping (Value.Element) -> AnyHashable?
+    ) -> Binding<Value.Element> {
+        let last = LastValue(wrappedValue[position])
+        let id = identity(last.value)
+        func index(in collection: Value) -> Value.Index? {
+            let hasPosition = position >= collection.startIndex && position < collection.endIndex
+            guard let id else { return hasPosition ? position : nil }
+            if hasPosition, identity(collection[position]) == id { return position }
+            return collection.firstIndex { identity($0) == id }
         }
         return Binding<Value.Element>(
             get: {
                 let collection = self.wrappedValue
-                return contains(collection) ? collection[position] : last
+                if let index = index(in: collection) { last.value = collection[index] }
+                return last.value
             },
             set: { newValue in
-                guard contains(self.wrappedValue) else { return }
-                self.wrappedValue[position] = newValue
+                var collection = self.wrappedValue
+                guard let index = index(in: collection) else { return }
+                collection[index] = newValue
+                last.value = newValue
+                self.wrappedValue = collection
             }
         )
+    }
+}
+
+/// The identifier of a value that is `Identifiable`, or `nil`.
+private func identifier(of value: Any) -> AnyHashable? {
+    guard let value = value as? any Identifiable else { return nil }
+    return identifier(value)
+}
+
+private func identifier<Element: Identifiable>(_ element: Element) -> AnyHashable {
+    AnyHashable(element.id)
+}
+
+/// The last value an element binding read or wrote.
+private final class LastValue<Value> {
+    var value: Value
+
+    init(_ value: Value) {
+        self.value = value
     }
 }
 

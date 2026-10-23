@@ -113,22 +113,7 @@ final class PreviewSession {
             let now = PreviewClock.now()
             let message: HostMessage?
             switch event {
-            case .message(let received):
-                message = received
             case .timedOut:
-                message = nil
-            case .stateChanged:
-                // Main-actor work, such as a task, changed state. It is drawn
-                // like a change from input.
-                let ticking = hostIsTicking(at: now)
-                if !ticking { host.advanceTime(by: timeline.advance(to: now)) }
-                host.update()
-                if host.revision != sentRevision, !ticking {
-                    try sendFrame(target: 0)
-                }
-                continue
-            }
-            guard let message else {
                 // The session's own schedule: the host does not tick, or its
                 // ticks stopped arriving.
                 scheduleOwnFrame(after: now)
@@ -137,8 +122,14 @@ final class PreviewSession {
                     try sendFrame(target: 0)
                 }
                 continue
+            case .message(let received):
+                message = received
+            case .stateChanged:
+                // Main-actor work, such as a task, changed state. It is drawn
+                // like a change from input.
+                message = nil
             }
-            if case .tick = message {
+            if let message, case .tick = message {
                 guard try handle(message) else { return }
                 continue
             }
@@ -146,7 +137,11 @@ final class PreviewSession {
             // ticking, in which case the clock already shows the next frame.
             let ticking = hostIsTicking(at: now)
             if !ticking { host.advanceTime(by: timeline.advance(to: now)) }
-            guard try handle(message) else { return }
+            if let message {
+                guard try handle(message) else { return }
+            } else {
+                host.update()
+            }
             if host.revision != sentRevision, !ticking {
                 try sendFrame(target: 0)
             }
@@ -164,12 +159,13 @@ final class PreviewSession {
     /// Waits up to `timeout` seconds for the host's next message, or
     /// forever when `timeout` is `nil`. Meanwhile it runs main-actor work if
     /// the session does that, and stops waiting as soon as the work changes
-    /// state.
+    /// state. A change of state comes before a message that is waiting, so
+    /// that the change is drawn and input reaches the views it made.
     private func nextEvent(in inbox: HostMessageInbox, timeout: Double?) throws -> WaitResult {
         let deadline = timeout.map { Date(timeIntervalSinceNow: $0) } ?? .distantFuture
         while true {
-            if let received = inbox.take() { return .message(try received.get()) }
             if host.needsUpdate { return .stateChanged }
+            if let received = inbox.take() { return .message(try received.get()) }
             guard Date() < deadline else { return .timedOut }
             if runsMainActorWork {
                 // Returns after the main queue runs work, including the wake

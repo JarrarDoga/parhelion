@@ -18,6 +18,8 @@ struct InspectionReport: Codable {
 extension ViewHost {
     /// Runs a tool's command and describes the result.
     func execute(_ command: PreviewCommand) -> PreviewReply {
+        // A command sees, and acts on, the views on screen now.
+        update()
         func reply(_ ok: Bool, _ message: String, png: Data? = nil) -> PreviewReply {
             PreviewReply(
                 ok: ok, message: message, png: png, revision: revision, isAnimating: isAnimating,

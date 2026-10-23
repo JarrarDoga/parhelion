@@ -74,7 +74,7 @@ extension ForEach {
             (index, collection[index][keyPath: id])
         }
         self.init(elements, id: \.1) { element in
-            content(data.element(at: element.0))
+            content(data.element(at: element.0) { AnyHashable($0[keyPath: id]) })
         }
     }
 }

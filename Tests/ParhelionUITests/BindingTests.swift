@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import ParhelionPreview
 import Testing
 
 @testable import ParhelionUI
@@ -81,9 +82,127 @@ private struct KeyedRows: View {
     }
 }
 
+@Observable
+private final class Groceries {
+    var items = [
+        Item(id: 1, title: "Milk"),
+        Item(id: 2, title: "Eggs"),
+        Item(id: 3, title: "Tea"),
+    ]
+}
+
+/// Lets a test decide when a task continues.
+@MainActor
+private final class Latch {
+    private var continuation: CheckedContinuation<Void, Never>?
+    var isWaiting: Bool { continuation != nil }
+
+    func wait() async {
+        await withCheckedContinuation { continuation = $0 }
+    }
+
+    func open() {
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
+private struct GroceryList: View {
+    @Bindable var groceries: Groceries
+    let latch: Latch
+
+    var body: some View {
+        VStack {
+            ForEach($groceries.items) { $item in
+                TextField("Item", text: $item.title)
+            }
+        }
+        .task {
+            await latch.wait()
+            groceries.items.removeFirst()
+        }
+    }
+}
+
 @MainActor
 @Suite("Bindings")
 struct BindingTests {
+    @Test("A binding to an identifiable element follows it when earlier elements go")
+    func elementFollowsIdentity() {
+        var items = [
+            Item(id: 1, title: "Milk"), Item(id: 2, title: "Eggs"), Item(id: 3, title: "Tea"),
+        ]
+        let binding = Binding(get: { items }, set: { items = $0 })
+        let eggs = binding[1]
+        items.removeFirst()
+        #expect(eggs.wrappedValue.title == "Eggs")
+        eggs.wrappedValue.title = "Brown eggs"
+        #expect(items.map(\.title) == ["Brown eggs", "Tea"])
+
+        items.removeFirst()
+        #expect(eggs.wrappedValue.title == "Brown eggs")
+        eggs.wrappedValue.title = "Gone"
+        #expect(items.map(\.title) == ["Tea"])
+    }
+
+    @Test("A preview session applies typing after a task's change to the updated rows")
+    func sessionInputAfterTaskRemovedRow() async throws {
+        let groceries = Groceries()
+        let latch = Latch()
+        // Small, so that frames fit in the socket while nothing reads them.
+        let device = Device(
+            name: "Test", screenSize: CGSize(width: 80, height: 120), safeAreaInsets: EdgeInsets())
+        let host = ViewHost(GroceryList(groceries: groceries, latch: latch), device: device)
+        let eggs = try #require(
+            host.root.allNodes.first { $0.kind == "TextField" && $0.attributes["value"] == "Eggs" })
+        try host.focus(eggs.id)
+        while !latch.isWaiting { await Task.yield() }
+        latch.open()
+        while groceries.items.count == 3 { await Task.yield() }
+
+        let (appEnd, hostEnd) = try PreviewChannel.pair()
+        try hostEnd.send(.text("!"))
+        try hostEnd.send(.close)
+        try PreviewSession(host: host, channel: appEnd, scale: 1, appName: "Groceries").run()
+        #expect(groceries.items.map(\.title) == ["Eggs!", "Tea"])
+    }
+
+    @Test("A row's binding from ForEach with an id key path follows its element")
+    func keyedRowFollowsIdentity() throws {
+        var names = ["Ada", "Grace", "Hedy"]
+        let binding = Binding(get: { names }, set: { names = $0 })
+        var rows: [Binding<String>] = []
+        let each = ForEach(binding, id: \.self) { name in
+            rows.append(name)
+            return Text(name.wrappedValue)
+        }
+        for element in each.data { _ = each.content(element) }
+        names.removeFirst()
+        #expect(rows[1].wrappedValue == "Grace")
+        rows[2].wrappedValue = "Hedy Lamarr"
+        #expect(names == ["Grace", "Hedy Lamarr"])
+    }
+
+    @Test("Input that arrives after a task removed an earlier row reaches its own row")
+    func inputAfterTaskRemovedRow() async throws {
+        let groceries = Groceries()
+        let latch = Latch()
+        let host = ViewHost(GroceryList(groceries: groceries, latch: latch))
+        let eggs = try #require(
+            host.root.allNodes.first { $0.kind == "TextField" && $0.attributes["value"] == "Eggs" })
+        try host.focus(eggs.id)
+        while !latch.isWaiting { await Task.yield() }
+
+        latch.open()
+        while groceries.items.count == 3 { await Task.yield() }
+        // The task changed the model, and the tree has not been updated yet.
+        #expect(host.needsUpdate)
+        host.typeText("!")
+        #expect(groceries.items.map(\.title) == ["Eggs!", "Tea"])
+        #expect(host.nodes(withText: "Eggs!").isEmpty)
+        #expect(host.root.node(withID: eggs.id)?.attributes["value"] == "Eggs!")
+    }
+
     @Test("ForEach over a binding gives each row a binding to its element")
     func forEachBinding() throws {
         let checklist = Checklist()

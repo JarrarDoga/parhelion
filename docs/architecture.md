@@ -87,9 +87,11 @@ then updates, so a test or an agent always observes a consistent tree.
 `@Binding` is a pair of get and set closures. `$value` on a `State` produces a binding that
 writes through to the host-owned storage. `$value.name` is a binding to one property, and a
 binding to a mutable collection is a collection of bindings to its elements, which is how
-`ForEach($items) { $item in ... }` hands each row its element. A binding to an element keeps the
-element's last value, so a row that outlives its element reads that value and its writes do
-nothing.
+`ForEach($items) { $item in ... }` hands each row its element. A binding to an `Identifiable`
+element, or one from `ForEach` with an `id` key path, finds its element by identifier on every
+read and write, so a row's binding stays with its element when earlier elements are inserted or
+removed; other element bindings follow their position. Once its element is gone, a binding
+returns the last value it read or wrote, and writes to it do nothing.
 
 An app's own `@State` belongs to the host too. The root of the tree is the app, which installs
 its dynamic properties under the app's type name, such as `LibraryApp._library`, and evaluates
@@ -472,6 +474,9 @@ renderer call for the kinds they do not handle themselves.
 screen position (`tap(at:)`). A tap at a position goes to the frontmost node with an action whose
 frame contains the point, or moves a slider's knob there. Every failure is a typed
 `InteractionError` that names the problem, so an agent can recover without parsing messages.
+Every method that delivers input, and every command from an agent, first updates the tree if
+state changed since the last update, so input reaches the views on screen now, even after a task
+or another thread changed state.
 
 ### The preview window
 
@@ -530,7 +535,8 @@ hosts from before a capability keep working with newer ones
 **Main-actor work.** The app receives the host's messages on a background thread. Its main
 thread waits in the main run loop, so the main actor's work runs while nothing arrives: `task`
 actions, `Task`s that buttons start, and changes to models made on other threads. When that work
-changes state, the session updates and sends a frame, as it does after input. (A session that a
+changes state, the session updates and sends a frame, as it does after input, before it applies
+the next message. (A session that a
 test runs on the main actor cannot run the main queue from inside it, so it only waits for
 messages.)
 
