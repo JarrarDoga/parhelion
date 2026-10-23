@@ -1,3 +1,7 @@
+#if canImport(Foundation)
+import Foundation
+#endif
+
 // MARK: - Modifiers
 
 extension View {
@@ -41,7 +45,8 @@ extension View {
     ///
     /// The action runs on the main actor when it is written in a view.
     /// ``ViewHost/waitForTasks()`` waits for it, and ``ViewHost/pendingTaskCount``
-    /// counts it until it finishes.
+    /// counts it until it returns, even after it is cancelled: cancelling
+    /// asks it to stop, and the changes it makes before it returns apply.
     public func task(
         name: String? = nil,
         priority: TaskPriority = .userInitiated,
@@ -142,27 +147,33 @@ extension LifecycleView: PrimitiveView {
 
 // MARK: - Recording
 
+/// Which lifecycle modifier an entry is: its structural position, and
+/// which of the modifiers at that position it is, outermost first.
+struct LifecycleKey: Hashable {
+    let position: NodeID
+    let occurrence: Int
+}
+
 /// The lifecycle modifiers that one evaluation of the tree saw, in tree
 /// order.
 @MainActor
 final class LifecycleRecord {
     struct Entry {
-        /// The modifier's structural position, and which of the modifiers
-        /// at that position it is.
-        let key: String
+        let key: LifecycleKey
         let handler: LifecycleHandler
         /// The nodes the modifier's content resolved to.
         var nodeIDs: [NodeID] = []
     }
 
     private(set) var entries: [Entry] = []
-    private var counts: [String: Int] = [:]
+    private var counts: [NodeID: Int] = [:]
 
     func begin(_ handler: LifecycleHandler, at path: ViewPath) -> Int {
-        let position = path.id.rawValue
+        let position = path.id
         let occurrence = counts[position, default: 0]
         counts[position] = occurrence + 1
-        entries.append(Entry(key: "\(position)|\(occurrence)", handler: handler))
+        entries.append(
+            Entry(key: LifecycleKey(position: position, occurrence: occurrence), handler: handler))
         return entries.count - 1
     }
 
@@ -181,36 +192,47 @@ final class LifecycleRecord {
 /// they are not on screen. Assumed: a modifier on several views, such as a
 /// `Group`'s, acts once for all of them, and a modifier on content with no
 /// nodes never appears.
+///
+/// A task run that is cancelled, because its view left the screen or its
+/// `id` changed, keeps running until it returns: cancellation in Swift asks
+/// the work to stop but does not stop it. Until then it is pending, so
+/// ``ViewHost/waitForTasks()`` waits for it. Its changes apply like any
+/// other: a model it changes updates the tree, and `@State` of a view that
+/// left the screen went with the view.
 @MainActor
 final class ViewLifecycle {
-    private struct RunningTask {
-        let handle: Task<Void, Never>
-        let run: Int
-    }
-
     /// The appear, disappear, and task modifiers on screen, in tree order.
     private var onScreen: [LifecycleRecord.Entry] = []
-    /// The last value of each `onChange(of:)`, by key.
-    private var changeValues: [String: Any] = [:]
+    /// The last value of each `onChange(of:)`.
+    private var changeValues: [LifecycleKey: Any] = [:]
     /// The `id` each `task(id:)` on screen last started with.
-    private var taskIDs: [String: Any] = [:]
-    private var tasks: [String: RunningTask] = [:]
+    private var taskIDs: [LifecycleKey: Any] = [:]
+    /// The run of each task modifier on screen.
+    private var currentRuns: [LifecycleKey: Int] = [:]
+    /// Every run that has not returned yet, including cancelled ones, by
+    /// run number.
+    private var unfinishedRuns: [Int: Task<Void, Never>] = [:]
     private var runs = 0
+    /// What the last update's actions were, for a warning when updates do
+    /// not stop.
+    private(set) var lastActions: [String] = []
+    private var hasWarnedAboutEndlessUpdates = false
 
-    var pendingTaskCount: Int { tasks.count }
+    var pendingTaskCount: Int { unfinishedRuns.count }
 
-    /// One of the tasks that has not finished, if any.
-    var somePendingTask: Task<Void, Never>? { tasks.values.first?.handle }
+    /// One of the runs that has not returned, if any.
+    var somePendingTask: Task<Void, Never>? { unfinishedRuns.values.first }
 
     isolated deinit {
-        for task in tasks.values { task.handle.cancel() }
+        for task in unfinishedRuns.values { task.cancel() }
     }
 
     /// Acts on an evaluation whose resolved tree is `tree`: cancels the
     /// tasks of views that left the screen and starts those of views that
-    /// arrived, then runs onDisappear, onAppear, and onChange actions, in
-    /// that order.
+    /// arrived, then runs onDisappear, onAppear, and onChange actions.
+    /// Assumed: SwiftUI does not document this order.
     func apply(_ record: LifecycleRecord, to tree: ViewNode) {
+        lastActions = []
         guard !record.entries.isEmpty || !onScreen.isEmpty || !changeValues.isEmpty else { return }
         let present = Set(tree.allNodes.map(\.id))
         let appeared = record.entries.filter { entry in
@@ -223,7 +245,9 @@ final class ViewLifecycle {
 
         for entry in onScreen where !appearedKeys.contains(entry.key) {
             switch entry.handler {
-            case .disappear(let action): actions.append(action)
+            case .disappear(let action):
+                actions.append(action)
+                lastActions.append("onDisappear at \(entry.key.position)")
             case .task: cancelTask(entry.key)
             case .appear, .change: break
             }
@@ -233,6 +257,7 @@ final class ViewLifecycle {
             switch entry.handler {
             case .appear(let action) where isNew:
                 actions.append(action)
+                lastActions.append("onAppear at \(entry.key.position)")
             case .task(let request):
                 if isNew || !request.isSameID(taskIDs[entry.key]) {
                     startTask(request, key: entry.key)
@@ -242,10 +267,13 @@ final class ViewLifecycle {
                 break
             }
         }
-        var values: [String: Any] = [:]
+        var values: [LifecycleKey: Any] = [:]
         for entry in record.entries {
             guard case .change(let observer) = entry.handler else { continue }
-            if let action = observer.actionAfter(changeValues[entry.key]) { actions.append(action) }
+            if let action = observer.actionAfter(changeValues[entry.key]) {
+                actions.append(action)
+                lastActions.append("onChange(of:) at \(entry.key.position)")
+            }
             values[entry.key] = observer.value
         }
         changeValues = values
@@ -254,25 +282,38 @@ final class ViewLifecycle {
         for action in actions { action() }
     }
 
-    private func startTask(_ request: TaskRequest, key: String) {
-        tasks[key]?.handle.cancel()
+    /// Writes a warning, once, that updates did not stop.
+    func warnAboutEndlessUpdates(after passes: Int) {
+        guard !hasWarnedAboutEndlessUpdates else { return }
+        hasWarnedAboutEndlessUpdates = true
+        let cause =
+            lastActions.isEmpty
+            ? "A view may change state while its body is evaluated."
+            : "The last update ran \(lastActions.joined(separator: ", ")), which changed state again."
+        FileHandle.standardError.write(
+            Data(
+                "parhelion: state changed in each of \(passes) updates in a row, so the host stopped updating until the next change. \(cause)\n"
+                    .utf8))
+    }
+
+    private func startTask(_ request: TaskRequest, key: LifecycleKey) {
+        cancelTask(key)
         runs += 1
         let run = runs
         let action = request.action
         let handle = Task(name: request.name, priority: request.priority) {
             @MainActor [weak self] in
             await action()
-            self?.finishTask(key, run: run)
+            self?.unfinishedRuns[run] = nil
         }
-        tasks[key] = RunningTask(handle: handle, run: run)
+        currentRuns[key] = run
+        unfinishedRuns[run] = handle
     }
 
-    private func finishTask(_ key: String, run: Int) {
-        if tasks[key]?.run == run { tasks[key] = nil }
-    }
-
-    private func cancelTask(_ key: String) {
-        tasks.removeValue(forKey: key)?.handle.cancel()
+    /// Cancels the current run of a task modifier. The run stays pending
+    /// until it returns.
+    private func cancelTask(_ key: LifecycleKey) {
+        if let run = currentRuns.removeValue(forKey: key) { unfinishedRuns[run]?.cancel() }
         taskIDs[key] = nil
     }
 }

@@ -35,7 +35,11 @@ final class Library: Codable {
     @MainActor
     func load() async {
         guard books.isEmpty else { return }
-        try? await Task.sleep(for: .milliseconds(300))
+        do {
+            try await Task.sleep(for: .milliseconds(300))
+        } catch {
+            return  // Cancelled: the shelf left the screen.
+        }
         books = [
             Book(id: 1, title: "The Left Hand of Darkness", author: "Ursula K. Le Guin"),
             Book(id: 2, title: "Kindred", author: "Octavia E. Butler"),

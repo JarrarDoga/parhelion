@@ -1,4 +1,5 @@
 import Foundation
+import ParhelionPreview
 import Testing
 
 @testable import ParhelionUI
@@ -84,6 +85,24 @@ private struct Runaway: View {
     }
 }
 
+/// Counts frames that another thread receives.
+private final class FrameCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var frames = 0
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return frames
+    }
+
+    func add() {
+        lock.lock()
+        frames += 1
+        lock.unlock()
+    }
+}
+
 /// Lets a test decide when a task finishes.
 @MainActor
 private final class Gate {
@@ -142,9 +161,72 @@ private struct Reloading: View {
     }
 }
 
+private struct Restarting: View {
+    let gate: Gate
+    let log: EventLog
+    @State private var query = "a"
+
+    var body: some View {
+        Button("Search \(query)") { query += "a" }
+            .task(id: query) { [query] in
+                await gate.wait()
+                log.events.append("finished \(query)\(Task.isCancelled ? ", cancelled" : "")")
+            }
+    }
+}
+
+private let tinyScreen = Device(
+    name: "Tiny", screenSize: CGSize(width: 20, height: 20), safeAreaInsets: EdgeInsets())
+
 @MainActor
 @Suite("Lifecycle")
 struct LifecycleTests {
+    @Test("A cancelled run counts as pending until it finishes, and waitForTasks waits for it")
+    func cancelledRunPending() async throws {
+        let gate = Gate()
+        let log = EventLog()
+        let host = ViewHost(Restarting(gate: gate, log: log))
+        while gate.waiting == 0 { await Task.yield() }
+
+        try host.tapButton(labeled: "Search a")
+        #expect(host.pendingTaskCount == 2)
+        while gate.waiting < 2 { await Task.yield() }
+        gate.open()
+        await host.waitForTasks()
+        #expect(host.pendingTaskCount == 0)
+        #expect(log.events.sorted() == ["finished a, cancelled", "finished aa"])
+    }
+
+    @Test("Actions that change state forever stop at the update limit, leaving no update waiting")
+    func runawayStops() {
+        let host = ViewHost(Runaway())
+        #expect(!host.needsUpdate)
+        let count = Int(host.root.allNodes.compactMap(\.text).first ?? "") ?? 0
+        #expect(count == ViewHost.maximumUpdatePasses)
+        host.update()
+        #expect(!host.needsUpdate)
+    }
+
+    @Test("A preview session does not spin on a view that changes state forever")
+    func runawaySession() throws {
+        let (appEnd, hostEnd) = try PreviewChannel.pair()
+        nonisolated(unsafe) let reader = hostEnd
+        let frames = FrameCounter()
+        let readerThread = Thread {
+            while let message = try? reader.receiveAppMessage(timeout: 2) {
+                if case .frame = message { frames.add() }
+            }
+        }
+        readerThread.start()
+        let host = ViewHost(Runaway(), device: tinyScreen)
+        Thread {
+            Thread.sleep(forTimeInterval: 0.3)
+            try? reader.send(.close)
+        }.start()
+        try PreviewSession(host: host, channel: appEnd, scale: 1, appName: "Runaway").run()
+        #expect(frames.count <= 2)
+    }
+
     @Test("Lifecycle modifiers do not change the tree")
     func outline() {
         let host = ViewHost(
@@ -212,13 +294,6 @@ struct LifecycleTests {
         #expect(!host.needsUpdate)
     }
 
-    @Test("Actions that change state forever stop after the update limit")
-    func runaway() {
-        let host = ViewHost(Runaway())
-        #expect(host.needsUpdate)
-        #expect(host.nodes(withText: "\(ViewHost.maximumUpdatePasses)").count == 1)
-    }
-
     @Test("A task runs on the main actor, and waitForTasks waits for it")
     func task() async {
         let gate = Gate()
@@ -245,9 +320,11 @@ struct LifecycleTests {
         while gate.waiting == 0 { await Task.yield() }
 
         try host.tapButton(labeled: "Toggle")
-        #expect(host.pendingTaskCount == 0)
+        // Cancelled, but still pending until it returns.
+        #expect(host.pendingTaskCount == 1)
         gate.open()
-        while log.events.isEmpty { await Task.yield() }
+        await host.waitForTasks()
+        #expect(host.pendingTaskCount == 0)
         #expect(log.events == ["cancelled"])
     }
 

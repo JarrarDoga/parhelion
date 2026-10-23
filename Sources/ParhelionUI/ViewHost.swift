@@ -188,15 +188,23 @@ public final class ViewHost {
     /// resolved again, up to ``maximumUpdatePasses`` times.
     public func update() {
         var passes = 0
-        while needsUpdate, passes < Self.maximumUpdatePasses {
+        while needsUpdate {
+            guard passes < Self.maximumUpdatePasses else {
+                // Left waiting, the change would make a preview session
+                // update again on every turn of its loop.
+                needsUpdate = false
+                lifecycle.warnAboutEndlessUpdates(after: passes)
+                return
+            }
             evaluate()
             passes += 1
         }
     }
 
-    /// How many times one ``update()`` resolves the tree before it leaves
-    /// further changes for the next update, so that views whose lifecycle
-    /// actions change state forever cannot hang the host.
+    /// How many times one ``update()`` resolves the tree. If state is still
+    /// changing then, as when an `onChange(of:)` action changes the value it
+    /// watches, the host writes a warning and stops until the next change,
+    /// so that such views cannot hang the host or keep it busy.
     public static let maximumUpdatePasses = 64
 
     /// The part of the tree that receives input: the frontmost sheet or

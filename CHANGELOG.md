@@ -230,7 +230,8 @@ may contain breaking changes.
 - `onAppear(perform:)`, `onDisappear(perform:)`, `onChange(of:initial:_:)`, and `task` with and
   without an `id`. A view appears when one of its nodes enters the tree, so a screen that a
   navigation push covers disappears. Tasks run on the main actor, `ViewHost.pendingTaskCount`
-  counts them, and `ViewHost.waitForTasks()` waits for them.
+  counts them until they return, even after they are cancelled, and `ViewHost.waitForTasks()`
+  waits for them.
 - The `colorScheme`, `dynamicTypeSize`, `horizontalSizeClass`, `verticalSizeClass`, and `locale`
   environment values, with `ColorScheme`, `DynamicTypeSize`, and `UserInterfaceSizeClass`. They
   describe an iPhone in portrait in the light appearance and US English.
@@ -317,7 +318,10 @@ may contain breaking changes.
 - An app's own `@State` belongs to its `ViewHost`, as a view's does: changing it updates the tree,
   and hot reload keeps it when its value is `Codable`, including an `@Observable` model.
 - `ViewHost.update()` runs lifecycle actions after it resolves the tree, and resolves the tree
-  again when they change state, up to `ViewHost.maximumUpdatePasses` times.
+  again when they change state, up to `ViewHost.maximumUpdatePasses` times. Then it writes a
+  warning that names the actions and stops until the next change.
+- Every `ViewHost` method that delivers input, and every agent command, first updates the tree if
+  state changed, so input reaches the views on screen now.
 - In a preview session, the app receives messages on a background thread, and its main thread
   runs main-actor work while it waits, such as `task` actions and `Task`s that buttons start. The
   window shows the changes that work makes without waiting for input.

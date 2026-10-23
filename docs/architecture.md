@@ -393,11 +393,17 @@ each update, the host compares the records with the last update's:
   disappear, and a pop makes it appear again.
 - The host cancels the tasks of views that left, starts the tasks of views that arrived, and
   restarts a `task(id:)` whose id changed. Then it runs `onDisappear`, `onAppear`, and
-  `onChange` actions, in that order. An action that changes state starts another update, up to
-  `ViewHost.maximumUpdatePasses` in a row.
-- Tasks run on the main actor. `pendingTaskCount` counts the tasks of views on screen that have
-  not finished, and `waitForTasks()` waits until there are none, updating the tree as they
-  change state. Tests await it; agents see the count in every reply.
+  `onChange` actions, in that order. Assumed: SwiftUI does not document this order.
+- An action that changes state starts another update, up to `ViewHost.maximumUpdatePasses` in a
+  row. If state is still changing then, as when an `onChange(of:)` action changes the value it
+  watches, the host writes one warning that names the actions of the last update, and stops
+  until the next change, so that a preview session does not update on every turn of its loop.
+- Tasks run on the main actor. Cancelling a task asks it to stop, as Swift's cancellation does;
+  a cancelled run keeps going until it returns, and its changes apply like any other, though
+  `@State` of a view that left went with the view. `pendingTaskCount` counts every run that
+  has not returned, cancelled or not, and `waitForTasks()` waits until there are none, updating
+  the tree as they change state, so no task changes state after it returns. Tests await it;
+  agents see the count in every reply.
 
 ### Animation
 
