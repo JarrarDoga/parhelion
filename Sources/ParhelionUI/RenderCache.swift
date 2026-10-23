@@ -20,10 +20,10 @@ import Foundation
 ///   pixels it read and the pixels it left; a later frame that finds the
 ///   same pixels beneath copies the result instead of drawing it.
 ///
-/// It holds at most two full-screen canvases, about 5 MB each at 2× and
-/// 12 MB at 3×, and glass up to ``glassByteLimit``. The canvases go when
-/// nothing is presented, and glass that a frame did not draw goes after
-/// that frame.
+/// It holds at most two full-screen canvases, each about 5 MB at 2× and 12
+/// to 15 MB at 3×, and glass up to ``glassByteLimit``. The backdrop goes
+/// when nothing is presented, the layer when nothing fades over it, and
+/// glass that a frame did not draw after that frame.
 final class RenderCache {
     /// What the backdrop's pixels depend on.
     struct BackdropKey: Equatable {
