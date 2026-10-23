@@ -1,5 +1,9 @@
 #!/bin/sh
 # Checks that an app depending on Parhelion still builds for iOS with xtool.
+# The app also compiles the Library example's sources and a file that uses the
+# data-flow API (@Observable, @Bindable, bindings into collections, lifecycle
+# modifiers, and environment values), so that the same sources are known to
+# build against Parhelion on Linux and against Apple's SwiftUI.
 #
 # Usage: Scripts/check-ios-build.sh
 #
@@ -46,6 +50,74 @@ struct CheckApp: App {
             }
             .padding()
         }
+    }
+}
+SWIFT
+# The example's own @main would collide with CheckApp's.
+sed '/^@main$/d' "$repo/Examples/Library/LibraryApp.swift" > "$work/Sources/CheckApp/LibraryApp.swift"
+cat > "$work/Sources/CheckApp/DataFlow.swift" <<'SWIFT'
+import SwiftUI
+
+@Observable
+final class DataFlowModel {
+    var count = 0
+    var names = ["Ada", "Grace"]
+    var rows = [DataFlowRow(id: 1, title: "One"), DataFlowRow(id: 2, title: "Two")]
+}
+
+struct DataFlowRow: Identifiable {
+    var id: Int
+    var title: String
+}
+
+struct DataFlowView: View {
+    @State private var model = DataFlowModel()
+    @State private var query = ""
+    @State private var settings = DataFlowRow(id: 0, title: "Settings")
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.locale) private var locale
+    @Environment(DataFlowModel.self) private var shared: DataFlowModel?
+
+    var body: some View {
+        @Bindable var model = model
+        VStack {
+            Text("\(model.count)")
+            Text(dynamicTypeSize.isAccessibilitySize ? "Large" : "Regular")
+            TextField("Title", text: $settings.title)
+            ForEach($model.names, id: \.self) { $name in
+                TextField("Name", text: $name)
+            }
+            ForEach($model.rows) { $row in
+                DataFlowEditor(row: $row, model: model)
+            }
+            Group {
+                AnyView(erasing: Text("Erased"))
+                AnyView(Text(colorScheme == .light ? "Light" : "Dark"))
+            }
+            Text(horizontalSizeClass == .compact && verticalSizeClass == .regular ? "Phone" : "Other")
+            Text(locale.identifier)
+        }
+        .onAppear { model.count += 1 }
+        .onDisappear {}
+        .onChange(of: model.count) { oldValue, newValue in query = "\(oldValue) \(newValue)" }
+        .onChange(of: query, initial: true) {}
+        .task(id: query) { await Task.yield() }
+        .task(priority: .low) {}
+        .environment(DataFlowModel())
+    }
+}
+
+struct DataFlowEditor: View {
+    @Binding var row: DataFlowRow
+    @Bindable var model: DataFlowModel
+
+    var body: some View {
+        TextField("Row", text: $row.title)
+        Text("\(model.rows.count) rows, \(Array($model.rows).count) bindings")
+        Text("First row: \($model.rows[0].id)")
     }
 }
 SWIFT

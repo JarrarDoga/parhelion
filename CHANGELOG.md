@@ -219,8 +219,8 @@ may contain breaking changes.
   the page show the same app.
 - `@Observable` models, through the Swift toolchain's Observation module: each update records the
   observable properties that views read with `withObservationTracking`, and a change to any of
-  them updates the tree. `import SwiftUI` alone makes `@Observable` available, as on Apple
-  platforms.
+  them updates the tree. `import SwiftUI` alone makes `@Observable` and Foundation's types
+  available, as on Apple platforms.
 - `@Bindable`; `Binding`'s dynamic members, such as `$model.name`; `Binding(projectedValue:)`;
   `Binding`'s `Identifiable`, `Collection`, and related conformances; and `ForEach(_:content:)`
   and `ForEach(_:id:content:)` for bindings, so that `ForEach($items) { $item in ... }` works.

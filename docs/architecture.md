@@ -99,7 +99,8 @@ the first window's content in its place.
 
 ### Observation
 
-`@Observable` models use the Swift toolchain's Observation module; `import SwiftUI` re-exports it.
+`@Observable` models use the Swift toolchain's Observation module; `import SwiftUI` re-exports it,
+and Foundation, as Apple's SwiftUI makes both available.
 Each evaluation of the tree runs inside `withObservationTracking`, which records every
 observable property that a `body`, a binding, or presented content reads. The first change to any
 of them marks the host as needing an update, the same way a `State` write does, so `@State`
