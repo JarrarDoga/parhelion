@@ -8,21 +8,13 @@ import ParhelionTooling
 /// The preview window: it shows frames and turns mouse events into input
 /// messages. SDL runs on the main thread only.
 ///
-/// Showing a frame has two steps, so that ``FrameLoop`` can time them:
 /// ``upload(_:)`` copies the pixels into the window's texture, and
 /// ``present()`` draws the texture and, with vsync, waits for the display
 /// to refresh.
-final class WindowHost {
-    enum Event {
-        /// The user closed the window.
-        case close
-        /// Input to forward to the app.
-        case input(HostMessage)
-        /// The window needs drawing again, as after it was uncovered.
-        case redraw
-    }
-
+final class WindowHost: PreviewSurface {
     private let window: OpaquePointer
+    /// The title without a status.
+    private let title: String
     private let renderer: OpaquePointer
     private var texture: UnsafeMutablePointer<SDL_Texture>?
     private var textureSize = (width: 0, height: 0)
@@ -77,6 +69,7 @@ final class WindowHost {
         }
         self.window = window
         self.renderer = renderer
+        self.title = title
         self.zoom = zoom
         self.bezel = bezel
         // Present in step with the display. Drivers may refuse; then the
@@ -114,8 +107,24 @@ final class WindowHost {
         }
     }
 
-    func setTitle(_ title: String) {
-        _ = SDL_SetWindowTitle(window, title)
+    /// Shows a status after the title.
+    func setStatus(_ status: PreviewStatus) {
+        let suffix =
+            switch status {
+            case .running: ""
+            case .building: " — Rebuilding…"
+            case .buildFailed: " — Build failed"
+            case .stopped: " — Not running"
+            }
+        _ = SDL_SetWindowTitle(window, title + suffix)
+    }
+
+    /// The window was opened for the app's first hello; later apps from hot
+    /// reload simulate the same screen.
+    func show(_ hello: PreviewHello) {}
+
+    func delay(nanoseconds: UInt64) {
+        SDL_DelayPrecise(nanoseconds)
     }
 
     /// Reads the refresh rate of the display the window is on, or the rate
@@ -142,8 +151,8 @@ final class WindowHost {
     /// The events that matter to the preview: waits up to `timeout` seconds
     /// for the first event, or until woken, then takes every event already
     /// queued without waiting. A timeout of 0 does not wait.
-    func events(waitingUpTo timeout: Double) -> [Event] {
-        var result: [Event] = []
+    func events(waitingUpTo timeout: Double) -> [SurfaceEvent] {
+        var result: [SurfaceEvent] = []
         var event = SDL_Event()
         let milliseconds = Int32(min(max(timeout, 0) * 1000, Double(Int32.max)).rounded(.up))
         var available =
@@ -156,7 +165,7 @@ final class WindowHost {
     }
 
     /// The preview's meaning of an SDL event, if it has one.
-    private func translate(_ event: SDL_Event) -> Event? {
+    private func translate(_ event: SDL_Event) -> SurfaceEvent? {
         func point(_ x: Float, _ y: Float) -> (x: Double, y: Double) {
             screenPoint(windowX: Double(x), windowY: Double(y), zoom: zoom, bezel: bezel)
         }

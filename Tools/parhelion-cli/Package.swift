@@ -29,11 +29,15 @@ let package = Package(
                 .brew(["sdl3"]),
             ]
         ),
-        // Package inspection, runner generation, file watching, and builds:
-        // everything that does not need a window, so it can be tested.
+        // Package inspection, runner generation, file watching, builds, and
+        // the web preview's server: everything that does not need a window,
+        // so it can be tested.
         .target(
             name: "ParhelionTooling",
-            dependencies: [.product(name: "ParhelionRender", package: "parhelion")]
+            dependencies: [
+                .product(name: "ParhelionPreview", package: "parhelion"),
+                .product(name: "ParhelionRender", package: "parhelion"),
+            ]
         ),
         .testTarget(name: "ParhelionToolingTests", dependencies: ["ParhelionTooling"]),
         .executableTarget(

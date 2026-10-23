@@ -85,6 +85,9 @@ struct Preview: ParsableCommand {
             Starts the app, connects to it over a local socket, and shows its \
             frames in a window. Click to tap. Close the window to quit.
 
+            With --web, the app appears on a web page instead, at the URL that \
+            parhelion prints, and no display is needed. Press Control-C to quit.
+
             Options for parhelion go before the executable. Everything after \
             the executable is passed to the app. To rebuild and reload the app \
             when its sources change, use `parhelion run` instead.
@@ -94,6 +97,8 @@ struct Preview: ParsableCommand {
     )
 
     @OptionGroup var window: WindowOptions
+
+    @OptionGroup var web: WebOptions
 
     @Argument(help: "The app executable to run.")
     var executable: String
@@ -105,8 +110,11 @@ struct Preview: ParsableCommand {
         parhelion_line_buffer_standard_output()
         let socketPath = makeSocketPath()
         let listener = try PreviewListener(path: socketPath)
+        let webHost = web.isEnabled ? try WebHost(options: web, bezel: window.bezel) : nil
+        if let webHost { print(webHost.announcement) }
         // Frames that arrive before the window exists are kept until it does.
         let wakeBox = WakeBox()
+        if let webHost { wakeBox.set(webHost.waker) }
         let app = try AppConnection(
             executable: URL(fileURLWithPath: executable).path,
             arguments: arguments,
@@ -114,11 +122,18 @@ struct Preview: ParsableCommand {
             listener: listener,
             wake: { wakeBox.wake() }
         )
-        let host = try window.openWindow(for: app.hello)
-        wakeBox.set(host.waker)
-        print("Previewing \(app.hello.appName). Close the window to quit.")
+        let surface: PreviewSurface
+        if let webHost {
+            surface = webHost
+            print("Previewing \(app.hello.appName). Press Control-C to quit.")
+        } else {
+            let host = try window.openWindow(for: app.hello)
+            wakeBox.set(host.waker)
+            surface = host
+            print("Previewing \(app.hello.appName). Close the window to quit.")
+        }
 
-        let loop = FrameLoop(window: host)
+        let loop = FrameLoop(surface: surface)
         while true {
             switch try loop.step(app: app, idleTimeout: 0.25) {
             case .close:

@@ -172,6 +172,36 @@ everything optimized. Builds go to `.build/parhelion`, so they do not disturb yo
 The app draws its own frames and sends them to the window over a local socket, so the same app
 can also run with no window at all, for tests and agents.
 
+### In a browser
+
+`--web` shows the preview on a web page instead of in a window. Use it from another device, such
+as your Mac or iPhone over Tailscale, or on a machine with no display:
+
+```console
+$ parhelion run --web --package-path ~/Code/MyApp
+Open the preview in a browser:
+  http://127.0.0.1:8417/?token=3f9c0b7e2a6d4c1f8e5b9a0d7c3e6f21
+Building MyApp: debug build of the app, with Parhelion optimized...
+Running MyApp. Save a file to reload. Press Control-C to quit.
+```
+
+The page shows the phone scaled to fit the browser window. Click or touch to tap, drag to scroll,
+scroll with the mouse wheel or trackpad, and type; on a phone, the Keyboard button opens the
+keyboard. The page stays connected while `parhelion run` rebuilds and restarts the app, and shows
+build errors. It needs a browser from 2023 or later: Chrome 80, Safari 16.4, or Firefox 113.
+
+Anyone who can open the page controls the app, so the URL carries a random token, and the tool
+refuses every request without it. The tool listens on 127.0.0.1 unless you choose another
+address with `--web-address`: a Tailscale address such as `100.101.102.103`, or `0.0.0.0` for
+every address. `--web-port` chooses the port; by default the tool uses 8417, or the next free
+port after it. `parhelion preview --web` works the same way. `parhelion mcp --web` prints the URL
+to standard error and gives it to the agent, and with `--window` too, the window and the page
+show the same app.
+
+The tool sends the page only the rows of each frame that changed, compressed. Scrolling a full
+screen costs about 35 to 40 KB a frame, so the page keeps up with a 60 Hz iPhone over a 50 Mbit/s
+connection.
+
 ## Agents
 
 `parhelion mcp` serves your app to a coding agent over the Model Context Protocol. Register it
@@ -193,7 +223,7 @@ The agent gets these tools:
 
 Each interaction reports the screen's revision, so the agent can tell whether it changed
 anything. Add `--window` to watch the app in a preview window and use it yourself while the agent
-works.
+works, or `--web` to do that from a browser.
 
 ## Status
 
@@ -206,8 +236,8 @@ works.
 | Animation | `withAnimation` and `animation(_:value:)` with timing curves and springs on a deterministic clock; opacity, move, slide, offset, and push transitions; animated navigation and presentations |
 | Layout | SwiftUI's propose-and-respond stack algorithm, iOS text styles and text wrapping with the bundled Inter font in four weights, large and inline navigation titles, the screens and safe areas of nine iPhones from iPhone 16 to iPhone 17 Pro Max |
 | Input | Tap by node, by button label, or by screen position; press, drag away to cancel, and release with the mouse; scroll by dragging with momentum, or with the mouse wheel and trackpad; type into text fields, with the caret keys, Backspace, Delete, and Tab between fields |
-| Window | `parhelion run` with hot reload that keeps `Codable` state, and `parhelion preview`; an SDL3 window host for Wayland and X11 that shows the screen in a phone bezel |
-| Agents | `parhelion mcp`, with or without a window |
+| Window | `parhelion run` with hot reload that keeps `Codable` state, and `parhelion preview`; an SDL3 window host for Wayland and X11 that shows the screen in a phone bezel; `--web` for the same preview in a browser |
+| Agents | `parhelion mcp`, with or without a window or web page |
 | Rendering | Anti-aliased shapes and Inter text drawn in pure Swift at any scale, with PNG output; iOS 27's system colors and inset grouped lists; the status bar, Dynamic Island or notch, home indicator, and rounded screen corners; the floating glass tab bar; SF Symbol names drawn with Phosphor Icons, and other names as placeholder rings |
 | App | `App`, `Scene`, `WindowGroup`, with a headless runner |
 

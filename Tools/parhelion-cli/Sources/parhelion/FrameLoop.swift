@@ -1,11 +1,48 @@
-import CSDL3
 import Foundation
 import ParhelionPreview
 import ParhelionTooling
 
-/// The window host's main loop: it forwards input to the app, shows the
-/// app's newest frame, and, while the app animates, paces it to the
-/// display.
+/// Something that shows the app's frames and collects input for it: the
+/// preview window, web pages, or both.
+///
+/// Showing a frame has two steps, so that ``FrameLoop`` can time them:
+/// ``upload(_:)`` copies the frame's damaged pixels, and ``present()``
+/// shows them. With vsync, presenting waits for the display to refresh.
+protocol PreviewSurface: AnyObject {
+    /// Whether ``present()`` waits for the display to refresh.
+    var hasVSync: Bool { get }
+    /// The time between refreshes, in nanoseconds.
+    var refreshPeriod: UInt64 { get }
+    /// A function other threads can call to wake ``events(waitingUpTo:)``.
+    var waker: @Sendable () -> Void { get }
+    /// Waits up to `timeout` seconds for the first event, or until woken,
+    /// then takes every event already queued without waiting. A timeout of
+    /// 0 does not wait.
+    func events(waitingUpTo timeout: Double) -> [SurfaceEvent]
+    /// Copies a frame's damaged pixels. Returns `false` for a frame without
+    /// pixels.
+    func upload(_ frame: ReceivedFrame) throws -> Bool
+    func present()
+    /// Waits precisely, for pacing without vsync.
+    func delay(nanoseconds: UInt64)
+    /// A new app connected, as when hot reload restarts it.
+    func show(_ hello: PreviewHello)
+    func setStatus(_ status: PreviewStatus)
+}
+
+/// What a ``PreviewSurface`` reports.
+enum SurfaceEvent {
+    /// The user closed the window or interrupted the tool.
+    case close
+    /// Input to forward to the app.
+    case input(HostMessage)
+    /// The surface needs drawing again, as after a window was uncovered.
+    case redraw
+}
+
+/// The preview's main loop: it forwards input to the app, shows the app's
+/// newest frame, and, while the app animates, paces it to the display, or
+/// for web pages, to a timer at the simulated screen's frame rate.
 ///
 /// Each ``step(app:idleTimeout:)`` is one pass. While the app animates and
 /// draws for the host's clock, a pass waits for the app's answer to the last
@@ -15,7 +52,7 @@ import ParhelionTooling
 /// ``FramePacer`` holds the timing rules, including the simulated screen's
 /// frame rate.
 final class FrameLoop {
-    private let window: WindowHost
+    private let surface: PreviewSurface
     private var pacer: FramePacer
     /// The app the pacer's timing belongs to.
     private var appIdentity: ObjectIdentifier?
@@ -33,10 +70,10 @@ final class FrameLoop {
         case running(presentedFrame: Bool)
     }
 
-    init(window: WindowHost) {
-        self.window = window
-        pacer = FramePacer(vsyncEnabled: window.hasVSync)
-        pacer.setRefreshPeriod(window.refreshPeriod)
+    init(surface: PreviewSurface) {
+        self.surface = surface
+        pacer = FramePacer(vsyncEnabled: surface.hasVSync)
+        pacer.setRefreshPeriod(surface.refreshPeriod)
     }
 
     /// Runs one pass of the loop for `app`, which may change between passes
@@ -45,9 +82,12 @@ final class FrameLoop {
         if appIdentity != app.map(ObjectIdentifier.init) {
             appIdentity = app.map(ObjectIdentifier.init)
             pacer.reset()
-            if let app { pacer.setMaximumFramesPerSecond(app.hello.maximumFramesPerSecond) }
+            if let app {
+                surface.show(app.hello)
+                pacer.setMaximumFramesPerSecond(app.hello.maximumFramesPerSecond)
+            }
         }
-        pacer.setRefreshPeriod(window.refreshPeriod)
+        pacer.setRefreshPeriod(surface.refreshPeriod)
         // An app that exited mid-animation still says it animates; without
         // this, the loop would present at the refresh rate until a reload.
         let live = app.flatMap { $0.isDisconnected ? nil : $0 }
@@ -56,7 +96,7 @@ final class FrameLoop {
             live.map { $0.usesHostClock && ($0.isAnimating || pacer.outstandingTarget != nil) }
             ?? false
 
-        var events: [WindowHost.Event] = []
+        var events: [SurfaceEvent] = []
         if let app, ticking {
             // Wait for the app's answer until the frame deadline, handling
             // input as it arrives. The reader thread wakes the wait.
@@ -66,12 +106,12 @@ final class FrameLoop {
                 guard deadline > now + 1_000_000 else { break }
                 // Whole milliseconds, rounded down, so the wait ends before
                 // the deadline.
-                events += window.events(waitingUpTo: Double((deadline - now) / 1_000_000) / 1000)
+                events += surface.events(waitingUpTo: Double((deadline - now) / 1_000_000) / 1000)
                 if events.contains(where: { if case .close = $0 { true } else { false } }) { break }
             }
-            events += window.events(waitingUpTo: 0)
+            events += surface.events(waitingUpTo: 0)
         } else {
-            events = window.events(waitingUpTo: idleTimeout)
+            events = surface.events(waitingUpTo: idleTimeout)
         }
         if handle(events, app: app) { return .close }
 
@@ -89,7 +129,7 @@ final class FrameLoop {
         var presentedFrame = false
         if let app, let frame = app.takeFrame() {
             let start = PreviewClock.now()
-            presentedFrame = try window.upload(frame)
+            presentedFrame = try surface.upload(frame)
             app.release(frame)
             let duration = PreviewClock.now() - start
             pacer.noteUpload(duration: duration)
@@ -125,10 +165,10 @@ final class FrameLoop {
         if !pacer.hasVSync, presentTime == nil {
             let now = PreviewClock.now()
             let next = pacer.nextPresentTime(after: lastPresent, now: now)
-            if next > now { SDL_DelayPrecise(next - now) }
+            if next > now { surface.delay(nanoseconds: next - now) }
             presentTime = next
         }
-        window.present()
+        surface.present()
         let now = presentTime ?? PreviewClock.now()
         if isDebugLogging {
             let returned = PreviewClock.now()
@@ -153,8 +193,8 @@ final class FrameLoop {
     }
 
     /// Forwards input to the app and notes redraws. Returns whether the user
-    /// closed the window.
-    private func handle(_ events: [WindowHost.Event], app: AppConnection?) -> Bool {
+    /// closed the window or interrupted the tool.
+    private func handle(_ events: [SurfaceEvent], app: AppConnection?) -> Bool {
         for event in events {
             switch event {
             case .close: return true
@@ -173,11 +213,11 @@ final class FrameLoop {
             guard time > now else { return false }
             let remaining = time - now
             guard remaining > 2_000_000 else {
-                SDL_DelayPrecise(remaining)
+                surface.delay(nanoseconds: remaining)
                 return false
             }
             // Whole milliseconds, leaving at least one for the precise wait.
-            let events = window.events(
+            let events = surface.events(
                 waitingUpTo: Double((remaining - 1_000_000) / 1_000_000) / 1000)
             if handle(events, app: app) { return true }
         }

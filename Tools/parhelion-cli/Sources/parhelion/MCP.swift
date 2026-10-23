@@ -14,7 +14,9 @@ struct MCP: ParsableCommand {
             screenshots, tap, type, scroll, and rebuild after editing the code.
 
             With --window, the app also appears in a preview window, so you can \
-            watch and use it alongside the agent.
+            watch and use it alongside the agent. With --web, it appears on a web \
+            page at the URL that parhelion prints to standard error; the agent's \
+            instructions include the URL too.
 
             Register it with Claude Code:
               claude mcp add parhelion -- parhelion mcp --package-path /path/to/MyApp
@@ -41,26 +43,38 @@ struct MCP: ParsableCommand {
 
     @Flag(
         inversion: .prefixedNo,
-        help: "Draw the phone around the screen in the preview window.")
+        help: "Draw the phone around the screen in the preview window or web page.")
     var bezel = true
+
+    @OptionGroup var web: WebOptions
 
     func run() throws {
         let package = try AppPackage.load(at: packagePath)
         let plan = try RunPlan.make(for: package, at: packagePath, product: product)
+        let webHost = web.isEnabled ? try WebHost(options: web, bezel: bezel) : nil
+        let showsFrames = window || webHost != nil
         let controller = try AgentController(
             plan: plan,
             builder: AppBuilder(plan: plan, configuration: configuration.rawValue),
-            scale: window ? 2 : 1,
+            scale: showsFrames ? 2 : 1,
             device: device,
-            // Without a window, nobody shows frames or keeps time.
-            capabilities: window ? PreviewCapability.all : []
+            // Without a window or a page, nobody shows frames or keeps time.
+            capabilities: showsFrames ? PreviewCapability.all : [],
+            status: webHost.map { host in { host.setStatus($0) } }
         )
+        if let webHost {
+            FileHandle.standardError.write(Data("parhelion: \(webHost.announcement)\n".utf8))
+        }
         controller.start()
 
+        var instructions = AgentTools.instructions(product: plan.product, device: device)
+        if let url = webHost?.preview.urls.first {
+            instructions += " The person you work with can watch and use the app at \(url)."
+        }
         let server = MCPServer(
             name: "parhelion",
             version: "0.1.0",
-            instructions: AgentTools.instructions(product: plan.product, device: device),
+            instructions: instructions,
             tools: AgentTools.definitions,
             handler: controller.handle
         )
@@ -70,13 +84,14 @@ struct MCP: ParsableCommand {
             }
         }
 
-        guard window else {
+        guard showsFrames else {
             serve()
             controller.shutdown()
             return
         }
 
         // SDL must run on the main thread, so the protocol moves to a thread.
+        // The frame loop runs there for web pages too.
         Thread {
             serve()
             controller.shutdown()
@@ -84,21 +99,27 @@ struct MCP: ParsableCommand {
         var loop: FrameLoop?
         while !controller.isFinished {
             guard let app = controller.currentApp else {
+                if webHost?.isInterrupted == true { break }
                 Thread.sleep(forTimeInterval: 0.1)
                 continue
             }
             if loop == nil {
-                let host = try WindowOptions(scale: 2, zoom: zoom, bezel: bezel, device: device)
-                    .openWindow(for: app.hello)
-                controller.setWaker(host.waker)
-                loop = FrameLoop(window: host)
+                var surface: PreviewSurface? = webHost
+                if window {
+                    let host = try WindowOptions(scale: 2, zoom: zoom, bezel: bezel, device: device)
+                        .openWindow(for: app.hello)
+                    surface = webHost.map { MirroredSurface(window: host, web: $0) } ?? host
+                }
+                controller.setWaker(surface!.waker)
+                loop = FrameLoop(surface: surface!)
             }
             if case .close = try loop?.step(app: app, idleTimeout: 0.05) {
                 // Closing the window ends the session for the agent too.
-                controller.shutdown()
-                return
+                break
             }
         }
+        controller.shutdown()
+        webHost?.preview.stop()
     }
 }
 
@@ -124,6 +145,7 @@ final class AgentController: @unchecked Sendable {
     private let scale: Double
     private let device: String?
     private let capabilities: [String]
+    private let status: ((PreviewStatus) -> Void)?
     private let lock = NSLock()
     private var app: AppConnection?
     private var lastFailure: String?
@@ -135,15 +157,18 @@ final class AgentController: @unchecked Sendable {
         .appendingPathComponent("parhelion-\(ProcessInfo.processInfo.processIdentifier).state.json")
         .path
 
+    /// - Parameter status: Called with each build's progress and outcome,
+    ///   for a web page to show.
     init(
         plan: RunPlan, builder: AppBuilder, scale: Double, device: String?,
-        capabilities: [String]
+        capabilities: [String], status: ((PreviewStatus) -> Void)? = nil
     ) throws {
         self.plan = plan
         self.builder = builder
         self.scale = scale
         self.device = device
         self.capabilities = capabilities
+        self.status = status
         listener = try PreviewListener(path: socketPath)
     }
 
@@ -174,11 +199,13 @@ final class AgentController: @unchecked Sendable {
     /// Builds the app and, if that succeeds, replaces the running app with
     /// the new build, carrying its state over.
     private func buildAndLaunch() -> MCPToolResult {
+        status?(.building)
         let outcome = builder.build()
         guard outcome.succeeded else {
             let summary = builder.errorSummary(outcome.output)
             lock.withLock { lastFailure = summary }
             log("Build failed:\n\(summary)")
+            status?(.buildFailed(summary))
             return .text(
                 "The build failed. The previous version, if any, is still running.\n\(summary)",
                 isError: true)
@@ -205,6 +232,7 @@ final class AgentController: @unchecked Sendable {
                 app = connection
                 lastFailure = nil
             }
+            status?(.running)
             log("Running \(connection.hello.appName).")
             if let warning = WindowOptions.deviceWarning(requested: device, hello: connection.hello)
             {
@@ -219,6 +247,7 @@ final class AgentController: @unchecked Sendable {
                 app = nil
                 lastFailure = "\(error)"
             }
+            status?(.stopped("The app was built but did not start: \(error)"))
             return .text("The app was built but did not start: \(error)", isError: true)
         }
     }
