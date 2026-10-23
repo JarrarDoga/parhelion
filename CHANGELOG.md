@@ -207,11 +207,15 @@ may contain breaking changes.
   of the tree, which a tap outside closes. An inline picker in a list is a section of rows with a
   checkmark, under its label; a navigation-link picker pushes the options and goes back when one
   is chosen. The node records `pickerStyle` and `selection`.
+- The `Settings` example, a form with each control: `swift run Settings`, or
+  `parhelion run --product Settings`.
 
 ### Changed
 
 - `ViewHost.tapButton(labeled:)` taps any control with the label, such as a toggle's switch, and
   reports a disabled control as not tappable.
+
+- `parhelion mcp`'s `tap` and `drag` tools describe the controls they drive.
 
 - Screenshots from `parhelion mcp` and `--png` images show the status bar and the home indicator,
   as Simulator screenshots do.
