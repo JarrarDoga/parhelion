@@ -129,6 +129,13 @@ public struct Canvas: Sendable {
         let width = width
         let mode = blendMode
 
+        if left <= 0, top <= 0, right >= Double(width), bottom >= Double(height),
+            clip.minX == 0, clip.minY == 0, clip.maxX == width, clip.maxY == height
+        {
+            fillEverything(color)
+            return
+        }
+
         pixels.withUnsafeMutableBufferPointer { bytes in
             let words = UnsafeMutableRawBufferPointer(bytes).bindMemory(to: UInt32.self)
             for y in startY..<endY {
@@ -178,6 +185,46 @@ public struct Canvas: Sendable {
                     }
                 }
             }
+        }
+    }
+
+    /// Fills every pixel with a color, as `fill(_:color:)` does, in one pass
+    /// that writes new pixels from the old ones. Pixels shared with another
+    /// canvas, such as the screen a renderer keeps beneath a sheet, are then
+    /// not copied before they are changed.
+    private mutating func fillEverything(_ color: RGBA) {
+        let count = width * height
+        let mode = blendMode
+        if color.alpha == 255, mode == .normal {
+            let word = color.packed
+            pixels = [UInt8](unsafeUninitializedCapacity: count * 4) { buffer, initialized in
+                UnsafeMutableRawBufferPointer(buffer).bindMemory(to: UInt32.self)
+                    .initialize(repeating: word)
+                initialized = count * 4
+            }
+            return
+        }
+        let old = pixels
+        pixels = [UInt8](unsafeUninitializedCapacity: count * 4) { bytes, initialized in
+            old.withUnsafeBytes { raw in
+                let source = raw.bindMemory(to: UInt32.self)
+                let words = UnsafeMutableRawBufferPointer(bytes).bindMemory(to: UInt32.self)
+                // Blend once per run of equal pixels.
+                var previous: UInt32?
+                var blended: UInt32 = 0
+                for index in 0..<count {
+                    let pixel = source[index]
+                    if pixel == previous {
+                        words[index] = blended
+                        continue
+                    }
+                    words[index] = pixel
+                    Self.blend(color, 1, mode, into: bytes, at: index * 4)
+                    previous = pixel
+                    blended = words[index]
+                }
+            }
+            initialized = count * 4
         }
     }
 
@@ -323,15 +370,25 @@ public struct Canvas: Sendable {
     private mutating func composite(_ coverage: Coverage, color: RGBA) {
         let width = width
         let mode = blendMode
+        // A pixel an opaque color covers fully takes the color, which is
+        // what blending it gives too.
+        let isOpaque = color.alpha == 255 && mode == .normal
+        let word = color.packed
         pixels.withUnsafeMutableBufferPointer { bytes in
+            let words = UnsafeMutableRawBufferPointer(bytes).bindMemory(to: UInt32.self)
             coverage.values.withUnsafeBufferPointer { values in
                 for row in 0..<coverage.height {
-                    let rowStart = ((coverage.originY + row) * width + coverage.originX) * 4
+                    let rowStart = (coverage.originY + row) * width + coverage.originX
                     let valueStart = row * coverage.width
                     for column in 0..<coverage.width {
                         let amount = values[valueStart + column]
                         guard amount > 0 else { continue }
-                        Self.blend(color, amount, mode, into: bytes, at: rowStart + column * 4)
+                        if isOpaque, amount >= 1 {
+                            words[rowStart + column] = word
+                        } else {
+                            Self.blend(
+                                color, amount, mode, into: bytes, at: (rowStart + column) * 4)
+                        }
                     }
                 }
             }
@@ -371,13 +428,23 @@ public struct Canvas: Sendable {
         guard outAlpha > 0 else { return }
         let keep = destinationAlpha * (1 - amount)
         func channel(_ source: UInt8, _ destination: UInt8) -> UInt8 {
-            let value = (Float(source) * amount + Float(destination) * keep) / outAlpha
-            return UInt8(min(max(value.rounded(), 0), 255))
+            byte((Float(source) * amount + Float(destination) * keep) / outAlpha)
         }
         bytes[index] = channel(color.red, bytes[index])
         bytes[index + 1] = channel(color.green, bytes[index + 1])
         bytes[index + 2] = channel(color.blue, bytes[index + 2])
-        bytes[index + 3] = UInt8(min(max((outAlpha * 255).rounded(), 0), 255))
+        bytes[index + 3] = byte(outAlpha * 255)
+    }
+
+    /// A value clamped to `0...255` and rounded half away from zero, the
+    /// same as `UInt8(min(max(value.rounded(), 0), 255))`. `rounded()`
+    /// compiles to a call into the C library on x86-64; truncating and
+    /// comparing the remainder, which is exact, does not.
+    @inline(__always)
+    static func byte(_ value: Float) -> UInt8 {
+        let clamped = min(max(value, 0), 255)
+        let whole = Int(clamped)
+        return UInt8(truncatingIfNeeded: clamped - Float(whole) >= 0.5 ? whole + 1 : whole)
     }
 }
 
