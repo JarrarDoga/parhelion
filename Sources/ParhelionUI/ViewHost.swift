@@ -70,6 +70,9 @@ public final class ViewHost {
     var navigationChanges: [NodeID: NavigationDirection] = [:]
     private var presentedCache: ViewNode?
     private var hasLaidOut = false
+    private let observation = ObservationScope()
+    /// Lifecycle actions and `task` work. See HostTasks.swift.
+    let lifecycle = ViewLifecycle()
 
     /// Whether a state change is waiting for the next ``update()``.
     public private(set) var needsUpdate = false
@@ -128,6 +131,7 @@ public final class ViewHost {
         self.layoutEngine = LayoutEngine(device: device, scrolling: scrolling)
         pendingState = snapshot.flatMap(Self.decodeSnapshot) ?? [:]
         evaluate()
+        update()
     }
 
     init(
@@ -140,6 +144,7 @@ public final class ViewHost {
         self.layoutEngine = LayoutEngine(device: device, scrolling: scrolling)
         pendingState = snapshot.flatMap(Self.decodeSnapshot) ?? [:]
         evaluate()
+        update()
     }
 
     // MARK: - State snapshots
@@ -173,10 +178,22 @@ public final class ViewHost {
     }
 
     /// Resolves the tree again if any state changed since the last update.
+    ///
+    /// The actions of `onAppear`, `onChange(of:)`, and other modifiers run
+    /// after the tree is resolved, and when they change state, the tree is
+    /// resolved again, up to ``maximumUpdatePasses`` times.
     public func update() {
-        guard needsUpdate else { return }
-        evaluate()
+        var passes = 0
+        while needsUpdate, passes < Self.maximumUpdatePasses {
+            evaluate()
+            passes += 1
+        }
     }
+
+    /// How many times one ``update()`` resolves the tree before it leaves
+    /// further changes for the next update, so that views whose lifecycle
+    /// actions change state forever cannot hang the host.
+    public static let maximumUpdatePasses = 64
 
     /// The part of the tree that receives input: the frontmost sheet or
     /// alert, or the whole tree when nothing is presented.
@@ -713,15 +730,20 @@ public final class ViewHost {
         visitedNavigationStacks = []
         visitedAnimationKeys = []
         let evaluator = Evaluator(host: self)
-        var children = evaluator.evaluate(rootView, at: ViewPath())
-        // Presented content can present more, so the list grows as it goes.
-        var index = 0
         var presented: [NodeID: Presentation] = [:]
-        while index < evaluator.presentations.count {
-            let presentation = evaluator.presentations[index]
-            children.append(presentation.makeNode(evaluator))
-            presented[presentation.id] = presentation
-            index += 1
+        // A change to an observable property that a view reads marks the
+        // host as needing an update.
+        let children = observation.track(for: self) {
+            var children = evaluator.evaluate(rootView, at: ViewPath())
+            // Presented content can present more, so the list grows as it goes.
+            var index = 0
+            while index < evaluator.presentations.count {
+                let presentation = evaluator.presentations[index]
+                children.append(presentation.makeNode(evaluator))
+                presented[presentation.id] = presentation
+                index += 1
+            }
+            return children
         }
         resolvedRoot = ViewNode(id: "", kind: "Root", children: children)
         actions = evaluator.actions
@@ -749,12 +771,9 @@ public final class ViewHost {
         storage = storage.filter { visitedKeys.contains($0.key) }
         navigationState = navigationState.filter { visitedNavigationStacks.contains($0.key) }
 
+        lifecycle.apply(evaluator.lifecycle, to: resolvedRoot)
         // A dismissed sheet's onDismiss runs after it leaves the tree.
-        let callbacks = dismissed.compactMap(\.onDismiss)
-        if !callbacks.isEmpty {
-            callbacks.forEach { $0() }
-            update()
-        }
+        dismissed.compactMap(\.onDismiss).forEach { $0() }
     }
 
     /// Lays out the evaluated tree again, for example after scrolling.

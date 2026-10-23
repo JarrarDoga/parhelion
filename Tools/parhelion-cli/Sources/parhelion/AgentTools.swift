@@ -13,7 +13,7 @@ enum AgentTools {
         fields, scroll, and take screenshots to check how the screen looks. While a sheet or an \
         alert is presented, only it receives input; drag a sheet down to dismiss it. The view tree \
         shows where views end up, even while an animation is still moving them; if a reply says \
-        the screen is animating, call wait before you take a screenshot. After you edit the app's \
+        the screen is animating or a task is running, call wait before you take a screenshot. After you edit the app's \
         Swift files, call rebuild; it returns compiler errors if the build fails and keeps \
         Codable @State values when it succeeds.
         """
@@ -134,8 +134,12 @@ enum AgentTools {
         MCPTool(
             name: "wait",
             title: "Wait",
-            description:
-                "Waits up to 10 seconds, for example for scrolling or an animation to settle, then reports the state.",
+            description: """
+                Waits until scrolling, animations, and the views' .task work finish, for at most \
+                `seconds` (up to 10), then reports the state. If none of them is in progress, it \
+                waits the whole time, which gives other work, such as a Task that a button \
+                starts, time to run.
+                """,
             inputSchema: #"""
                 {"type": "object", "properties": {
                   "seconds": {"type": "number", "minimum": 0, "maximum": 10, "default": 0.5}}}

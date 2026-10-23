@@ -104,7 +104,12 @@ extension State where Value: ExpressibleByNilLiteral {
 }
 
 /// A two-way connection to a value owned by something else.
+///
+/// `$value.property` is a binding to one property of the value, and a
+/// binding to a mutable collection is a collection of bindings to its
+/// elements, as in SwiftUI.
 @propertyWrapper
+@dynamicMemberLookup
 public struct Binding<Value> {
     private let getValue: @MainActor () -> Value
     private let setValue: @MainActor (Value) -> Void
@@ -130,4 +135,10 @@ public struct Binding<Value> {
     }
 
     public var projectedValue: Binding<Value> { self }
+
+    /// The binding itself, so that a closure parameter can be written
+    /// `$item`, as in `ForEach($items) { $item in ... }`.
+    public init(projectedValue: Binding<Value>) {
+        self = projectedValue
+    }
 }

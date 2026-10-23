@@ -270,9 +270,7 @@ final class AgentController: @unchecked Sendable {
             guard !focused.isError else { return focused }
             return run(.typeText(arguments.string("text") ?? ""), summaryOnly: false)
         case "wait":
-            let seconds = min(max(arguments.double("seconds") ?? 0.5, 0), 10)
-            Thread.sleep(forTimeInterval: seconds)
-            return run(.inspect(json: false), summaryOnly: true)
+            return waitUntilSettled(seconds: min(max(arguments.double("seconds") ?? 0.5, 0), 10))
         default:
             guard let command = AgentTools.command(for: name, arguments) else {
                 return .text(AgentTools.usage(of: name), isError: true)
@@ -288,7 +286,7 @@ final class AgentController: @unchecked Sendable {
                 "The app did not answer. It may have crashed; see app_output, then rebuild.",
                 isError: true)
         }
-        let status = "revision \(reply.revision)\(reply.isAnimating ? ", still animating" : "")"
+        let status = Self.status(of: reply)
         if let png = reply.png {
             return MCPToolResult(content: [
                 .image(png, mimeType: "image/png"), .text("\(reply.message) (\(status))"),
@@ -299,6 +297,41 @@ final class AgentController: @unchecked Sendable {
         }
         if case .inspect = command { return .text(reply.message, isError: !reply.ok) }
         return .text("\(reply.message) (\(status))", isError: !reply.ok)
+    }
+
+    /// Waits until nothing moves and every `task` action of the views on
+    /// screen has finished, or until `seconds` pass, then reports the state.
+    /// If nothing is moving or running to begin with, it waits the whole
+    /// time, which gives untracked work, such as a `Task` that a button
+    /// started, time to run.
+    private func waitUntilSettled(seconds: Double) -> MCPToolResult {
+        let deadline = Date(timeIntervalSinceNow: seconds)
+        func isBusy() -> Bool {
+            guard let app = currentApp, !app.isDisconnected else { return false }
+            // While the frames from a window's app say that it animates, the
+            // app is not asked: answering takes time from its frames.
+            if app.isAnimating { return true }
+            guard let reply = app.request(.inspect(json: false)) else { return false }
+            return reply.isAnimating || (reply.pendingTasks ?? 0) > 0
+        }
+        if isBusy() {
+            repeat {
+                Thread.sleep(forTimeInterval: min(0.05, max(deadline.timeIntervalSinceNow, 0)))
+            } while Date() < deadline && isBusy()
+        } else {
+            Thread.sleep(forTimeInterval: seconds)
+        }
+        return run(.inspect(json: false), summaryOnly: true)
+    }
+
+    /// The revision, and what is still moving or running, for a tool result.
+    private static func status(of reply: PreviewReply) -> String {
+        var status = "revision \(reply.revision)"
+        if reply.isAnimating { status += ", still animating" }
+        if let tasks = reply.pendingTasks, tasks > 0 {
+            status += ", \(tasks) task\(tasks == 1 ? "" : "s") running"
+        }
+        return status
     }
 
     private func notRunning() -> MCPToolResult {

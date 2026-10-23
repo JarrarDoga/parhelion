@@ -217,6 +217,27 @@ may contain breaking changes.
   `0.0.0.0`; `--web-port` picks the port (8417 by default). Every request needs the random token
   in the printed URL. `--web` needs no display, and with `parhelion mcp --window` the window and
   the page show the same app.
+- `@Observable` models, through the Swift toolchain's Observation module: each update records the
+  observable properties that views read with `withObservationTracking`, and a change to any of
+  them updates the tree. `import SwiftUI` alone makes `@Observable` available, as on Apple
+  platforms.
+- `@Bindable`; `Binding`'s dynamic members, such as `$model.name`; `Binding(projectedValue:)`;
+  `Binding`'s `Identifiable`, `Collection`, and related conformances; and `ForEach(_:content:)`
+  and `ForEach(_:id:content:)` for bindings, so that `ForEach($items) { $item in ... }` works.
+- `environment(_:)` with an observable object, read with `@Environment(Model.self)` or as an
+  optional.
+- `Group` and `AnyView`.
+- `onAppear(perform:)`, `onDisappear(perform:)`, `onChange(of:initial:_:)`, and `task` with and
+  without an `id`. A view appears when one of its nodes enters the tree, so a screen that a
+  navigation push covers disappears. Tasks run on the main actor, `ViewHost.pendingTaskCount`
+  counts them, and `ViewHost.waitForTasks()` waits for them.
+- The `colorScheme`, `dynamicTypeSize`, `horizontalSizeClass`, `verticalSizeClass`, and `locale`
+  environment values, with `ColorScheme`, `DynamicTypeSize`, and `UserInterfaceSizeClass`. They
+  describe an iPhone in portrait in the light appearance and US English.
+- A `Library` example that keeps an `@Observable` model in the app's `@State`, edits it through
+  `ForEach($library.books)` and `@Bindable`, and loads it in `task`.
+- `parhelion mcp` reports `task` work that is still running, and its `wait` tool returns as soon
+  as animations and that work finish. `PreviewReply.pendingTasks` carries the count.
 
 ### Changed
 
@@ -293,6 +314,15 @@ may contain breaking changes.
   color as whole words and round without calling into the C library.
 - The preview window's title says "Not running" when the app exits, as it already did when a
   rebuilt app failed to start.
+- An app's own `@State` belongs to its `ViewHost`, as a view's does: changing it updates the tree,
+  and hot reload keeps it when its value is `Codable`, including an `@Observable` model.
+- `ViewHost.update()` runs lifecycle actions after it resolves the tree, and resolves the tree
+  again when they change state, up to `ViewHost.maximumUpdatePasses` times.
+- In a preview session, the app receives messages on a background thread, and its main thread
+  runs main-actor work while it waits, such as `task` actions and `Task`s that buttons start. The
+  window shows the changes that work makes without waiting for input.
+- Without a window, an app waits up to five seconds for `task` work before it prints its tree or
+  writes `--png`.
 
 ### Fixed
 
@@ -305,5 +335,6 @@ may contain breaking changes.
 - A sheet or an alert that fades in or out fades as one layer, as on iOS. Before, each part
   faded on its own, so the blur of an alert's glass showed at full strength from the first frame
   of its fade.
+- An optional environment value set to `nil` reads as `nil` instead of its default value.
 
 [Unreleased]: https://github.com/JarrarDoga/parhelion/commits/main

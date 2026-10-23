@@ -40,6 +40,45 @@ extension ForEach where Data.Element: Identifiable, ID == Data.Element.ID {
     }
 }
 
+extension ForEach {
+    /// Creates views for a binding to a collection of identifiable data.
+    /// Each view receives a binding to its element, so that
+    /// `ForEach($items) { $item in ... }` can change the elements.
+    @_disfavoredOverload
+    public init<C>(
+        _ data: Binding<C>,
+        @ViewBuilder content: @escaping (Binding<C.Element>) -> Content
+    )
+    where
+        Data == LazyMapSequence<C.Indices, (C.Index, ID)>, ID == C.Element.ID,
+        C: MutableCollection, C: RandomAccessCollection, C.Element: Identifiable,
+        C.Index: Hashable
+    {
+        self.init(data, id: \.id, content: content)
+    }
+
+    /// Creates views for a binding to a collection, identified by the
+    /// element property at `id`. Each view receives a binding to its element.
+    @_disfavoredOverload
+    public init<C>(
+        _ data: Binding<C>,
+        id: KeyPath<C.Element, ID>,
+        @ViewBuilder content: @escaping (Binding<C.Element>) -> Content
+    )
+    where
+        Data == LazyMapSequence<C.Indices, (C.Index, ID)>, C: MutableCollection,
+        C: RandomAccessCollection, C.Index: Hashable
+    {
+        let collection = data.wrappedValue
+        let elements = collection.indices.lazy.map { index in
+            (index, collection[index][keyPath: id])
+        }
+        self.init(elements, id: \.1) { element in
+            content(data.element(at: element.0))
+        }
+    }
+}
+
 extension ForEach: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         data.flatMap { element in
