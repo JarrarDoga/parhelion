@@ -65,6 +65,36 @@ private struct SharedValueView: View {
     }
 }
 
+/// Makes the next evaluation of a body write to a model from another thread,
+/// after the body read the model.
+private final class MidEvaluationWrite: @unchecked Sendable {
+    var isArmed = false
+}
+
+private struct RacingView: View {
+    let shared: SharedValue
+    let write: MidEvaluationWrite
+    @State private var taps = 0
+
+    var body: some View {
+        let value = shared.value
+        if write.isArmed {
+            write.isArmed = false
+            let done = DispatchSemaphore(value: 0)
+            let shared = shared
+            Thread {
+                shared.value = 5
+                done.signal()
+            }.start()
+            done.wait()
+        }
+        return VStack {
+            Text("Value: \(value)")
+            Button("Tap \(taps)") { taps += 1 }
+        }
+    }
+}
+
 @Observable
 private final class Profile: Codable {
     var name = "Ada"
@@ -186,6 +216,20 @@ struct ObservationTests {
         #expect(host.needsUpdate)
         host.update()
         #expect(host.nodes(withText: "Value: 4").count == 1)
+    }
+
+    @Test("A change on another thread in the middle of an evaluation is not lost")
+    func changeDuringEvaluation() async throws {
+        let shared = SharedValue()
+        let write = MidEvaluationWrite()
+        let host = ViewHost(RacingView(shared: shared, write: write))
+        write.isArmed = true
+        try host.tapButton(labeled: "Tap 0")
+        #expect(shared.value == 5)
+        await drainMainQueue()
+        #expect(host.needsUpdate)
+        host.update()
+        #expect(host.nodes(withText: "Value: 5").count == 1)
     }
 
     @Test("An observable Codable model in @State survives a snapshot and restore")

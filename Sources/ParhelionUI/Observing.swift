@@ -12,30 +12,43 @@ import Foundation
 /// object that a `body`, a binding, or a presented view reads. The first
 /// change to any of them marks the host as needing an update. Tracking ends
 /// with that change, and the next evaluation records the properties again.
+///
+/// Observation starts watching only after the evaluation returns, so the
+/// previous evaluation's tracking stays active until then: a change that
+/// another thread makes during an evaluation, to a property that the
+/// previous evaluation read too, still requests an update. A property that
+/// an evaluation reads for the first time and another thread changes before
+/// the evaluation returns is missed until the next update.
 @MainActor
 final class ObservationScope {
-    /// An observable value that every evaluation reads and the next one
-    /// changes. Observation keeps an evaluation's observers registered with
-    /// each object it read until one of the properties changes; changing
-    /// this value ends the previous evaluation's tracking even when the app
-    /// changed only `@State`.
-    private let generation = EvaluationGeneration()
+    /// Two observable values, one read by every other evaluation. Observation
+    /// keeps an evaluation's observers registered with each object it read
+    /// until one of the properties changes, so once a newer evaluation is
+    /// tracked, changing the value the older one read ends its tracking,
+    /// even when the app changed only `@State`.
+    private let generations = (EvaluationGeneration(), EvaluationGeneration())
     private var current: Invalidation?
+    private var evaluations = 0
 
     /// Runs `evaluate`, and marks `host` as needing an update when an
     /// observable property it read changes.
     func track<Result>(for host: ViewHost, _ evaluate: () -> Result) -> Result {
-        current?.cancel()
-        generation.value += 1
+        evaluations += 1
+        let (own, previous) =
+            evaluations.isMultiple(of: 2)
+            ? (generations.0, generations.1) : (generations.1, generations.0)
         let invalidation = Invalidation(host: host)
-        current = invalidation
-        let generation = generation
-        return withObservationTracking {
-            _ = generation.value
+        let result = withObservationTracking {
+            _ = own.value
             return evaluate()
         } onChange: {
             invalidation.fire()
         }
+        // This evaluation is tracked now, so the previous one can stop.
+        current?.cancel()
+        current = invalidation
+        previous.value += 1
+        return result
     }
 }
 

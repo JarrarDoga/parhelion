@@ -23,8 +23,10 @@ queued for the main actor ran only when a message arrived.
   its own.
 - Each evaluation of the tree runs inside one `withObservationTracking`. A change to any property
   it read marks the host as needing an update, synchronously when the change happens on the main
-  actor. Evaluation also reads a private observable value that the next evaluation changes, which
-  retires the previous tracking without Swift 6.4's cancellation.
+  actor. Observation installs its observers after the evaluation, so the previous evaluation's
+  tracking stays active until the new one is installed. Each evaluation reads one of two private
+  observable values, and changing the one the previous evaluation read retires its tracking
+  without Swift 6.4's cancellation.
 - In a preview session, a background thread receives the host's messages, and the main thread
   waits in the main run loop, which runs main-actor work while nothing arrives. A session run by
   a test, which is itself main-actor work, only waits for messages.

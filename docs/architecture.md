@@ -108,9 +108,14 @@ holding a model, `@Bindable`, and models in the environment all invalidate the s
 - Observation calls back before the change, on the thread that makes it. On the main actor the
   host is marked at once, so a change inside `withAnimation` animates. From another thread the
   mark waits for the main queue.
-- Tracking ends with the first change, and each evaluation tracks again. An evaluation also
-  changes a private observable value that the previous one read, which ends the previous
-  tracking even when only `@State` changed, so trackings never pile up in a model.
+- Tracking ends with the first change, and each evaluation tracks again. Observation starts
+  watching only after an evaluation returns, so the previous evaluation's tracking stays active
+  until then, and a change that another thread makes during an evaluation, to a property the
+  previous one read too, is not lost. A property that an evaluation reads for the first time and
+  another thread changes before the evaluation returns is missed until the next update.
+- After an evaluation is tracked, the host changes a private observable value that the previous
+  evaluation read, which ends the previous tracking even when only `@State` changed, so
+  trackings never pile up in a model.
 - A view does not track its own reads, and the host does not re-evaluate only the views whose
   properties changed: evaluation is still a full pass.
 
