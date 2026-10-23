@@ -155,9 +155,9 @@ may contain breaking changes.
   for it, shows a grabber.
 - `ViewNode.label` returns a node's `label` attribute when it has one.
 - `Device.maximumFramesPerSecond`, like UIKit's `UIScreen.maximumFramesPerSecond`: 120 for the
-  presets with ProMotion and 60 for iPhone 16, 16 Plus, and 16e. The preview window shows the app
-  no faster than its device: on a 240 Hz display, each frame of a 120 Hz iPhone stays up for two
-  refreshes.
+  presets with ProMotion and 60 for iPhone 16, 16 Plus, and 16e. The preview window shows the app's
+  animations no faster than its device: on a 240 Hz display, each frame of a 120 Hz iPhone stays
+  up for two refreshes.
 - `PARHELION_REFRESH_RATE`, which makes the window host assume a display refresh rate, for testing
   frame pacing on a display without real vsync.
 - iPhone 18 Pro and iPhone 18 Pro Max presets, with their smaller Dynamic Island.
