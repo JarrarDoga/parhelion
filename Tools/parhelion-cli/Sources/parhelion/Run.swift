@@ -67,7 +67,8 @@ struct Run: ParsableCommand {
             webHost?.setStatus(.buildFailed(builder.errorSummary(outcome.output)))
             if window.exitAfterFirstFrame { throw ExitCode.failure }
             print("Fix the errors and save. Waiting for changes...")
-            while !watcher.waitForChanges(timeout: 0.25) {
+            // A web host catches Control-C instead of exiting, so check between waits.
+            while !watcher.waitForChanges(timeout: webHost == nil ? nil : 0.25) {
                 if webHost?.isInterrupted == true { return }
             }
             print("Building \(plan.product)...")

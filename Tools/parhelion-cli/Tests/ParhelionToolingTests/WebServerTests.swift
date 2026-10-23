@@ -309,6 +309,15 @@ struct WebPreviewTests {
             sequence = try page.apply(try #require(client.readFrame()).payload)
         }
         #expect(sequence == UInt32(WebPreview.maximumFramesInFlight))
+        // One more change while the page is behind, so a frame is waiting
+        // however fast the sender kept up.
+        last = scrolledFrame(width: 4, height: 3, offset: 100, bar: 0)
+        last.withUnsafeBytes {
+            preview.update(
+                width: 4, height: 3, damage: PixelRect(x: 0, y: 0, width: 4, height: 3),
+                pixels: $0)
+        }
+        preview.publish()
         client.send(maskedFrame(.text, Array(#"{"type":"ack","sequence":\#(sequence)}"#.utf8)))
         // Then one frame with everything that changed since.
         #expect(try page.apply(try #require(client.readFrame()).payload) == sequence + 1)
