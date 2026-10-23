@@ -110,6 +110,10 @@ public final class ViewHost {
     /// it does not change from frame to frame.
     var chromeOverlayCache: (chrome: DeviceChrome, scale: Double, overlay: CanvasOverlay)?
 
+    /// Drawing that `render(scale:chrome:)` keeps between frames: the screen
+    /// beneath a presentation, a fading presentation, and glass surfaces.
+    let renderCache = RenderCache()
+
     /// Creates a host for a view.
     ///
     /// - Parameter snapshot: State saved by ``stateSnapshot()``, for example by

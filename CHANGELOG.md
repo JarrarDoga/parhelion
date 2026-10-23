@@ -218,6 +218,15 @@ may contain breaking changes.
 - List sections have continuous corners.
 - The `Counter` example uses `.bordered` and `.borderedProminent` buttons, and the README shows
   the `Tasks` example's screens.
+- Animation frames with Liquid Glass render fast enough for 120 Hz. At 2× in an optimized build,
+  a frame of an alert fading in takes 1.6 ms instead of 7.5, of a sheet sliding up 3.4 ms
+  instead of 7.3, and of a list scrolling under toolbar glass 3.1 ms instead of 4.2; at 3×,
+  3.8, 7.0, and 5.2 ms instead of 15.6, 14.5, and 7.5. `ViewHost` keeps the screen beneath a
+  sheet or an alert, a fading presentation at full opacity, and glass whose backdrop did not
+  change from one frame to the next, and reuses them only where the result is the same, byte
+  for byte. The first frame of an alert, which the preview draws when the tap arrives, draws it
+  at full opacity once, in about 8 ms at 2×. Fills composite fully covered pixels of an opaque
+  color as whole words and round without calling into the C library.
 
 ### Fixed
 
@@ -227,5 +236,8 @@ may contain breaking changes.
 - An app that paces its own frames, for a window host without the host clock, keeps a fixed
   60 Hz grid. Before, its timeout was truncated to whole milliseconds, so it drew every 16 ms
   and measured time from whenever it woke.
+- A sheet or an alert that fades in or out fades as one layer, as on iOS. Before, each part
+  faded on its own, so the blur of an alert's glass showed at full strength from the first frame
+  of its fade.
 
 [Unreleased]: https://github.com/JarrarDoga/parhelion/commits/main

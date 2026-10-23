@@ -179,6 +179,22 @@ device for the system interface it draws over the tree.
   scale, and the kind of chrome, so `ViewHost` draws it once into a `CanvasOverlay` and blends
   that over each frame: opaque runs are copied as whole words, and only the anti-aliased edges
   are blended.
+- **Frames that animate** reuse drawing from earlier frames, kept by `ViewHost` in a
+  `RenderCache`. Whatever it reuses is the same, byte for byte, as drawing it again, and tests
+  check every kind against frames drawn from scratch. The screen beneath the frontmost sheet or
+  alert is kept while that part of the tree, and the pressed or focused view in it, stay the
+  same, so a frame of a presentation moving draws only the presentation. A presentation that
+  fades draws as one group, the way Core Animation fades a layer: at full opacity, then blended
+  over the screen beneath with its opacity, so the blur of its glass fades in with the rest.
+  The cache keeps the full-opacity layer, and each frame of the fade is one blend. A glass
+  surface drawn with the same arguments in two frames in a row is kept with the pixels of its
+  region (`Canvas.glassRegion`) before and after it was drawn; a later frame that finds the same
+  pixels there copies the result instead, as for toolbar buttons over the bar while a list
+  scrolls. The cache holds at most two full-screen canvases, the backdrop, which goes when
+  nothing is presented, and the layer, which goes when nothing fades, and up to 16 MB of glass,
+  which goes when a frame does not draw it. At 2× in an optimized build, a frame of an alert
+  fading in takes about 1.6 ms, of a sheet sliding up 3.4 ms, and of a list scrolling under
+  toolbar glass 3.1 ms.
 - **The bezel** exists only in the window. The window host draws the phone once, with a
   transparent hole the shape of the screen, and draws it over each frame. The window ends at the
   phone's side buttons and is transparent outside the phone where the compositor supports it, so

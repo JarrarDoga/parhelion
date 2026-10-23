@@ -239,9 +239,12 @@ final class AnimationEngine {
     ) -> ViewNode {
         guard let frame = node.frame else { return node }
         var node = node
+        // Adding the parent's displacement last keeps the frame exact when
+        // the parent is where it will end up, so a still subtree matches
+        // the final tree.
         var origin = CGPoint(
-            x: parentPresented.x + frame.minX - parentTarget.x,
-            y: parentPresented.y + frame.minY - parentTarget.y)
+            x: frame.minX + (parentPresented.x - parentTarget.x),
+            y: frame.minY + (parentPresented.y - parentTarget.y))
         var size = frame.size
         var opacity = Self.opacity(of: node)
         if let displacement = displacements[node.id] {
