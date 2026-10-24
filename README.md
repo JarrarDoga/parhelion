@@ -120,6 +120,21 @@ size. These images come from
   <img src="docs/images/settings-xxxlarge.png" alt="The Settings example at the xxxLarge text size, with larger labels in taller rows and the segmented control at its usual size." width="190">
 </p>
 
+Shapes, gradients, and the styling modifiers draw as in SwiftUI: `clipShape`, `overlay`,
+`shadow`, and `scaleEffect` apply at their place in the modifier chain without changing layout.
+`Image` reads an app's `Assets.xcassets` from its target's resource bundle, with 1×, 2×, and 3×
+files and dark appearances, and Parhelion decodes the PNG files itself. `AsyncImage` loads in a
+`task`, so tests and agents can wait for it. `LazyVGrid`, `LazyHGrid`, and `Grid` lay out their
+cells. These images come from
+`PARHELION_README_IMAGES=docs/images swift test --filter writeContentReadmeImages`:
+
+<p align="center">
+  <img src="docs/images/content-shapes.png" alt="Shapes: a rectangle, rounded rectangle, circle, capsule, and ellipse; a pink-to-indigo gradient card with a shadow and white overlay text; a circle-clipped gradient with a green badge, a three-slice pie drawn by a custom shape, a gradient star scaled up, mirrored text, and a teal bar clipped to rounded corners." width="190">
+  <img src="docs/images/content-images.png" alt="Images: a landscape from an asset catalog filling a rounded frame, the same image scaled to fit, an orange template star, a green speech bubble stretched by its cap insets, an AsyncImage clipped to a circle, the gray placeholder of an AsyncImage that failed, and the ring of a missing image." width="190">
+  <img src="docs/images/content-images-dark.png" alt="The Images screen in dark: the asset catalog's dark landscape at night, white text, and the darker placeholder." width="190">
+  <img src="docs/images/content-grids.png" alt="Grids: twelve numbered color tiles in an adaptive lazy grid, a Grid of plans with a trailing-aligned price column and a row spanning two columns, and capsule chips in a two-row lazy horizontal grid." width="190">
+</p>
+
 The bundled `HelloParhelion` example is the app that `xtool new` generates, copied without changes:
 
 ```console
@@ -258,20 +273,20 @@ works, or `--web` to do that from a browser.
 
 | Area | Supported today |
 | --- | --- |
-| Views | `Text`, `Image`, `Label`, `Button`, `TextField`, `VStack`, `HStack`, `ZStack`, `Spacer`, `Color`, `ScrollView`, `List`, `Section`, `ForEach`, `NavigationStack`, `NavigationLink`, `TabView` and `Tab`, `EmptyView`; sheets, full-screen covers, and alerts |
+| Views | `Text`, `Image` (symbols and asset catalogs), `AsyncImage`, `Label`, `Button`, `TextField`, `VStack`, `HStack`, `ZStack`, `Spacer`, `Color`, `LinearGradient`, `Rectangle`, `RoundedRectangle`, `Circle`, `Ellipse`, `Capsule`, `Path`, and custom shapes, `LazyVGrid`, `LazyHGrid`, `Grid`, `ScrollView`, `List`, `Section`, `ForEach`, `NavigationStack`, `NavigationLink`, `TabView` and `Tab`, `EmptyView`; sheets, full-screen covers, and alerts |
 | Builders | Multiple children, `if`/`else`, optional content |
 | State | `@State` and `@Binding`, with SwiftUI's structural identity and lifetime rules; `@Environment` with `dismiss`, `isPresented`, `colorScheme`, `dynamicTypeSize`, and custom keys; `@ScaledMetric` |
-| Modifiers | `padding`, `frame` (fixed and flexible), `background`, `foregroundStyle`, `font`, `fontWeight`, `bold`, `preferredColorScheme`, `dynamicTypeSize` (a size or a range), `imageScale`, `labelStyle`, `tabItem`, `listStyle`, `navigationTitle`, `navigationBarTitleDisplayMode`, `navigationDestination`, `toolbar`, `opacity`, `offset`, `animation`, `transition`, and `Color.opacity` |
+| Modifiers | `padding`, `frame` (fixed and flexible), `background`, `foregroundStyle`, `font`, `fontWeight`, `bold`, `preferredColorScheme`, `dynamicTypeSize` (a size or a range), `imageScale`, `labelStyle`, `tabItem`, `listStyle`, `navigationTitle`, `navigationBarTitleDisplayMode`, `navigationDestination`, `toolbar`, `opacity`, `offset`, `overlay`, `clipShape`, `clipped`, `cornerRadius`, `shadow`, `scaleEffect`, `aspectRatio`, `scaledToFit`, `scaledToFill`, `fill`, `resizable`, `renderingMode`, the grid cell modifiers, `animation`, `transition`, and `Color.opacity` |
 | Animation | `withAnimation` and `animation(_:value:)` with timing curves and springs on a deterministic clock; opacity, move, slide, offset, and push transitions; animated navigation and presentations |
 | Layout | SwiftUI's propose-and-respond stack algorithm, iOS text styles at every Dynamic Type size and `Font.custom`, text wrapping with the bundled Inter font in four weights, large and inline navigation titles, the screens and safe areas of nine iPhones from iPhone 16 to iPhone 17 Pro Max |
 | Input | Tap by node, by button label, or by screen position; press, drag away to cancel, and release with the mouse; scroll by dragging with momentum, or with the mouse wheel and trackpad; type into text fields, with the caret keys, Backspace, Delete, and Tab between fields |
 | Window | `parhelion run` with hot reload that keeps `Codable` state, and `parhelion preview`; an SDL3 window host for Wayland and X11 that shows the screen in a phone bezel; `--web` for the same preview in a browser |
 | Agents | `parhelion mcp`, with or without a window or web page |
-| Rendering | Anti-aliased shapes and Inter text drawn in pure Swift at any scale, with PNG output; iOS 27's system colors and inset grouped lists, in light and dark; the status bar, Dynamic Island or notch, home indicator, and rounded screen corners; the floating glass tab bar; SF Symbol names drawn with Phosphor Icons, and other names as placeholder rings |
+| Rendering | Anti-aliased shapes, gradients, clips, shadows, and Inter text drawn in pure Swift at any scale, with PNG output and PNG decoding; iOS 27's system colors and inset grouped lists, in light and dark; the status bar, Dynamic Island or notch, home indicator, and rounded screen corners; the floating glass tab bar; SF Symbol names drawn with Phosphor Icons, and other names as placeholder rings |
 | App | `App`, `Scene`, `WindowGroup`, with a headless runner |
 
 Not yet available: text selection, letter spacing, iOS 27's Liquid Glass toolbar buttons, alerts,
-and sheets, button styles, most built-in environment values, scale and rotation effects, repeating animations, animation, and gestures other than tap. Layout constants that Parhelion assumes about
+and sheets, button styles, most built-in environment values, rotation effects, strokes, JPEG, PDF, and HEIF images, repeating animations, animation, and gestures other than tap. Layout constants that Parhelion assumes about
 SwiftUI, such as the default padding, are listed in `LayoutDefaults.swift` until a macOS CI job
 verifies them. The [roadmap](docs/roadmap.md) lists the
 order of work.

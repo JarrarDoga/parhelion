@@ -239,6 +239,68 @@ may contain breaking changes.
   `ForEach($library.books)` and `@Bindable`, and loads it in `task`.
 - `parhelion mcp` reports `task` work that is still running, and its `wait` tool returns as soon
   as animations and that work finish. `PreviewReply.pendingTasks` carries the count.
+- Shapes: the `Shape` protocol, `Rectangle`, `RoundedRectangle`, `Circle`, `Ellipse`, `Capsule`,
+  and `Path` as a view, with `fill(_:style:)`, `fill(style:)`, and `FillStyle`'s even-odd rule.
+  `RoundedRectangle` and `Capsule` have continuous corners by default, as in iOS 27. A shape of
+  an app's own type draws the path it returns for its frame, and its node records its
+  description as `shape`. `Path` gains `init(_:)`, `addRect(_:)`, `addRects(_:)`,
+  `addRoundedRect(in:cornerSize:style:)`, `addEllipse(in:)`, `addLines(_:)`,
+  `addArc(center:radius:startAngle:endAngle:clockwise:)`, and `currentPoint`, with `Angle`.
+- `LinearGradient` as a view and as a shape style, with `Gradient`, `Gradient.Stop`, `UnitPoint`,
+  and `.linearGradient(_:startPoint:endPoint:)` and its `colors:` and `stops:` forms. A gradient
+  fills each shape or background it paints, and the tree records it as
+  `linearGradient(red 0, blue 1, top, bottom)`. `ForegroundStyle` and `.foreground` name the
+  current foreground style.
+- `overlay(alignment:content:)`, whose views become an `Overlay` node, the last child of the view
+  they cover, placed in the bounds at the modifier's place in the chain; `overlay(_:in:fillStyle:)`
+  and `overlay(_:ignoresSafeAreaEdges:)`; `clipShape(_:style:)`, `clipped(antialiased:)`, and
+  `cornerRadius(_:antialiased:)`, deprecated in iOS 27.2 as in SwiftUI; `shadow(color:radius:x:y:)`,
+  a blurred shadow of everything the view draws; and `scaleEffect` with an anchor, which mirrors
+  the view at a negative scale. None of them changes layout, and each applies at its place in the
+  modifier chain: a clip clips the backgrounds inside it and not those outside.
+- `LazyVGrid`, `LazyHGrid`, and `GridItem` with `.fixed`, `.flexible`, and `.adaptive` sizes:
+  fixed items and spacing come first, flexible and adaptive items share the rest within their
+  bounds, and an adaptive item holds as many columns of its minimum as fit. Parhelion evaluates
+  every cell, and accepts `PinnedScrollableViews` without pinning anything yet.
+- `Grid` and `GridRow`, with `gridCellColumns(_:)`, `gridColumnAlignment(_:)`,
+  `gridCellUnsizedAxes(_:)`, and `gridCellAnchor(_:)`. Columns are as wide as their widest cell
+  and rows as tall as their tallest; columns and rows with flexible cells share the space left,
+  and a view outside a `GridRow` spans every column. The default spacing is 8 points.
+- Images from asset catalogs: `Image(_:bundle:)`, `resizable(capInsets:resizingMode:)` with
+  `.stretch` and `.tile`, and `renderingMode(_:)` with `.template` and `.original`. On Linux,
+  SwiftPM copies an app target's `Assets.xcassets` unprocessed into the target's resource bundle,
+  so Parhelion reads the catalog there: image sets in groups and namespaces, 1×, 2×, and 3× files,
+  dark appearances, and `template-rendering-intent`. Without a bundle, it looks in the main
+  bundle and every bundle beside it. The renderer draws the file for its scale, and the dark one
+  when `colorScheme` is dark. An image's node records `name`, `bundle`, `size`, `appearance`,
+  `renderingMode`, `resizable`, `capInsets`, and `resizingMode`. A missing image, or one that is
+  not a PNG image, records `missingImage=true` and draws as a ring, as a missing symbol does.
+- A resizable symbol image fills its frame, and symbols take gradient foreground styles.
+- `AsyncImage` with all three initializer families for a URL and for a `URLRequest`,
+  `AsyncImagePhase`, `Transaction`, and `asyncImageURLSession(_:)`. The load is a `task` of the
+  view, so `ViewHost.waitForTasks()` waits for it and `parhelion mcp` counts it in
+  `pendingTasks`. It reads `file:` URLs from disk and others with `URLSession`, decodes PNG
+  images, and fails on anything else. Until the image loads, `AsyncImage(url:scale:)` shows a
+  gray `secondarySystemFill` rectangle. Its node records `url`, `phase`, and `scale`.
+- `aspectRatio(_:contentMode:)`, `scaledToFit()`, and `scaledToFill()`, with `ContentMode`.
+- `import SwiftUI` re-exports FoundationNetworking on Linux, where `URLRequest` and `URLSession`
+  live, as Apple's SwiftUI makes them available through Foundation.
+- `ParhelionRender` decodes PNG images in pure Swift (`Bitmap(pngData:)`), with every color type
+  and bit depth, transparency, all five filters, and Adam7 interlacing, through its own inflate.
+- The `xtool`-shaped `LibraryApp` fixture shows an image from its own `Assets.xcassets`.
+- README images of shapes, gradients, the styling modifiers, images, `AsyncImage`, and grids,
+  written by `PARHELION_README_IMAGES=docs/images swift test --filter writeContentReadmeImages`
+  and checked against a fresh render by `swift test`.
+- `Scripts/check-ios-build.sh` builds shapes, gradients, the styling modifiers, images,
+  `AsyncImage`, and grids against Apple's SwiftUI, then reports whether xtool builds the app with
+  an asset catalog. xtool 1.22.2 does not: SwiftPM runs `actool` from xtool's temporary folder,
+  where xtool puts none.
+- ADR 0010: images come from the app's raw asset catalog, decoded in pure Swift, through a side
+  table.
+- `ParhelionRender` clips drawing to any path (`Canvas.beginClip(to:evenOdd:)` and
+  `endClip(_:)`), draws and shadows layers (`draw(layer:atPixelX:y:flipX:flipY:)` and
+  `drawShadow(ofLayer:atPixelX:y:color:offset:blur:)`), draws `Bitmap` images scaled with bilinear
+  sampling, fills paths with the even-odd rule, and writes a path as SVG path data.
 
 - Dark mode. `ViewHost.colorScheme` sets the simulated device's appearance, and
   `preferredColorScheme(_:)` sets the preferred color scheme of the window or the sheet that

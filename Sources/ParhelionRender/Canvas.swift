@@ -89,14 +89,16 @@ public struct Canvas: Sendable {
         return clip
     }
 
-    /// Fills a path given in points.
-    public mutating func fill(_ path: Path, color: RGBA) {
+    /// Fills a path given in points, with the even-odd rule when `evenOdd`
+    /// is set and the nonzero rule otherwise.
+    public mutating func fill(_ path: Path, color: RGBA, evenOdd: Bool = false) {
         guard color.alpha > 0 else { return }
         let pixelPath = path.applying(scaleX: scale, scaleY: scale, translateX: 0, translateY: 0)
         guard
             let coverage = Rasterizer.coverage(
                 of: pixelPath.polygons(tolerance: 0.2),
-                clip: pixelClip
+                clip: pixelClip,
+                evenOdd: evenOdd
             )
         else { return }
         composite(coverage, color: color)

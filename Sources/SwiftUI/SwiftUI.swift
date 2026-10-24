@@ -5,8 +5,14 @@
 //
 // It also re-exports Foundation and the toolchain's Observation module, as
 // Apple's SwiftUI does, so that `import SwiftUI` alone makes types such as
-// `Locale` and `Date`, and `@Observable`, available.
+// `Locale` and `Date`, and `@Observable`, available. On Linux, `URLRequest`
+// and `URLSession` are in FoundationNetworking, not Foundation, so it is
+// re-exported too, for `AsyncImage(request:)`.
 
 @_exported import Foundation
 @_exported import Observation
 @_exported import ParhelionUI
+
+#if canImport(FoundationNetworking)
+@_exported import FoundationNetworking
+#endif

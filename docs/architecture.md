@@ -167,6 +167,25 @@ the child. A `nil` dimension in a proposal asks for the child's ideal size.
 - **The root** covers the device screen. Root content is proposed the safe area and centered in
   it. `Device.iPhone16` is the default; `PARHELION_DEVICE` picks another preset from
   `Device.all`.
+- **Shapes and images.** A shape, a `Color`, a `LinearGradient`, and a resizable image fill the
+  space they are offered, 10 points without a proposal. An image that is not resizable is its
+  size in points, which its node records as `size`, and a missing image is a symbol's square.
+  `aspectRatio(_:contentMode:)` proposes its view the largest size with its ratio inside the
+  proposal, or with `.fill` the smallest that covers it.
+- **Overlays.** `overlay(alignment:content:)` adds an `overlay` layout modifier and appends an
+  `Overlay` node with its views as the last child of each node it covers. Layout sizes and places
+  the node without its `Overlay` children, then places the views of the first `overlay` modifier's
+  `Overlay` child, the second's, and so on, in the bounds at that modifier's place in the chain,
+  as a `ZStack` with its alignment does. Hit testing reaches them first, as the last children, and
+  `ViewNode.label` leaves them out.
+- **Grids.** A `LazyVGrid` lays out its columns across the width it is offered: fixed items and
+  spacing first, then flexible and adaptive items share the rest equally within their bounds,
+  and an adaptive item holds as many columns of its minimum as fit. Cells fill rows leading to
+  trailing, each row as tall as its tallest cell; a `LazyHGrid` is the transpose. Parhelion
+  evaluates every cell, not lazily. A `Grid`'s columns are as wide as the widest of their cells
+  that span only them, and its rows as tall as their tallest cell; with more space, columns and
+  rows with flexible cells share it, and a view outside a `GridRow` spans every column. The
+  default spacing of all three is 8 points.
 
 Every number in which Parhelion assumes SwiftUI's behavior, such as the default padding of 16
 points, is in `LayoutDefaults.swift`. These are assumptions until the planned macOS fidelity job
@@ -211,6 +230,38 @@ device for the system interface it draws over the tree.
   evaluated in place of the label.
 - **Backgrounds** fill the bounds at their position in the modifier chain. Each node records those
   bounds in `modifierFrames`.
+- **Styles** are strings in the tree, a `ShapeStyle`'s `styleName`. A color is its name, and a
+  linear gradient is `linearGradient(red 0, blue 1, top, bottom)`: each stop's color and location,
+  then the start and end unit points. The renderer reads a style back as a color or a gradient
+  (`StyleDescription`) and resolves each color with the node's tint, opacity, and color scheme,
+  so a gradient can fill any shape, background, symbol, or overlay.
+- **Shapes** draw from their node: the kind names a built-in shape, with its `cornerRadius` and
+  `style`, a `Path` records its SVG path data, and a shape of an app's own type records its
+  description, `String(describing:)` of the shape, as `shape`. The renderer asks such a shape for
+  its path in its frame through `CustomShapes`, a table of the shapes evaluated, by description,
+  shared in the process. Rectangles, rounded rectangles, capsules, and circles skip the general
+  rasterizer when filled with a color.
+- **Effects.** `clipShape`, `cornerRadius`, `shadow`, `scaleEffect`, and `overlay(_:in:fillStyle:)`
+  are layout modifiers that do not change layout, so each applies at its place in the chain.
+  Drawing a node with any of them goes from the outermost modifier in: backgrounds outside the
+  outermost effect draw behind and overlays in front, the effect applies to everything inside it,
+  and that draws the same way down to the node itself. A clip keeps the pixels inside the shape's
+  bounds, draws, and puts back those outside the shape (`Canvas.beginClip` and `endClip`), so its
+  cost follows the shape's size. A shadow draws its inside on a transparent layer with the
+  node's frames moved to the layer's origin, blurs the layer's opacity under it with a standard
+  deviation of the shadow's radius, and blends the layer over. A scale draws its inside on a layer
+  at the scale it shows at, lined up with the canvas's pixels when both axes scale alike, so text
+  stays sharp; taps still reach the unscaled frame.
+- **Images** from asset catalogs are read from disk at run time, because on Linux SwiftPM copies
+  an app target's `Assets.xcassets` unprocessed into the target's `<Package>_<Target>.bundle`
+  ([ADR 0010](adr/0010-images-from-the-app-bundle.md)). An image's node records its `name`, its
+  `bundle` when one was given, its `size` in points from its largest file's PNG header, and
+  `appearance=dark` when the environment is dark and the set has a dark file. The renderer
+  finds the file for its scale, the smallest at least as large, and `ImageLibrary` decodes it
+  with `ParhelionRender`'s PNG decoder and keeps it, with halved levels for drawing it small, up
+  to 256 MB. Bitmaps are drawn with bilinear sampling, in nine parts for cap insets, and in the
+  foreground color for a template. A missing image, or a JPEG, PDF, or HEIF file, records
+  `missingImage=true` and draws as a ring.
 - **Symbols** are drawn with [Phosphor Icons](https://phosphoricons.com), because Apple's license
   does not allow shipping SF Symbols outside Apple platforms
   ([ADR 0007](adr/0007-phosphor-symbol-images.md)). `Symbols/symbols.txt` maps common SF Symbol
@@ -224,7 +275,9 @@ device for the system interface it draws over the tree.
   coverage is its exact overlap with the rectangle, and fully covered runs are written as whole
   32-bit words. A typical screen renders in under 1 ms in an optimized build.
 - **PNG** output uses a small built-in deflate encoder. A screen of mostly flat color compresses
-  to about 50 KB at 2× scale.
+  to about 50 KB at 2× scale. PNG input goes through a pure-Swift inflate, with stored, fixed,
+  and dynamic Huffman blocks, and reads every color type and bit depth, transparency, the five
+  row filters, and Adam7 interlacing.
 - **Device chrome** draws over everything the app presents. `.systemBars` adds the status bar
   and the home indicator, which is what a Simulator screenshot shows; agent screenshots and
   `--png` use it, so every point of the image is a point on the screen. `.screen` also adds the
@@ -445,6 +498,11 @@ each update, the host compares the records with the last update's:
   has not returned, cancelled or not, and `waitForTasks()` waits until there are none, updating
   the tree as they change state, so no task changes state after it returns. Tests await it;
   agents see the count in every reply.
+- `AsyncImage` loads in a `task(id:)` of its own, keyed by its URL and scale, so its load counts
+  like any other task. It reads `file:` URLs from disk and others with `URLSession`, decodes PNG
+  data off the main actor into `ImageLibrary` by URL, and keeps the phase in `@State` with the
+  URL it belongs to. Its node is `AsyncImage` with the `url`, `phase`, and `scale`, and its
+  content as children.
 
 ### Animation
 

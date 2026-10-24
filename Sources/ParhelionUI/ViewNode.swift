@@ -108,7 +108,9 @@ public struct ViewNode: Hashable, Sendable {
 
     private func collectText(into parts: inout [String]) {
         if let text { parts.append(text) }
-        for child in children {
+        // An overlay's views are not part of the label of the view they
+        // cover.
+        for child in children where child.kind != "Overlay" {
             child.collectText(into: &parts)
         }
     }

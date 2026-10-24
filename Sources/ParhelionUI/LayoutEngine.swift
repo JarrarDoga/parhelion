@@ -259,7 +259,7 @@ struct LayoutEngine {
         parentAxis: LayoutAxis?
     ) -> CGSize {
         guard modifierCount > 0 else {
-            return baseSize(node, proposal, parentAxis: parentAxis)
+            return baseSize(node.withoutOverlayContent, proposal, parentAxis: parentAxis)
         }
         let inner = modifierCount - 1
         func child(_ proposal: ProposedSize) -> CGSize {
@@ -267,7 +267,8 @@ struct LayoutEngine {
         }
 
         switch node.modifiers[inner] {
-        case .background, .offset:
+        case .background, .offset, .overlay, .overlayStyle, .clipShape, .cornerRadius, .shadow,
+            .scaleEffect:
             return child(proposal)
 
         case .padding(let insets):
@@ -276,6 +277,11 @@ struct LayoutEngine {
                 width: size.width + insets.horizontal,
                 height: size.height + insets.vertical
             )
+
+        case .aspectRatio(let ratio, let fill):
+            return child(
+                Self.aspectRatioProposal(
+                    proposal, ratio: ratio ?? Self.ratio(of: child(.unspecified)), fill: fill))
 
         case .listRow(let insets):
             let size = child(proposal.inset(by: insets))
@@ -346,9 +352,7 @@ struct LayoutEngine {
             )
 
         case "Image":
-            guard node.attributes["systemName"] != nil else { return .zero }
-            let side = Image.symbolSide(of: node)
-            return CGSize(width: side, height: side)
+            return imageSize(node, proposal)
 
         case "Color":
             return CGSize(
@@ -439,7 +443,8 @@ struct LayoutEngine {
             }
             return labelSize(node, proposal)
         default:
-            return controlSize(node, proposal, parentAxis: parentAxis)
+            return contentSize(node, proposal) ?? gridSize(node, proposal)
+                ?? controlSize(node, proposal, parentAxis: parentAxis)
                 ?? overlaySize(node.children, proposal)
         }
     }
@@ -549,14 +554,14 @@ struct LayoutEngine {
         place(node, in: rect, modifierCount: node.modifiers.count, parentAxis: parentAxis)
     }
 
-    private func place(
+    func place(
         _ node: ViewNode,
         in rect: CGRect,
         modifierCount: Int,
         parentAxis: LayoutAxis?
     ) -> ViewNode {
         guard modifierCount > 0 else {
-            return placeBase(node, in: rect, parentAxis: parentAxis)
+            return placeBaseKeepingOverlays(node, in: rect, parentAxis: parentAxis)
         }
         var placed = placeModifier(
             node,
@@ -581,8 +586,13 @@ struct LayoutEngine {
         let inner = modifierCount - 1
 
         switch node.modifiers[inner] {
-        case .background:
+        case .background, .overlayStyle, .clipShape, .cornerRadius, .shadow, .scaleEffect:
             return place(node, in: rect, modifierCount: inner, parentAxis: parentAxis)
+
+        case .overlay(let alignment):
+            return placeOverlay(
+                node, in: rect, modifierCount: modifierCount, alignment: alignment,
+                parentAxis: parentAxis)
 
         case .offset(let offset):
             return place(
@@ -620,6 +630,14 @@ struct LayoutEngine {
             let content = align(size, in: rect, alignment)
             return place(node, in: content, modifierCount: inner, parentAxis: parentAxis)
 
+        case .aspectRatio:
+            let size = sizeThatFits(
+                node, ProposedSize(rect.size), modifierCount: modifierCount,
+                parentAxis: parentAxis)
+            return place(
+                node, in: align(size, in: rect, .center), modifierCount: inner,
+                parentAxis: parentAxis)
+
         case .flexibleFrame(let frame):
             let alignment = frame.alignment
             let size = sizeThatFits(
@@ -633,7 +651,7 @@ struct LayoutEngine {
         }
     }
 
-    private func placeBase(_ node: ViewNode, in rect: CGRect, parentAxis: LayoutAxis?) -> ViewNode {
+    func placeBase(_ node: ViewNode, in rect: CGRect, parentAxis: LayoutAxis?) -> ViewNode {
         var node = node
         node.frame = rect
         let proposal = ProposedSize(rect.size)
@@ -707,7 +725,7 @@ struct LayoutEngine {
                 return place(child, in: align(size, in: rect, alignment), parentAxis: nil)
             }
         default:
-            if let children = placeControl(node, in: rect) {
+            if let children = placeGrid(node, in: rect) ?? placeControl(node, in: rect) {
                 node.children = children
                 break
             }
@@ -978,7 +996,7 @@ struct LayoutEngine {
             ? LayoutDefaults.listHeaderInsets : LayoutDefaults.listFooterInsets
     }
 
-    private func align(_ size: CGSize, in rect: CGRect, _ alignment: Alignment) -> CGRect {
+    func align(_ size: CGSize, in rect: CGRect, _ alignment: Alignment) -> CGRect {
         let x: CGFloat =
             switch alignment.horizontal {
             case .leading: rect.minX

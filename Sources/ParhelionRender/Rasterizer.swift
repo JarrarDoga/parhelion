@@ -29,9 +29,12 @@ enum Rasterizer {
 
     /// Rasterizes polygons given in pixel coordinates, clipped to the pixel
     /// rectangle from `(minX, minY)` up to, not including, `(maxX, maxY)`.
+    /// With `evenOdd`, a pixel inside an even number of outlines is empty,
+    /// as with the even-odd fill rule; otherwise overlaps add up.
     static func coverage(
         of polygons: [[CGPoint]],
-        clip: (minX: Int, minY: Int, maxX: Int, maxY: Int)
+        clip: (minX: Int, minY: Int, maxX: Int, maxY: Int),
+        evenOdd: Bool = false
     ) -> Coverage? {
         var minX = Double.infinity
         var minY = Double.infinity
@@ -79,7 +82,13 @@ enum Rasterizer {
             var sum: Float = 0
             for column in 0..<width {
                 sum += accumulation[row * stride + column]
-                values[row * width + column] = min(abs(sum), 1)
+                if evenOdd {
+                    // Coverage folds back every two windings.
+                    let folded = abs(sum).truncatingRemainder(dividingBy: 2)
+                    values[row * width + column] = folded > 1 ? 2 - folded : folded
+                } else {
+                    values[row * width + column] = min(abs(sum), 1)
+                }
             }
         }
         return Coverage(
