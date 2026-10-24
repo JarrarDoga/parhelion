@@ -347,9 +347,7 @@ struct LayoutEngine {
             )
 
         case "Image":
-            guard node.attributes["systemName"] != nil else { return .zero }
-            let side = Image.symbolSide(of: node)
-            return CGSize(width: side, height: side)
+            return imageSize(node, proposal)
 
         case "Color":
             return CGSize(

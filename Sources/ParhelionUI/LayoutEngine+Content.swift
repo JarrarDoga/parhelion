@@ -61,3 +61,25 @@ extension LayoutEngine {
         return placed
     }
 }
+
+// MARK: - Images
+
+extension LayoutEngine {
+    /// The size of an image: a symbol's square, an asset's or a loaded
+    /// image's size in points, or, for a missing image, a symbol's square.
+    /// A resizable image fills the space it is offered.
+    func imageSize(_ node: ViewNode, _ proposal: ProposedSize) -> CGSize {
+        let intrinsic: CGSize
+        if node.attributes["systemName"] != nil || node.attributes["missingImage"] == "true" {
+            let side = Image.symbolSide(of: node)
+            intrinsic = CGSize(width: side, height: side)
+        } else if let size = parseSize(node.attributes["size"]) {
+            intrinsic = size
+        } else {
+            return .zero
+        }
+        guard node.attributes["resizable"] == "true" else { return intrinsic }
+        return CGSize(
+            width: proposal.width ?? intrinsic.width, height: proposal.height ?? intrinsic.height)
+    }
+}

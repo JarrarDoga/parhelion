@@ -315,7 +315,9 @@ struct TreeRenderer {
                 node, in: frame, style: foreground ?? "primary", paint: paint, into: &canvas)
 
         case "Image":
-            drawSymbol(node, in: frame, color: paint(foreground ?? "primary"), into: &canvas)
+            drawImage(
+                node, in: frame, foreground: foreground, opacity: opacity, paint: paint,
+                into: &canvas)
 
         case "Button":
             let style = BuiltInButtonStyle(rawValue: node.attributes["buttonStyle"] ?? "")

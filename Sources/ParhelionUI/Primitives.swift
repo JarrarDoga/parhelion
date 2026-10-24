@@ -36,7 +36,8 @@ extension Text: PrimitiveView {
     }
 }
 
-/// A view that displays an image.
+/// A view that displays an image: a symbol, an image from an asset
+/// catalog, or an image that `AsyncImage` loaded.
 public struct Image: View, Equatable, Sendable {
     public typealias Body = Never
 
@@ -45,19 +46,79 @@ public struct Image: View, Equatable, Sendable {
         case small, medium, large
     }
 
+    /// How a resizable image fills a frame of another size.
+    public enum ResizingMode: Sendable, Hashable {
+        /// Repeats the image at its size.
+        case tile
+        /// Stretches the image to fill the frame.
+        case stretch
+    }
+
+    /// Whether an image draws its own colors or only its shape in the
+    /// foreground color.
+    public enum TemplateRenderingMode: Sendable, Hashable {
+        /// Draws every pixel that is not transparent in the foreground
+        /// color.
+        case template
+        /// Draws the image's own colors.
+        case original
+    }
+
     enum Source: Equatable, Sendable {
-        case named(String)
+        /// An image set in an asset catalog, in the bundle at a path, or
+        /// found by name when the path is `nil`.
+        case named(String, bundlePath: String?)
         case systemName(String)
+        /// An image that `AsyncImage` loaded, by its URL, with its size in
+        /// points.
+        case loaded(url: String, size: CGSize)
     }
 
     let source: Source
+    var isResizable = false
+    var capInsets = EdgeInsets()
+    var resizingMode = ResizingMode.stretch
+    var renderingMode: TemplateRenderingMode?
 
-    public init(_ name: String) {
-        source = .named(name)
+    /// An image from an asset catalog, in a bundle, or found by name.
+    ///
+    /// Parhelion reads PNG images; a JPEG, PDF, or HEIF file draws as a
+    /// missing image. Without a bundle, or with the main one, it looks in
+    /// the main bundle and every bundle beside it, because on Linux an
+    /// app's catalog is in its target's bundle, such as
+    /// `MyApp_MyApp.bundle`, not in the main bundle.
+    public init(_ name: String, bundle: Bundle? = nil) {
+        let path = bundle.flatMap { $0 == Bundle.main ? nil : $0.bundleURL.path }
+        source = .named(name, bundlePath: path)
     }
 
     public init(systemName: String) {
         source = .systemName(systemName)
+    }
+
+    init(loaded url: String, size: CGSize) {
+        source = .loaded(url: url, size: size)
+    }
+
+    /// The image resizable to fill the frame it is offered. The parts
+    /// inside `capInsets`, in points, keep their size at the edges and
+    /// corners, and the rest stretches or tiles.
+    public func resizable(
+        capInsets: EdgeInsets = EdgeInsets(), resizingMode: ResizingMode = .stretch
+    ) -> Image {
+        var image = self
+        image.isResizable = true
+        image.capInsets = capInsets
+        image.resizingMode = resizingMode
+        return image
+    }
+
+    /// The image drawn as a template, as itself, or, for `nil`, as its
+    /// asset catalog says.
+    public func renderingMode(_ renderingMode: TemplateRenderingMode?) -> Image {
+        var image = self
+        image.renderingMode = renderingMode
+        return image
     }
 
     public var body: Never {
@@ -69,10 +130,22 @@ extension Image: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         var attributes: [String: String]
         switch source {
-        case .named(let name):
-            attributes = ["name": name]
+        case .named(let name, let bundlePath):
+            attributes = assetAttributes(name, bundlePath: bundlePath, in: evaluator.environment)
         case .systemName(let name):
             attributes = symbolAttributes(name, in: evaluator.environment)
+        case .loaded(let url, let size):
+            attributes = ["url": url, "size": formatSize(size)]
+            if renderingMode == .template { attributes["renderingMode"] = "template" }
+        }
+        if isResizable {
+            attributes["resizable"] = "true"
+            if capInsets != EdgeInsets() {
+                attributes["capInsets"] = [
+                    capInsets.top, capInsets.leading, capInsets.bottom, capInsets.trailing,
+                ].map(formatPoints).joined(separator: ", ")
+            }
+            if resizingMode == .tile { attributes["resizingMode"] = "tile" }
         }
         return [ViewNode(id: path.appending("Image").id, kind: "Image", attributes: attributes)]
     }

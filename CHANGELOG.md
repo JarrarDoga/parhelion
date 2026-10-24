@@ -266,6 +266,19 @@ may contain breaking changes.
   `gridCellUnsizedAxes(_:)`, and `gridCellAnchor(_:)`. Columns are as wide as their widest cell
   and rows as tall as their tallest; columns and rows with flexible cells share the space left,
   and a view outside a `GridRow` spans every column. The default spacing is 8 points.
+- Images from asset catalogs: `Image(_:bundle:)`, `resizable(capInsets:resizingMode:)` with
+  `.stretch` and `.tile`, and `renderingMode(_:)` with `.template` and `.original`. On Linux,
+  SwiftPM copies an app target's `Assets.xcassets` unprocessed into the target's resource bundle,
+  so Parhelion reads the catalog there: image sets in groups and namespaces, 1×, 2×, and 3× files,
+  dark appearances, and `template-rendering-intent`. Without a bundle, it looks in the main
+  bundle and every bundle beside it. The renderer draws the file for its scale, and the dark one
+  when `colorScheme` is dark. An image's node records `name`, `bundle`, `size`, `appearance`,
+  `renderingMode`, `resizable`, `capInsets`, and `resizingMode`. A missing image, or one that is
+  not a PNG image, records `missingImage=true` and draws as a ring, as a missing symbol does.
+- A resizable symbol image fills its frame, and symbols take gradient foreground styles.
+- `ParhelionRender` decodes PNG images in pure Swift (`Bitmap(pngData:)`), with every color type
+  and bit depth, transparency, all five filters, and Adam7 interlacing, through its own inflate.
+- The `xtool`-shaped `LibraryApp` fixture shows an image from its own `Assets.xcassets`.
 - `ParhelionRender` clips drawing to any path (`Canvas.beginClip(to:evenOdd:)` and
   `endClip(_:)`), draws and shadows layers (`draw(layer:atPixelX:y:flipX:flipY:)` and
   `drawShadow(ofLayer:atPixelX:y:color:offset:blur:)`), draws `Bitmap` images scaled with bilinear
