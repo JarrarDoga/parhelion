@@ -65,6 +65,26 @@ public enum LayoutModifier: Hashable, Sendable, Codable {
     /// Moves the view when it is drawn and tapped, without changing its
     /// size or the layout around it.
     case offset(CGSize)
+    /// Places the views of one of the node's `Overlay` children over the
+    /// bounds at this point in the chain: the first such modifier's views
+    /// are in the first `Overlay` child, and so on. It does not change the
+    /// size.
+    case overlay(alignment: Alignment)
+    /// Fills a shape with a style over the view, in the bounds at this
+    /// point in the chain.
+    case overlayStyle(style: String, shape: ShapeGeometry, eoFill: Bool)
+    /// Clips the view, and what the modifiers before this one draw, to a
+    /// shape in the bounds at this point in the chain.
+    case clipShape(ShapeGeometry, eoFill: Bool)
+    /// Clips the view to the bounds at this point in the chain, with
+    /// circular corners of a radius.
+    case cornerRadius(CGFloat)
+    /// Draws a blurred shadow of everything the view and the modifiers
+    /// before this one draw. The radius and offset are in points.
+    case shadow(color: String, radius: CGFloat, x: CGFloat, y: CGFloat)
+    /// Scales how the view draws around an anchor, a unit point in the
+    /// bounds at this point in the chain, without changing its layout.
+    case scaleEffect(x: CGFloat, y: CGFloat, anchor: CGPoint)
 
     var outlineDescription: String {
         switch self {
@@ -74,6 +94,30 @@ public enum LayoutModifier: Hashable, Sendable, Codable {
             return "listRow"
         case .offset(let offset):
             return "offset(x: \(formatPoints(offset.width)), y: \(formatPoints(offset.height)))"
+        case .overlay(let alignment):
+            return alignment == .center ? "overlay" : "overlay(alignment: \(alignment.name))"
+        case .overlayStyle(let style, let shape, let eoFill):
+            let fill = eoFill ? ", eoFill" : ""
+            return shape == .rectangle
+                ? "overlay(\(style)\(fill))"
+                : "overlay(\(style), in: \(shape.outlineDescription)\(fill))"
+        case .clipShape(let shape, let eoFill):
+            return "clipShape(\(shape.outlineDescription)\(eoFill ? ", eoFill" : ""))"
+        case .cornerRadius(let radius):
+            return "cornerRadius(\(formatPoints(radius)))"
+        case .shadow(let color, let radius, let x, let y):
+            var parts: [String] = []
+            if color != Self.defaultShadowColor { parts.append("color: \(color)") }
+            parts.append("radius: \(formatPoints(radius))")
+            if x != 0 { parts.append("x: \(formatPoints(x))") }
+            if y != 0 { parts.append("y: \(formatPoints(y))") }
+            return "shadow(" + parts.joined(separator: ", ") + ")"
+        case .scaleEffect(let x, let y, let anchor):
+            var parts =
+                x == y ? [formatPoints(x)] : ["x: \(formatPoints(x))", "y: \(formatPoints(y))"]
+            let unit = UnitPoint(x: anchor.x, y: anchor.y)
+            if unit != .center { parts.append("anchor: \(unit.name)") }
+            return "scaleEffect(" + parts.joined(separator: ", ") + ")"
         case .padding(let insets):
             let values = [insets.top, insets.leading, insets.bottom, insets.trailing]
             if Set(values).count == 1 { return "padding(\(formatPoints(insets.top)))" }
@@ -97,6 +141,11 @@ public enum LayoutModifier: Hashable, Sendable, Codable {
             return "frame(" + parts.joined(separator: ", ") + ")"
         }
     }
+}
+
+extension LayoutModifier {
+    /// The style name of `shadow(color:radius:x:y:)`'s default color.
+    static let defaultShadowColor = Color(red: 0, green: 0, blue: 0, opacity: 0.33).styleName
 }
 
 extension View {

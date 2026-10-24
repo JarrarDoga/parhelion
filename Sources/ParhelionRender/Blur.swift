@@ -678,8 +678,9 @@ struct CoverageMask {
         }
     }
 
-    /// The coverage of any path given in points.
-    init(path: Path, canvas: Canvas, box: PixelBox) {
+    /// The coverage of any path given in points, with the even-odd rule
+    /// when `evenOdd` is set.
+    init(path: Path, canvas: Canvas, box: PixelBox, evenOdd: Bool = false) {
         self.box = box
         columnCoverage = []
         rowCoverage = []
@@ -689,7 +690,7 @@ struct CoverageMask {
         let coverage = Rasterizer.coverage(
             of: path.applying(scaleX: scale, scaleY: scale, translateX: 0, translateY: 0)
                 .polygons(tolerance: 0.2),
-            clip: (box.minX, box.minY, box.maxX, box.maxY))
+            clip: (box.minX, box.minY, box.maxX, box.maxY), evenOdd: evenOdd)
         rasterized = [coverage].compactMap { $0 }
         bounds =
             coverage.map {

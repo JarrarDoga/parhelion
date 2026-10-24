@@ -252,7 +252,9 @@ struct TreeRenderer {
     }
 
     /// Draws a node and its children.
-    private func draw(_ node: ViewNode, inherited: Inherited, into canvas: inout Canvas) {
+    func draw(_ node: ViewNode, inherited: Inherited, into canvas: inout Canvas) {
+        // Clips, shadows, and scales draw in Rendering+Effects.swift.
+        if drawEffects(node, inherited: inherited, into: &canvas) { return }
         var foreground = node.attributes["foregroundStyle"] ?? inherited.foreground
         let tint = node.attributes["tint"] ?? inherited.tint
         var container = inherited.container

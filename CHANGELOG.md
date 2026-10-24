@@ -251,6 +251,17 @@ may contain breaking changes.
   fills each shape or background it paints, and the tree records it as
   `linearGradient(red 0, blue 1, top, bottom)`. `ForegroundStyle` and `.foreground` name the
   current foreground style.
+- `overlay(alignment:content:)`, whose views become an `Overlay` node, the last child of the view
+  they cover, placed in the bounds at the modifier's place in the chain; `overlay(_:in:fillStyle:)`
+  and `overlay(_:ignoresSafeAreaEdges:)`; `clipShape(_:style:)`, `clipped(antialiased:)`, and
+  `cornerRadius(_:antialiased:)`, deprecated in iOS 27.2 as in SwiftUI; `shadow(color:radius:x:y:)`,
+  a blurred shadow of everything the view draws; and `scaleEffect` with an anchor, which mirrors
+  the view at a negative scale. None of them changes layout, and each applies at its place in the
+  modifier chain: a clip clips the backgrounds inside it and not those outside.
+- `ParhelionRender` clips drawing to any path (`Canvas.beginClip(to:evenOdd:)` and
+  `endClip(_:)`), draws and shadows layers (`draw(layer:atPixelX:y:flipX:flipY:)` and
+  `drawShadow(ofLayer:atPixelX:y:color:offset:blur:)`), draws `Bitmap` images scaled with bilinear
+  sampling, fills paths with the even-odd rule, and writes a path as SVG path data.
 
 - Dark mode. `ViewHost.colorScheme` sets the simulated device's appearance, and
   `preferredColorScheme(_:)` sets the preferred color scheme of the window or the sheet that
