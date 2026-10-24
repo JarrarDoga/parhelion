@@ -15,22 +15,29 @@ extension TreeRenderer {
         case gradient(Canvas.LinearGradient)
     }
 
-    /// The color of a style name, with the tint and an opacity, for content
-    /// drawn where no `paint` function from `draw(_:inherited:into:)` is at
-    /// hand. Every other color the shape, effect, and image drawing uses
-    /// goes through that function, so this is the one place where they
-    /// look a color up themselves.
-    func contentColor(_ style: String, tint: String?, opacity: Double) -> RGBA {
-        var color = ColorPalette.color(named: style == "tint" ? tint ?? style : style)
+    /// The color of a style name in a color scheme, with the tint and an
+    /// opacity, for content drawn where no `paint` function from
+    /// `draw(_:inherited:into:)` is at hand. Every other color the shape,
+    /// effect, and image drawing uses goes through that function, so this
+    /// is the one place where they look a color up themselves.
+    func contentColor(
+        _ style: String, tint: String?, opacity: Double, scheme: ColorScheme
+    ) -> RGBA {
+        var color = ColorPalette.color(named: style == "tint" ? tint ?? style : style, in: scheme)
         color.alpha = UInt8((Double(color.alpha) * opacity).rounded())
         return color
     }
 
-    /// The system fills that content in these files draws with, by name,
-    /// as the colors `ColorPalette` reads: `AsyncImage`'s placeholder is
-    /// `secondarySystemFill`, 120,120,128 at 16% in light (swatch
-    /// `Fills/Light/2 Secondary`).
-    static let systemFills = ["secondarySystemFill": "rgba(0.4706,0.4706,0.502,0.16)"]
+    /// A style name, with the system fill it may name replaced by the
+    /// color `ColorPalette` reads for it in a scheme. `AsyncImage`'s
+    /// placeholder is `secondarySystemFill`: 120,120,128 at 16% in light
+    /// and at 32% in dark (swatches `Fills/Light/2 Secondary` and
+    /// `Fills/Dark/2 Secondary`, research for #30, section 4.3).
+    static func resolvingSystemFill(_ style: String, in scheme: ColorScheme) -> String {
+        guard style == AsyncImagePlaceholderStyle().styleName else { return style }
+        return scheme == .dark
+            ? "rgba(0.4706,0.4706,0.502,0.32)" : "rgba(0.4706,0.4706,0.502,0.16)"
+    }
 
     /// The paint of a style in a rectangle. `foreground` is the style that
     /// `.foreground` stands for, and `color` resolves each color name, with
@@ -40,7 +47,7 @@ extension TreeRenderer {
     ) -> Paint {
         switch StyleDescription(style) {
         case .color(let name):
-            return .color(color(Self.systemFills[name] ?? name))
+            return .color(color(name))
         case .foreground:
             guard let foreground, foreground != "foreground" else {
                 return .color(color("primary"))
@@ -89,8 +96,8 @@ extension TreeRenderer {
 
     /// Draws a shape view or a gradient view, and nothing for other nodes.
     func drawContent(
-        _ node: ViewNode, in frame: CGRect, foreground: String?, paint color: (String) -> RGBA,
-        into canvas: inout Canvas
+        _ node: ViewNode, in frame: CGRect, foreground: String?, scheme: ColorScheme,
+        paint color: (String) -> RGBA, into canvas: inout Canvas
     ) {
         if node.kind == "LinearGradient" {
             let style =
@@ -104,7 +111,7 @@ extension TreeRenderer {
             return
         }
         guard let shape = ShapeGeometry(node: node) else { return }
-        let style = node.attributes["fill"] ?? "foreground"
+        let style = Self.resolvingSystemFill(node.attributes["fill"] ?? "foreground", in: scheme)
         fill(
             shape, in: frame,
             with: paint(of: style, in: frame, foreground: foreground, color: color),

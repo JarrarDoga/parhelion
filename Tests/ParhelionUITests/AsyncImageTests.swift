@@ -63,6 +63,17 @@ struct AsyncImageTests {
                 == [0, 0, 255, 255])
     }
 
+    @Test("The placeholder is the dark secondary fill in the dark appearance")
+    func darkPlaceholder() {
+        let host = ViewHost(AsyncImage(url: missingFile), device: square)
+        let light = host.render(scale: 1).color(at: CGPoint(x: 100, y: 100))
+        host.colorScheme = .dark
+        let dark = host.render(scale: 1).color(at: CGPoint(x: 100, y: 100))
+        // 120,120,128 at 16% over white, and at 32% over black.
+        #expect(components(light) == [233, 233, 235, 255])
+        #expect(components(dark) == [39, 39, 41, 255])
+    }
+
     @Test("A failed load keeps the placeholder and records the failure")
     func failure() async throws {
         let host = ViewHost(AsyncImage(url: missingFile), device: square)

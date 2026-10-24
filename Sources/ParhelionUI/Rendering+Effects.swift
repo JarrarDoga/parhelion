@@ -35,8 +35,10 @@ extension TreeRenderer {
         let opacity = inherited.opacity * node.opacity
         let tint = node.attributes["tint"] ?? inherited.tint
         let foreground = node.attributes["foregroundStyle"] ?? inherited.foreground
+        let scheme =
+            node.attributes["colorScheme"].flatMap(ColorScheme.init(name:)) ?? inherited.scheme
         func color(_ style: String) -> RGBA {
-            contentColor(style, tint: tint, opacity: opacity)
+            contentColor(style, tint: tint, opacity: opacity, scheme: scheme)
         }
         var overlays: [Int] = []
         for index in stride(from: count - 1, to: effect, by: -1) {
@@ -91,7 +93,8 @@ extension TreeRenderer {
 
         // An outer overlay is in front of an inner one.
         let childInherited = Inherited(
-            foreground: foreground, tint: tint, opacity: opacity, container: .standard)
+            foreground: foreground, tint: tint, opacity: opacity, container: .standard,
+            scheme: scheme, elevated: inherited.elevated || node.kind == "Sheet")
         for index in overlays.reversed() {
             let rank = node.modifiers[..<index].count(where: \.isOverlay)
             if let overlay = node.children.filter(\.isOverlayContent).dropFirst(rank).first {

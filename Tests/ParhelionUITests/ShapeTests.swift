@@ -206,6 +206,37 @@ struct ShapeTests {
         #expect(top.green > 190 && top.red < 70)
     }
 
+    @Test("Shapes, gradients, backgrounds, and effects resolve colors for the node's scheme")
+    func darkColors() {
+        let host = ViewHost(
+            VStack(spacing: 0) {
+                Circle().fill(.red).frame(width: 40, height: 40)
+                Color.clear.frame(width: 40, height: 40)
+                    .background(
+                        LinearGradient(
+                            colors: [.green, .green], startPoint: .top, endPoint: .bottom))
+                Color.clear.frame(width: 40, height: 40)
+                    .overlay(.orange, in: Rectangle())
+                    .clipShape(Circle())
+            },
+            device: square
+        )
+        host.colorScheme = .dark
+        #expect(host.root.attributes["colorScheme"] == "dark")
+        let frame = host.render(scale: 1)
+        func expectColor(_ point: CGPoint, _ name: String) {
+            let expected = ColorPalette.color(named: name, in: .dark)
+            #expect(
+                components(frame.color(at: point))
+                    == [expected.red, expected.green, expected.blue, 255], "\(name)")
+        }
+        expectColor(CGPoint(x: 100, y: 60), "red")
+        expectColor(CGPoint(x: 100, y: 100), "green")
+        expectColor(CGPoint(x: 100, y: 140), "orange")
+        // The dark red is not the light one.
+        #expect(ColorPalette.color(named: "red", in: .dark) != ColorPalette.color(named: "red"))
+    }
+
     @Test("Style descriptions read back colors and gradients")
     func styleDescriptions() {
         #expect(StyleDescription("blue@0.5") == .color("blue@0.5"))

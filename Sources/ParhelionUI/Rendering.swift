@@ -394,7 +394,9 @@ struct TreeRenderer {
             foreground = foreground ?? "secondary"
 
         default:
-            drawContent(node, in: frame, foreground: foreground, paint: paint, into: &canvas)
+            drawContent(
+                node, in: frame, foreground: foreground, scheme: scheme, paint: paint,
+                into: &canvas)
         }
 
         // A scroll view shows only the part of its content inside its bounds.
