@@ -288,6 +288,15 @@ may contain breaking changes.
 - `ParhelionRender` decodes PNG images in pure Swift (`Bitmap(pngData:)`), with every color type
   and bit depth, transparency, all five filters, and Adam7 interlacing, through its own inflate.
 - The `xtool`-shaped `LibraryApp` fixture shows an image from its own `Assets.xcassets`.
+- README images of shapes, gradients, the styling modifiers, images, `AsyncImage`, and grids,
+  written by `PARHELION_README_IMAGES=docs/images swift test --filter writeContentReadmeImages`
+  and checked against a fresh render by `swift test`.
+- `Scripts/check-ios-build.sh` builds shapes, gradients, the styling modifiers, images,
+  `AsyncImage`, and grids against Apple's SwiftUI, then reports whether xtool builds the app with
+  an asset catalog. xtool 1.22.2 does not: SwiftPM runs `actool` from xtool's temporary folder,
+  where xtool puts none.
+- ADR 0010: images come from the app's raw asset catalog, decoded in pure Swift, through a side
+  table.
 - `ParhelionRender` clips drawing to any path (`Canvas.beginClip(to:evenOdd:)` and
   `endClip(_:)`), draws and shadows layers (`draw(layer:atPixelX:y:flipX:flipY:)` and
   `drawShadow(ofLayer:atPixelX:y:color:offset:blur:)`), draws `Bitmap` images scaled with bilinear

@@ -251,8 +251,18 @@ extension TreeRenderer {
     /// The bounds of everything a node draws: its frame, the bounds of its
     /// modifiers, and what its descendants draw, except the content of a
     /// scroll view beyond its bounds. `nil` if it has no frame.
+    ///
+    /// A symbol's outline can reach a sixth of its side past its frame,
+    /// because Phosphor's grid spans 4/3 of the side, and glyphs can reach
+    /// a little past a text's frame, so those frames grow by that much.
     static func drawnBounds(of node: ViewNode) -> CGRect? {
         guard var bounds = node.frame else { return nil }
+        if node.kind == "Image", node.attributes["systemName"] != nil {
+            let reach = min(bounds.width, bounds.height) / 6
+            bounds = bounds.insetBy(dx: -reach, dy: -reach)
+        } else if node.kind == "Text" {
+            bounds = bounds.insetBy(dx: -2, dy: -2)
+        }
         for frame in node.modifierFrames where frame.width > 0 || frame.height > 0 {
             bounds = bounds.union(frame)
         }

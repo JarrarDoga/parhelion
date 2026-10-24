@@ -102,15 +102,19 @@ extension TreeRenderer {
             (0, source.y.0), (source.y.0, pointSize.height - source.y.1),
             (pointSize.height - source.y.1, pointSize.height),
         ]
+        // The parts meet at whole pixels, so their anti-aliased edges do not
+        // leave seams between them.
+        let scale = canvas.scale
+        func snap(_ value: CGFloat) -> CGFloat {
+            CGFloat((Double(value) * scale).rounded() / scale)
+        }
+        let innerX = (snap(frame.minX + target.x.0), snap(frame.maxX - target.x.1))
+        let innerY = (snap(frame.minY + target.y.0), snap(frame.maxY - target.y.1))
         let targetColumns = [
-            (frame.minX, frame.minX + target.x.0),
-            (frame.minX + target.x.0, frame.maxX - target.x.1),
-            (frame.maxX - target.x.1, frame.maxX),
+            (frame.minX, innerX.0), (innerX.0, innerX.1), (innerX.1, frame.maxX),
         ]
         let targetRows = [
-            (frame.minY, frame.minY + target.y.0),
-            (frame.minY + target.y.0, frame.maxY - target.y.1),
-            (frame.maxY - target.y.1, frame.maxY),
+            (frame.minY, innerY.0), (innerY.0, innerY.1), (innerY.1, frame.maxY),
         ]
         for row in 0..<3 {
             for column in 0..<3 {
@@ -142,9 +146,14 @@ extension TreeRenderer {
                 while y < destination.maxY {
                     var x = destination.minX
                     while x < destination.maxX {
+                        // Tiles, too, meet at whole pixels.
+                        let left = snap(x)
+                        let top = snap(y)
                         canvas.draw(
                             bitmap, from: piece,
-                            in: CGRect(x: x, y: y, width: tile.width, height: tile.height),
+                            in: CGRect(
+                                x: left, y: top, width: snap(x + tile.width) - left,
+                                height: snap(y + tile.height) - top),
                             opacity: opacity, tint: tint)
                         x += tile.width
                     }
