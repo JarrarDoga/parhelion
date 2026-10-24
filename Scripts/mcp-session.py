@@ -6,8 +6,9 @@ Usage: Scripts/mcp-session.py PATH_TO_PARHELION_EXECUTABLE
 The session works on a copy of the LibraryApp fixture in a temporary
 directory. It starts the server with a compile error in the app, fixes the
 error, rebuilds, and then uses the app: it reads the view tree, taps, takes a
-screenshot, and checks that @State survives a rebuild. Run it without a
-display, with SDL_VIDEODRIVER=offscreen or no DISPLAY at all.
+screenshot, switches to dark at a large text size, and checks that @State and
+the appearance survive a rebuild. Run it without a display, with
+SDL_VIDEODRIVER=offscreen or no DISPLAY at all.
 """
 
 import base64
@@ -124,9 +125,17 @@ def main():
         image = next(c for c in result["content"] if c["type"] == "image")
         check(base64.b64decode(image["data"])[:8] == b"\x89PNG\r\n\x1a\n", "the screenshot is a PNG")
 
+        _, text = session.call("set_appearance", {"color_scheme": "dark", "dynamic_type_size": "accessibility2"})
+        check("dark at Dynamic Type size accessibility2" in text, "set_appearance switches the device")
+        _, text = session.call("get_view_tree")
+        check("Root colorScheme=dark dynamicTypeSize=accessibility2" in text, "the view tree's root shows the appearance")
+        _, text = session.call("set_appearance", {"color_scheme": "sepia"}, expect_error=True)
+        check("color_scheme" in text, "an unknown color scheme is a tool error")
+
         session.call("rebuild")
         _, text = session.call("get_view_tree")
         check('Text "Count: 2"' in text, "@State survives a rebuild")
+        check("Root colorScheme=dark dynamicTypeSize=accessibility2" in text, "the appearance survives a rebuild")
         session.close()
 
 

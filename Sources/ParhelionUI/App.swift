@@ -14,7 +14,9 @@ import Foundation
 /// `--png PATH` to draw the screen to a PNG file instead, with the status bar
 /// and the home indicator, at `--scale` pixels per point (2 by default). Set
 /// `PARHELION_DEVICE` to a preset's name, such as "iPhone 17 Pro", to
-/// simulate that device. Without a window, the app first lets `task` work
+/// simulate that device, `PARHELION_COLOR_SCHEME` to `dark` for the dark
+/// appearance, and `PARHELION_DYNAMIC_TYPE_SIZE` to a size such as
+/// `accessibility2` for larger text. Without a window, the app first lets `task` work
 /// finish, for up to five seconds, so that the output shows what it loaded.
 ///
 /// The app's own `@State` belongs to the host, as a view's does: it is
@@ -43,7 +45,10 @@ extension App {
         let appName = String(describing: Self.self)
         if PreviewSession.runIfRequested(content: content, appName: appName) { return }
         #endif
-        let host = ViewHost(anyRootView: content, device: simulatedDevice())
+        let appearance = simulatedAppearance()
+        let host = ViewHost(
+            anyRootView: content, device: simulatedDevice(), colorScheme: appearance.colorScheme,
+            dynamicTypeSize: appearance.dynamicTypeSize)
         host.runTasks(until: Date(timeIntervalSinceNow: 5))
         let arguments = CommandLine.arguments
         if let pngPath = value(after: "--png", in: arguments) {
@@ -81,6 +86,34 @@ func simulatedDevice() -> Device {
         FileHandle.standardError.write(Data("parhelion: \(error)\n".utf8))
         exit(1)
     }
+}
+
+/// The appearance and text size that `PARHELION_COLOR_SCHEME` and
+/// `PARHELION_DYNAMIC_TYPE_SIZE` name, or light at the Large size. Exits with
+/// a message listing the names if one is unknown.
+func simulatedAppearance() -> (colorScheme: ColorScheme, dynamicTypeSize: DynamicTypeSize) {
+    let environment = ProcessInfo.processInfo.environment
+    func fail(_ message: String) -> Never {
+        FileHandle.standardError.write(Data("parhelion: \(message)\n".utf8))
+        exit(1)
+    }
+    var colorScheme = ColorScheme.light
+    if let name = environment[previewColorSchemeEnvironmentKey] {
+        guard let scheme = ColorScheme(name: name) else {
+            fail("\(previewColorSchemeEnvironmentKey) is \"\(name)\". Use light or dark.")
+        }
+        colorScheme = scheme
+    }
+    var dynamicTypeSize = DynamicTypeSize.large
+    if let name = environment[previewDynamicTypeSizeEnvironmentKey] {
+        guard let size = DynamicTypeSize(name: name) else {
+            let names = DynamicTypeSize.allCases.map(\.name).joined(separator: ", ")
+            fail(
+                "\(previewDynamicTypeSizeEnvironmentKey) is \"\(name)\". Use one of: \(names).")
+        }
+        dynamicTypeSize = size
+    }
+    return (colorScheme, dynamicTypeSize)
 }
 
 /// The argument that follows `flag`, as in `--png out.png`.

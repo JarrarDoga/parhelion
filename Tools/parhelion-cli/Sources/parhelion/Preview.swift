@@ -115,10 +115,13 @@ struct Preview: ParsableCommand {
         // Frames that arrive before the window exists are kept until it does.
         let wakeBox = WakeBox()
         if let webHost { wakeBox.set(webHost.waker) }
+        let appearance = AppearanceState()
         let app = try AppConnection(
             executable: URL(fileURLWithPath: executable).path,
             arguments: arguments,
-            environment: window.environment(socketPath: socketPath),
+            environment: window.environment(socketPath: socketPath).merging(
+                appearance.environment
+            ) { $1 },
             listener: listener,
             wake: { wakeBox.wake() }
         )
@@ -131,9 +134,10 @@ struct Preview: ParsableCommand {
             wakeBox.set(host.waker)
             surface = host
             print("Previewing \(app.hello.appName). Close the window to quit.")
+            print(WindowHost.appearanceShortcuts)
         }
 
-        let loop = FrameLoop(surface: surface)
+        let loop = FrameLoop(surface: surface, appearance: appearance)
         while true {
             switch try loop.step(app: app, idleTimeout: 0.25) {
             case .close:

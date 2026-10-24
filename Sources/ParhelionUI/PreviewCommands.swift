@@ -96,6 +96,25 @@ extension ViewHost {
                     true,
                     "Scrolled \(id) to (\(formatPoints(offset.x)), \(formatPoints(offset.y))).")
 
+            case .setAppearance(let schemeName, let sizeName):
+                if let schemeName {
+                    guard let scheme = ColorScheme(name: schemeName) else {
+                        return reply(
+                            false, "Unknown color scheme \"\(schemeName)\". Use light or dark.")
+                    }
+                    colorScheme = scheme
+                }
+                if let sizeName {
+                    guard let size = DynamicTypeSize(name: sizeName) else {
+                        let names = DynamicTypeSize.allCases.map(\.name).joined(separator: ", ")
+                        return reply(
+                            false,
+                            "Unknown Dynamic Type size \"\(sizeName)\". Use one of: \(names).")
+                    }
+                    dynamicTypeSize = size
+                }
+                return reply(true, appearanceDescription)
+
             case .drag(let fromX, let fromY, let toX, let toY, let duration):
                 drag(
                     from: CGPoint(x: fromX, y: fromY), to: CGPoint(x: toX, y: toY),
@@ -121,6 +140,11 @@ extension ViewHost {
                 to: CGPoint(x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t))
         }
         pointerUp(at: end)
+    }
+
+    /// The simulated device's settings, as a reply states them.
+    var appearanceDescription: String {
+        "The device is set to \(colorScheme.name) at Dynamic Type size \(dynamicTypeSize.name)."
     }
 
     private func inspectionOutline() -> String {

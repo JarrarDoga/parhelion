@@ -431,13 +431,16 @@ extension PreviewSession {
         // Before connecting, so that a window host sees an unknown device
         // name as the app exiting, with the message in its output.
         let device = simulatedDevice()
+        let appearance = simulatedAppearance()
         do {
             let channel = try PreviewChannel.connect(to: socketPath)
             let savedState = stateFilePath.flatMap {
                 FileManager.default.contents(atPath: $0)
             }
             let session = PreviewSession(
-                host: ViewHost(anyRootView: content, device: device, restoring: savedState),
+                host: ViewHost(
+                    anyRootView: content, device: device, colorScheme: appearance.colorScheme,
+                    dynamicTypeSize: appearance.dynamicTypeSize, restoring: savedState),
                 channel: channel,
                 scale: scale,
                 appName: appName,

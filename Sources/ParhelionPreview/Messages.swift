@@ -16,6 +16,13 @@ public let previewStateEnvironmentKey = "PARHELION_PREVIEW_STATE"
 /// device.
 public let previewDeviceEnvironmentKey = "PARHELION_DEVICE"
 
+/// The names of the environment variables that set the simulated device's
+/// appearance and text size when an app starts, such as "dark" and
+/// "accessibility2": SwiftUI's names for a `ColorScheme` and a
+/// `DynamicTypeSize`. Without them, the app is light at the Large size.
+public let previewColorSchemeEnvironmentKey = "PARHELION_COLOR_SCHEME"
+public let previewDynamicTypeSizeEnvironmentKey = "PARHELION_DYNAMIC_TYPE_SIZE"
+
 /// Optional parts of the protocol. An app lists the ones it supports in its
 /// ``PreviewHello``, and a window host that supports them too answers with
 /// ``HostMessage/welcome(_:)``. A host sends the newer messages only after
@@ -28,8 +35,12 @@ public enum PreviewCapability {
     /// ``AppMessage/sharedMemory(_:)`` once, then small
     /// ``AppMessage/frameUpdate(_:)`` messages that name a slot.
     public static let sharedFrames = "sharedFrames"
+    /// The app takes ``PreviewCommand/setAppearance(colorScheme:dynamicTypeSize:)``
+    /// commands. A host only needs to see it in the hello; the app does not
+    /// wait for a welcome to accept them.
+    public static let appearance = "appearance"
     /// Every capability this version of Parhelion supports.
-    public static let all = [hostClock, sharedFrames]
+    public static let all = [hostClock, sharedFrames, appearance]
 }
 
 /// The first message an app sends after it connects.
@@ -229,6 +240,11 @@ public enum PreviewCommand: Codable, Equatable, Sendable {
     /// Drags from one point to another over `duration` seconds, as a finger
     /// would. A fast drag over a scroll view leaves it moving.
     case drag(fromX: Double, fromY: Double, toX: Double, toY: Double, duration: Double)
+    /// Sets the simulated device's appearance, its text size, or both, by
+    /// SwiftUI's case names, such as "dark" and "accessibility2"; `nil`
+    /// keeps one as it is. Only an app whose hello lists
+    /// ``PreviewCapability/appearance`` understands it.
+    case setAppearance(colorScheme: String?, dynamicTypeSize: String?)
 }
 
 /// The app's answer to a ``PreviewCommand``.

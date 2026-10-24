@@ -1,5 +1,6 @@
 /// The web preview's page: the screen inside the phone, scaled to fit the
-/// browser window, with the app's status above it.
+/// browser window, with the app's status above it and controls for the
+/// simulated device's appearance and text size.
 ///
 /// It is Swift source rather than a file, because Parhelion ships no
 /// SwiftPM resources (docs/adr/0003-no-swiftpm-resources.md). The page
@@ -51,8 +52,9 @@ enum WebPage {
             background: var(--state, var(--secondary)); }
           #stats { color: var(--secondary); font-variant-numeric: tabular-nums;
             white-space: nowrap; }
-          #keyboard { display: none; border: 0; border-radius: 6px; padding: 4px 10px;
+          #keyboard, #scheme, #textSize { border: 0; border-radius: 6px; padding: 4px 10px;
             background: #3a3a3c; color: var(--text); font: inherit; }
+          #keyboard { display: none; }
           @media (pointer: coarse) { #keyboard { display: block; } }
           #stage { flex: 1; position: relative; display: flex; align-items: center;
             justify-content: center; min-height: 0; }
@@ -82,6 +84,9 @@ enum WebPage {
           <div id="title">Parhelion</div>
           <div id="stats" hidden></div>
           <div id="state">Connecting</div>
+          <button id="scheme" type="button" hidden>Light</button>
+          <select id="textSize" title="Dynamic Type size" aria-label="Dynamic Type size" hidden>
+          </select>
           <button id="keyboard" type="button">Keyboard</button>
         </div>
         <div id="stage">
@@ -187,12 +192,33 @@ enum WebPage {
               bezel.src = `bezel.png?token=${encodeURIComponent(token)}&v=${hello.revision}`;
             }
             layout();
+          } else if (message.type === "appearance") {
+            showAppearance(message);
           } else if (message.type === "status") {
             const failed = message.state === "buildFailed";
             $("errors").style.display = failed ? "flex" : "none";
             $("errorText").textContent = failed ? message.message : "";
             setNotice({ building: "Building…", stopped: message.message }[message.state] || "");
           }
+        }
+
+        // The simulated device's appearance and text size, which the tool keeps for
+        // every page, the window, and the agent.
+        let appearance = null;
+        function showAppearance(message) {
+          appearance = message;
+          const scheme = $("scheme");
+          const dark = message.colorScheme === "dark";
+          scheme.hidden = false;
+          scheme.textContent = dark ? "Dark" : "Light";
+          scheme.title = dark ? "Switch to the light appearance" : "Switch to the dark appearance";
+          scheme.setAttribute("aria-pressed", String(dark));
+          const select = $("textSize");
+          if (select.options.length !== message.dynamicTypeSizes.length) {
+            select.replaceChildren(...message.dynamicTypeSizes.map((name) => new Option(name, name)));
+          }
+          select.value = message.dynamicTypeSize;
+          select.hidden = false;
         }
 
         function escapeHTML(text) {
@@ -397,7 +423,8 @@ enum WebPage {
         if (!touchDevice) {
           // Typing anywhere on the page goes to the app.
           document.addEventListener("keydown", () => {
-            if (document.activeElement !== keys && !getSelection().toString()) {
+            if (document.activeElement !== keys && document.activeElement !== $("textSize") &&
+              !getSelection().toString()) {
               keys.focus({ preventScroll: true });
             }
           }, true);
@@ -407,6 +434,16 @@ enum WebPage {
           if (document.activeElement === keys) keys.blur(); else keys.focus();
         });
         $("dismiss").addEventListener("click", () => { $("errors").style.display = "none"; });
+        $("scheme").addEventListener("click", () => {
+          if (!appearance) return;
+          send({ type: "appearance",
+            colorScheme: appearance.colorScheme === "dark" ? "light" : "dark" });
+          if (!touchDevice) keys.focus({ preventScroll: true });
+        });
+        $("textSize").addEventListener("change", (event) => {
+          send({ type: "appearance", dynamicTypeSize: event.target.value });
+          if (!touchDevice) keys.focus({ preventScroll: true });
+        });
 
         connect();
         </script>

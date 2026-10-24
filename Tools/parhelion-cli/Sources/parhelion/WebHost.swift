@@ -85,7 +85,12 @@ final class WebHost: PreviewSurface {
     }
 
     func events(waitingUpTo timeout: Double) -> [SurfaceEvent] {
-        var events = preview.waitForInput(timeout: timeout).map(SurfaceEvent.input)
+        var events = preview.waitForInput(timeout: timeout).map { input -> SurfaceEvent in
+            switch input {
+            case .host(let message): .input(message)
+            case .appearance(let change): .appearance(change)
+            }
+        }
         if interruption.happened { events.append(.close) }
         return events
     }
@@ -120,6 +125,10 @@ final class WebHost: PreviewSurface {
 
     func setStatus(_ status: PreviewStatus) {
         preview.setStatus(status)
+    }
+
+    func show(_ appearance: PreviewAppearance) {
+        preview.setAppearance(appearance)
     }
 }
 
@@ -166,6 +175,11 @@ final class MirroredSurface: PreviewSurface {
     func setStatus(_ status: PreviewStatus) {
         window.setStatus(status)
         web.setStatus(status)
+    }
+
+    func show(_ appearance: PreviewAppearance) {
+        window.show(appearance)
+        web.show(appearance)
     }
 }
 

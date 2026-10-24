@@ -255,7 +255,7 @@ struct WebPreviewTests {
         return client
     }
 
-    @Test("A page gets the hello, the status, and then the frame")
+    @Test("A page gets the hello, the status, the appearance, and then the frame")
     func frames() throws {
         let preview = try WebPreview(address: "127.0.0.1", port: 0, showsBezel: true)
         defer { preview.stop() }
@@ -276,6 +276,12 @@ struct WebPreviewTests {
         #expect((hello["bezel"] as? [String: Any])?["margin"] as? Double == DeviceBezel.margin)
         let status = try client.readJSON()
         #expect(status["state"] as? String == "building")
+        let appearance = try client.readJSON()
+        #expect(appearance["type"] as? String == "appearance")
+        #expect(appearance["colorScheme"] as? String == "light")
+        #expect(appearance["dynamicTypeSize"] as? String == "large")
+        #expect(
+            appearance["dynamicTypeSizes"] as? [String] == PreviewAppearance.dynamicTypeSizes)
         let frame = try #require(client.readFrame())
         #expect(frame.opcode == 2)
         var page = ReferencePage()
@@ -291,6 +297,7 @@ struct WebPreviewTests {
         let client = try connect(preview)
         _ = try client.readJSON()  // hello
         _ = try client.readJSON()  // status
+        _ = try client.readJSON()  // appearance
         var page = ReferencePage()
         var last: [UInt8] = []
         for offset in 0..<(WebPreview.maximumFramesInFlight + 5) {
@@ -324,20 +331,46 @@ struct WebPreviewTests {
         #expect(page.pixels == last)
     }
 
-    @Test("Input from a page reaches the host, and other messages do not")
+    @Test("Input and appearance changes from a page reach the host, and other messages do not")
     func input() throws {
         let preview = try WebPreview(address: "127.0.0.1", port: 0, showsBezel: false)
         defer { preview.stop() }
         let client = try connect(preview)
         client.send(maskedFrame(.text, Array(#"{"type":"command","command":"inspect"}"#.utf8)))
         client.send(maskedFrame(.text, Array(#"{"type":"down","x":1,"y":2}"#.utf8)))
+        client.send(maskedFrame(.text, Array(#"{"type":"appearance","colorScheme":"sepia"}"#.utf8)))
         client.send(maskedFrame(.text, Array(#"{"type":"text","text":"hi"}"#.utf8)))
-        var received: [HostMessage] = []
+        client.send(maskedFrame(.text, Array(#"{"type":"appearance","colorScheme":"dark"}"#.utf8)))
+        var received: [PageInput] = []
         let deadline = Date().addingTimeInterval(5)
-        while received.count < 2, Date() < deadline {
+        while received.count < 3, Date() < deadline {
             received += preview.waitForInput(timeout: 0.5)
         }
-        #expect(received == [.pointerDown(x: 1, y: 2), .text("hi")])
+        #expect(
+            received == [
+                .host(.pointerDown(x: 1, y: 2)), .host(.text("hi")),
+                .appearance(.set(colorScheme: "dark", dynamicTypeSize: nil)),
+            ])
+    }
+
+    @Test("Pages are shown the appearance the tool keeps")
+    func appearance() throws {
+        let preview = try WebPreview(address: "127.0.0.1", port: 0, showsBezel: false)
+        defer { preview.stop() }
+        let client = try connect(preview)
+        var appearance = PreviewAppearance()
+        appearance.colorScheme = "dark"
+        appearance.dynamicTypeSize = "accessibility2"
+        preview.setAppearance(appearance)
+        var texts: [String] = []
+        while !texts.contains(where: { $0.contains("accessibility2\"") }) {
+            let frame = try #require(client.readFrame())
+            texts.append(String(decoding: frame.payload, as: UTF8.self))
+        }
+        let message = try #require(texts.last)
+        #expect(message.contains(#""colorScheme":"dark""#))
+        #expect(message.contains(#""dynamicTypeSize":"accessibility2""#))
+        #expect(message.contains(#""type":"appearance""#))
     }
 
     @Test("The page and the bezel need the token")
