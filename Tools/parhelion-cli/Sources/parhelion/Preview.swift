@@ -83,7 +83,9 @@ struct Preview: ParsableCommand {
         abstract: "Run a built Parhelion app in a preview window.",
         discussion: """
             Starts the app, connects to it over a local socket, and shows its \
-            frames in a window. Click to tap. Close the window to quit.
+            frames in a window. Click to tap. Control-Shift-A switches between \
+            light and dark, and Control-Alt-Plus and Control-Alt-Minus change the \
+            text size. Close the window to quit.
 
             With --web, the app appears on a web page instead, at the URL that \
             parhelion prints, and no display is needed. Press Control-C to quit.

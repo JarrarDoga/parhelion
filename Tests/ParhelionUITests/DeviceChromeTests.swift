@@ -157,6 +157,19 @@ struct DeviceChromeTests {
         #expect(host.chromeOverlayCache?.chrome == .screen)
     }
 
+    @Test("The system bars are white in dark and drawn again when the scheme changes")
+    func darkBars() {
+        let host = ViewHost(EmptyView(), device: device)
+        #expect(
+            components(host.render(scale: 1, chrome: .systemBars).color(at: homeIndicatorCenter))
+                == [0, 0, 0, 255])
+        host.colorScheme = .dark
+        #expect(
+            components(host.render(scale: 1, chrome: .systemBars).color(at: homeIndicatorCenter))
+                == [255, 255, 255, 255])
+        #expect(host.chromeOverlayCache?.colorScheme == .dark)
+    }
+
     @Test("The system bars are drawn above presentations, undimmed")
     func aboveAlerts() {
         let frame = ViewHost(AlertOnLaunch(), device: device).render(scale: 1, chrome: .systemBars)

@@ -260,6 +260,27 @@ struct RenderCacheTests {
         #expect(host.renderCache.backdrop == nil)
     }
 
+    @Test("Dark frames of an alert and a sheet match frames drawn from scratch")
+    func darkPresentations() throws {
+        let host = try TasksScreens.host(showing: .detail)
+        host.colorScheme = .dark
+        expectCachedFrameMatches(host)
+        try host.tapButton(labeled: "Delete")
+        expectAnimationMatches(host)
+        #expect(host.renderCache.backdrop?.key.colorScheme == .dark)
+        try host.tapButton(labeled: "Cancel")
+        expectAnimationMatches(host)
+
+        let sheet = try TasksScreens.host(showing: .list)
+        sheet.colorScheme = .dark
+        try sheet.tapButton(labeled: "Add")
+        expectAnimationMatches(sheet)
+        // Switching the scheme under a presentation draws its backdrop again.
+        sheet.colorScheme = .light
+        expectCachedFrameMatches(sheet)
+        #expect(sheet.renderCache.backdrop?.key.colorScheme == .light)
+    }
+
     @Test("A change beneath a sheet draws the screen beneath again")
     func changeBeneathSheet() throws {
         let host = ViewHost(Echo())

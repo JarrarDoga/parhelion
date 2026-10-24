@@ -22,6 +22,11 @@ struct Run: ParsableCommand {
             connected across reloads and shows build errors. Press Control-C to \
             quit.
 
+            In the window, Control-Shift-A switches between light and dark, and \
+            Control-Alt-Plus and Control-Alt-Minus change the text size; the page \
+            has a button and a menu for them. Set PARHELION_COLOR_SCHEME or \
+            PARHELION_DYNAMIC_TYPE_SIZE to start with another setting.
+
             Example: parhelion run --package-path ~/Code/MyApp
             """
     )
