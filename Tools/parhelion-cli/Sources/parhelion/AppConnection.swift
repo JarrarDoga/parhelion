@@ -28,6 +28,8 @@ final class AppConnection: @unchecked Sendable {
     private var sharedFrames: SharedFrameBuffer?
     private var disconnected = false
     private var replies: [Int: PreviewReply] = [:]
+    /// Commands whose replies nobody waits for.
+    private var unanswered: Set<Int> = []
     private var nextRequestID = 1
     private let output: OutputBuffer?
 
@@ -156,6 +158,7 @@ final class AppConnection: @unchecked Sendable {
             }
         case .reply(let id, let reply):
             lock.withLock {
+                if unanswered.remove(id) != nil { return }
                 replies[id] = reply
                 lock.broadcast()
             }
@@ -228,6 +231,17 @@ final class AppConnection: @unchecked Sendable {
     /// up as ``isDisconnected``.
     func send(_ message: HostMessage) {
         sendLock.withLock { _ = try? channel.send(message) }
+    }
+
+    /// Sends a command without waiting for the app's reply, which is
+    /// dropped when it arrives.
+    func post(_ command: PreviewCommand) {
+        let id = lock.withLock {
+            defer { nextRequestID += 1 }
+            unanswered.insert(nextRequestID)
+            return nextRequestID
+        }
+        send(.command(id: id, command))
     }
 
     /// Sends a command and waits for the app's reply.

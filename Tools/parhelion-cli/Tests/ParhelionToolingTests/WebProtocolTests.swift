@@ -246,6 +246,16 @@ struct PageMessageTests {
         #expect(PageMessage(json: #"{"type":"ack","sequence":7}"#) == .acknowledge(7))
     }
 
+    @Test("The page's controls ask for an appearance or a text size by name")
+    func appearance() {
+        #expect(
+            PageMessage(json: #"{"type":"appearance","colorScheme":"dark"}"#)
+                == .appearance(.set(colorScheme: "dark", dynamicTypeSize: nil)))
+        #expect(
+            PageMessage(json: #"{"type":"appearance","dynamicTypeSize":"accessibility5"}"#)
+                == .appearance(.set(colorScheme: nil, dynamicTypeSize: "accessibility5")))
+    }
+
     @Test("Anything else is refused, including the host's other messages")
     func refused() {
         let refused = [
@@ -260,6 +270,9 @@ struct PageMessageTests {
             #"{"type":"key","key":"f5"}"#,
             #"{"type":"text","text":""}"#,
             #"{"type":"ack","sequence":-1}"#,
+            #"{"type":"appearance"}"#,
+            #"{"type":"appearance","colorScheme":"sepia"}"#,
+            #"{"type":"appearance","colorScheme":"dark","dynamicTypeSize":"huge"}"#,
             "[]",
             "not json",
         ]

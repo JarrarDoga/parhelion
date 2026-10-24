@@ -240,6 +240,39 @@ may contain breaking changes.
 - `parhelion mcp` reports `task` work that is still running, and its `wait` tool returns as soon
   as animations and that work finish. `PreviewReply.pendingTasks` carries the count.
 
+- Dark mode. `ViewHost.colorScheme` sets the simulated device's appearance, and
+  `preferredColorScheme(_:)` sets the preferred color scheme of the window or the sheet that
+  contains it, as SwiftUI does: the whole presentation takes it, an outer modifier wins over an
+  inner one, and the first of two siblings wins. `environment(\.colorScheme, _:)` changes the
+  scheme of its content. Nodes record `colorScheme=dark` where the scheme changes, and the root
+  records it while the window is dark.
+- iOS 27's dark appearance, from the dark swatches and components of Apple's iOS 27 UI Kit: the
+  dark system colors and labels, black screens with 28-gray grouped cells, lighter backgrounds in
+  sheets, dark Liquid Glass for toolbar buttons, the tab bar, alerts, menus, and partial-height
+  sheets, the dark variants of switches, sliders, steppers, and segmented controls, and a white
+  status bar and home indicator.
+- A `luminosity` blend mode in `ParhelionRender`, which dark Liquid Glass uses.
+- Dynamic Type. `ViewHost.dynamicTypeSize` sets the simulated device's text size, and text
+  styles take their size and line height from the iOS 27 UI Kit's Dynamic Type table, from
+  `xSmall` to `accessibility5`. A `Text` whose size differs from its style's size at Large
+  records `fontSize`, and nodes record `dynamicTypeSize` where it changes.
+- `dynamicTypeSize(_:)` with a size or a range, which limit each other as SwiftUI documents,
+  `@ScaledMetric`, and `Font.custom(_:size:)`, `Font.custom(_:size:relativeTo:)`, and
+  `Font.custom(_:fixedSize:)`, drawn with Inter.
+- List rows, list footers, large navigation titles and their bar, bordered buttons, alert
+  buttons, text fields, and symbols grow with Dynamic Type. Toolbar items, the tab bar, and segmented controls
+  keep their size, as on iOS.
+- Control-Shift-A in the preview window switches between light and dark, and Control-Alt-Plus
+  and Control-Alt-Minus change the text size. The window's title shows the setting.
+- A Light or Dark button and a text size menu on the `--web` page.
+- The `set_appearance` tool in `parhelion mcp`.
+- `PARHELION_COLOR_SCHEME` and `PARHELION_DYNAMIC_TYPE_SIZE`, which start an app in an appearance
+  and a text size, with or without `--png`. The tool passes the current setting to every launch,
+  so it survives hot reload and `rebuild`.
+- `PreviewCommand.setAppearance(colorScheme:dynamicTypeSize:)` and the `appearance` capability in
+  the preview protocol.
+- README images of the dark appearance and of large text sizes.
+
 ### Changed
 
 - `ViewHost.tapButton(labeled:)` taps any control with the label, such as a toggle's switch, and
@@ -327,6 +360,10 @@ may contain breaking changes.
   window shows the changes that work makes without waiting for input.
 - Without a window, an app waits up to five seconds for `task` work before it prints its tree or
   writes `--png`.
+
+- The Settings example's Appearance picker sets the app's preferred color scheme.
+- The web page receives an `appearance` message with the current setting, after its hello and
+  status.
 
 ### Fixed
 

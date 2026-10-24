@@ -492,6 +492,10 @@ extension ToolbarView: PrimitiveView {
                 // confirmation action's buttons are prominent.
                 if placement.position != .principal { environment.buttonContext = .toolbar }
                 if placement.isProminent { environment.buttonStyle = .builtIn(.glassProminent) }
+                // Assumed: bar items keep their size at every Dynamic Type
+                // size, as tab bar buttons do; iOS shows them in the large
+                // content viewer instead.
+                environment.dynamicTypeSize = .large
             }) {
                 evaluator.evaluate(item.view, at: toolbarPath.appending(String(index)))
             }
@@ -654,11 +658,14 @@ extension NavigationStack: PrimitiveView {
             group("principal", principal)
         } else if let title = top.screen.title {
             if isLarge { displayMode = "large" }
+            // Assumed: both titles scale with Dynamic Type, and a large
+            // title's bar grows with its line.
             let font = isLarge ? LayoutDefaults.largeTitleFont : LayoutDefaults.inlineTitleFont
+            var attributes = ["text": title]
+            font.resolved(dynamicTypeSize: evaluator.environment.dynamicTypeSize)
+                .record(in: &attributes)
             barChildren.append(
-                ViewNode(
-                    id: barPath.appending("title").id, kind: "Text",
-                    attributes: ["text": title, "font": font.resolved().attribute]))
+                ViewNode(id: barPath.appending("title").id, kind: "Text", attributes: attributes))
         }
         groups("trailing", items(.trailing))
 

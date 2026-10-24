@@ -53,6 +53,7 @@ struct MCP: ParsableCommand {
         let plan = try RunPlan.make(for: package, at: packagePath, product: product)
         let webHost = web.isEnabled ? try WebHost(options: web, bezel: bezel) : nil
         let showsFrames = window || webHost != nil
+        let appearance = AppearanceState()
         let controller = try AgentController(
             plan: plan,
             builder: AppBuilder(plan: plan, configuration: configuration.rawValue),
@@ -60,6 +61,7 @@ struct MCP: ParsableCommand {
             device: device,
             // Without a window or a page, nobody shows frames or keeps time.
             capabilities: showsFrames ? PreviewCapability.all : [],
+            appearance: appearance,
             status: webHost.map { host in { host.setStatus($0) } }
         )
         if let webHost {
@@ -111,7 +113,7 @@ struct MCP: ParsableCommand {
                     surface = webHost.map { MirroredSurface(window: host, web: $0) } ?? host
                 }
                 controller.setWaker(surface!.waker)
-                loop = FrameLoop(surface: surface!)
+                loop = FrameLoop(surface: surface!, appearance: appearance)
             }
             if case .close = try loop?.step(app: app, idleTimeout: 0.05) {
                 // Closing the window ends the session for the agent too.
@@ -145,6 +147,7 @@ final class AgentController: @unchecked Sendable {
     private let scale: Double
     private let device: String?
     private let capabilities: [String]
+    private let appearance: AppearanceState
     private let status: ((PreviewStatus) -> Void)?
     private let lock = NSLock()
     private var app: AppConnection?
@@ -161,13 +164,15 @@ final class AgentController: @unchecked Sendable {
     ///   for a web page to show.
     init(
         plan: RunPlan, builder: AppBuilder, scale: Double, device: String?,
-        capabilities: [String], status: ((PreviewStatus) -> Void)? = nil
+        capabilities: [String], appearance: AppearanceState,
+        status: ((PreviewStatus) -> Void)? = nil
     ) throws {
         self.plan = plan
         self.builder = builder
         self.scale = scale
         self.device = device
         self.capabilities = capabilities
+        self.appearance = appearance
         self.status = status
         listener = try PreviewListener(path: socketPath)
     }
@@ -219,6 +224,8 @@ final class AgentController: @unchecked Sendable {
                 previewStateEnvironmentKey: stateFile,
             ]
             environment[previewDeviceEnvironmentKey] = device
+            // A rebuilt app starts with the appearance the agent or a person set.
+            environment.merge(appearance.environment) { $1 }
             let connection = try AppConnection(
                 executable: executable,
                 arguments: [],
@@ -271,12 +278,40 @@ final class AgentController: @unchecked Sendable {
             return run(.typeText(arguments.string("text") ?? ""), summaryOnly: false)
         case "wait":
             return waitUntilSettled(seconds: min(max(arguments.double("seconds") ?? 0.5, 0), 10))
+        case "set_appearance":
+            return setAppearance(arguments)
         default:
             guard let command = AgentTools.command(for: name, arguments) else {
                 return .text(AgentTools.usage(of: name), isError: true)
             }
             return run(command, summaryOnly: false)
         }
+    }
+
+    /// Sets the simulated device's appearance, text size, or both, for the
+    /// running app and every later launch, and shows it in the window and
+    /// on pages.
+    private func setAppearance(_ arguments: MCPArguments) -> MCPToolResult {
+        let colorScheme = arguments.string("color_scheme")
+        let dynamicTypeSize = arguments.string("dynamic_type_size")
+        guard colorScheme != nil || dynamicTypeSize != nil else {
+            return .text(AgentTools.usage(of: "set_appearance"), isError: true)
+        }
+        guard let app = currentApp, !app.isDisconnected else { return notRunning() }
+        guard PreviewAppearance.isSupported(by: app.hello) else {
+            return .text(
+                "\(app.hello.appName) was built with an older Parhelion, which cannot switch the "
+                    + "appearance or text size. Update its Parhelion dependency and rebuild.",
+                isError: true)
+        }
+        guard
+            let changed = appearance.apply(
+                .set(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize))
+        else {
+            return .text(AgentTools.usage(of: "set_appearance"), isError: true)
+        }
+        waker.wake()
+        return run(changed.command, summaryOnly: false)
     }
 
     private func run(_ command: PreviewCommand, summaryOnly: Bool) -> MCPToolResult {

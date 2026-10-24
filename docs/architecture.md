@@ -152,7 +152,16 @@ the child. A `nil` dimension in a proposal asks for the child's ideal size.
   it is evaluated and records it as an attribute, such as `font=headline` or
   `font=largeTitle.bold`, unless it is the body style. Layout and drawing read only that
   attribute: a text style's size, line height, and weight come from `LayoutDefaults`, and the
-  weight picks the nearest bundled Inter. Each line is the line height tall, with the difference
+  weight picks the nearest bundled Inter.
+- **Dynamic Type** scales text styles: each `Text` resolves its font at the environment's
+  `dynamicTypeSize`, with the size and line height of the iOS 27 UI Kit's Dynamic Type table
+  (`DynamicTypeTable`), and records the size in `fontSize` when it differs from the size at
+  Large, as in `font=title fontSize=34`. Within a style, every size has one line height, so
+  layout and drawing find the line height from the style and the size. A custom font scales by
+  the ratio of its text style's sizes, as `@ScaledMetric` does; the system font at a fixed size
+  does not scale. List rows, footers, text fields, large titles and their bar, and bordered and
+  alert buttons grow with their text. Toolbar items are evaluated at Large, and the tab bar and segmented
+  controls use fixed sizes, so they keep their size, as on iOS. Each line is the line height tall, with the difference
   from Inter's own height split above and below the glyphs, and the renderer draws with the same
   font and baselines so that layout and pixels agree.
 - **The root** covers the device screen. Root content is proposed the safe area and centered in
@@ -186,7 +195,13 @@ device for the system interface it draws over the tree.
   the pixels the blur would read are one flat color, every row at one pixel per point, and then
   skips the blur and fills the shape with the tint blended over that color once.
 - **Colors** come from `ColorPalette`, which maps SwiftUI's named colors and styles to iOS 27's
-  light-appearance system colors. A `foregroundStyle` applies to the node and its descendants, and
+  system colors in the light or the dark appearance. The renderer reads the color scheme from
+  the tree: the root records `colorScheme=dark` while the window is dark, and a node records its
+  own where its content's scheme differs, from `environment(\.colorScheme, _:)` or a
+  presentation's preference. Every color and material the renderer draws comes from the
+  scheme's `ColorPalette.Appearance`; content in a sheet uses the elevated dark backgrounds.
+  Colors that the kit blends with glass, plus-lighter in dark, are drawn as the color they make
+  over the dark glass, as light draws its plus-darker colors over light glass. A `foregroundStyle` applies to the node and its descendants, and
   so does a `tint`. Button labels take the tint color unless they set their own style or their
   button style chooses another, and labels on glass are near-black.
 - **Buttons** read a style, a control size, and where they are from the environment while they
@@ -215,9 +230,9 @@ device for the system interface it draws over the tree.
   `--png` use it, so every point of the image is a point on the screen. `.screen` also adds the
   Dynamic Island or notch and blacks out the screen's rounded corners; the preview session sends
   these frames. Each `Device` preset records its corner radius, cutout, and home indicator width.
-  Parhelion draws only the light appearance so far, so the bars are always black. The status
+  The bars follow the window's color scheme: black in light and white in dark. The status
   bar's clock uses Inter SemiBold in place of SF Pro. The chrome depends only on the device, the
-  scale, and the kind of chrome, so `ViewHost` draws it once into a `CanvasOverlay` and blends
+  scale, the kind of chrome, and the scheme, so `ViewHost` draws it once into a `CanvasOverlay` and blends
   that over each frame: opaque runs are copied as whole words, and only the anti-aliased edges
   are blended.
 - **Frames that animate** reuse drawing from earlier frames, kept by `ViewHost` in a
@@ -379,9 +394,34 @@ values arrive with the modifiers that read them.
 
 `environment(_:)` places an observable object in the environment by its type, and
 `@Environment(Model.self)` reads it; reading one that no view above placed stops the app, as in
-SwiftUI. The values that views commonly read describe the simulated iPhone: `colorScheme` is
-`light`, `dynamicTypeSize` is `large`, the size classes are compact across and regular down, and
-`locale` is US English.
+SwiftUI. The values that views commonly read describe the simulated iPhone: `colorScheme` and
+`dynamicTypeSize` are the host's settings, `light` and `large` by default, the size classes are
+compact across and regular down, and `locale` is US English.
+
+### Appearance
+
+`ViewHost.colorScheme` and `ViewHost.dynamicTypeSize` are the simulated device's settings, as in
+its Settings app; setting either updates the tree. They start the root environment, and the
+root records them when they are not `light` and `large`
+([ADR 0009](adr/0009-appearance-in-the-tree.md)).
+
+- `environment(\.colorScheme, _:)` and `dynamicTypeSize(_:)` change the environment of their
+  content like any other value. Every environment writer compares the two values before and after
+  its change and records a changed one on the nodes it returns, unless a writer inside already
+  recorded its own, so the tree says where each scheme and size begins.
+- `preferredColorScheme(_:)` is a preference, which flows up. The evaluator keeps one slot for
+  the presentation being evaluated: the window, then each sheet, alert, or menu in turn. A
+  modifier evaluates its content with an empty slot, then fills the enclosing slot with its own
+  value, or else its content's, unless an earlier sibling filled it first. The host keeps each
+  presentation's preference by its identifier and starts that presentation's content in the
+  scheme it preferred last time. When a pass finds a different preference, the host evaluates
+  again, through the bounded update loop, so views before the modifier see the scheme too. A
+  presentation without a preference starts in its presenter's scheme, and a presentation node
+  records `colorScheme` when its scheme differs from the window's.
+- The preview window, web pages, and `parhelion mcp` switch the settings with
+  `PreviewCommand.setAppearance`, which an app accepts when its hello lists the `appearance`
+  capability. The tool keeps the setting and passes it to each launch as
+  `PARHELION_COLOR_SCHEME` and `PARHELION_DYNAMIC_TYPE_SIZE`, so it survives hot reload.
 
 ### Lifecycle and tasks
 
@@ -543,6 +583,9 @@ hosts from before a capability keep working with newer ones
   a `frameUpdate` message that names a slot, the damaged rectangle, whether the app is animating,
   and the tick it answers. The host uploads from the slot and sends `releaseSlot`. Without a free
   slot, the pixels travel in the message.
+- **`appearance`: the appearance switches.** The app takes `setAppearance` commands. The host
+  reads this one in the hello and sends no welcome for it, so `parhelion mcp` without a window,
+  which welcomes nothing, can switch it too.
 
 **Main-actor work.** The app receives the host's messages on a background thread. Its main
 thread waits in the main run loop, so the main actor's work runs while nothing arrives: `task`
@@ -595,7 +638,9 @@ the printed URL as its `token` parameter. The server checks it, in constant time
 looks at the path, so the page, the bezel, and the WebSocket handshake all answer 403 without it.
 Responses are not cached and send no referrer, the page's content security policy loads no
 script, style, or image from elsewhere, and the server limits request heads to 16 KB and 10
-seconds and serves 32 connections at most. Pages may send only input and acknowledgements: pointer down, move,
+seconds and serves 32 connections at most. Pages may send only input, acknowledgements, and a
+named color scheme or text size from the page's controls, which the tool keeps for every page and
+the window and passes to the app. The input is pointer down, move,
 and up, scroll, text, and the editing keys, each checked before it becomes a `HostMessage`.
 
 **Frames.** The web host copies each frame's damaged rows from the shared-memory slot into a

@@ -187,7 +187,9 @@ extension PresentingView: PrimitiveView {
             Presentation(id: ownPath.id, dismiss: dismiss, onDismiss: onDismiss) { evaluator in
                 evaluator.presentationDetents = []
                 evaluator.presentationDragIndicator = .automatic
-                let children = evaluator.withEnvironment({ $0 = environment }) {
+                let children = evaluator.withEnvironment({
+                    $0 = evaluator.startingPresentation(in: environment)
+                }) {
                     evaluator.evaluate(view, at: ownPath)
                 }
                 var attributes: [String: String] = [:]
@@ -328,7 +330,8 @@ extension AlertView: PrimitiveView {
         let message = message
         evaluator.registerPresentation(
             Presentation(id: ownPath.id, dismiss: dismiss, onDismiss: nil) { evaluator in
-                evaluator.withEnvironment({ $0 = environment }) {
+                evaluator.withEnvironment({ $0 = evaluator.startingPresentation(in: environment) })
+                {
                     var buttons: [ViewNode] = []
                     var fields: [ViewNode] = []
                     for node in evaluator.evaluate(actions, at: ownPath.appending("actions")) {
@@ -364,9 +367,12 @@ extension AlertView: PrimitiveView {
                     }
                     // Assumed: the title is semibold 17 points, which is
                     // `headline`, in the iOS 27 UI Kit.
+                    var titleAttributes = ["text": title]
+                    Font.headline.resolved(dynamicTypeSize: evaluator.environment.dynamicTypeSize)
+                        .record(in: &titleAttributes)
                     let titleNode = ViewNode(
                         id: ownPath.appending("title").id, kind: "Text",
-                        attributes: ["text": title, "font": Font.headline.resolved().attribute])
+                        attributes: titleAttributes)
                     let messageNodes =
                         message.map { evaluator.evaluate($0, at: ownPath.appending("message")) }
                         ?? []

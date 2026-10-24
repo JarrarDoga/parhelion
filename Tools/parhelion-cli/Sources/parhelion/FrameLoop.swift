@@ -28,6 +28,8 @@ protocol PreviewSurface: AnyObject {
     /// A new app connected, as when hot reload restarts it.
     func show(_ hello: PreviewHello)
     func setStatus(_ status: PreviewStatus)
+    /// The simulated device's appearance or text size changed.
+    func show(_ appearance: PreviewAppearance)
 }
 
 /// What a ``PreviewSurface`` reports.
@@ -38,6 +40,85 @@ enum SurfaceEvent {
     case input(HostMessage)
     /// The surface needs drawing again, as after a window was uncovered.
     case redraw
+    /// The person asked for another appearance or text size.
+    case appearance(PreviewAppearance.Change)
+}
+
+/// The simulated device's appearance and text size, shared by the frame
+/// loop, which applies changes from the window and pages, and an agent's
+/// tools. Each launch of the app starts with it, so it survives hot reload.
+final class AppearanceState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var appearance = PreviewAppearance()
+    private var changes = 0
+
+    /// Starts with the setting that `PARHELION_COLOR_SCHEME` and
+    /// `PARHELION_DYNAMIC_TYPE_SIZE` name in the tool's own environment, or
+    /// light at the Large size.
+    init() {
+        let environment = ProcessInfo.processInfo.environment
+        let change = PreviewAppearance.Change.set(
+            colorScheme: environment[previewColorSchemeEnvironmentKey],
+            dynamicTypeSize: environment[previewDynamicTypeSizeEnvironmentKey])
+        if let start = appearance.applying(change) {
+            appearance = start
+        } else {
+            Self.warn(
+                "ignoring \(previewColorSchemeEnvironmentKey) or "
+                    + "\(previewDynamicTypeSizeEnvironmentKey): use a color scheme of "
+                    + PreviewAppearance.colorSchemes.joined(separator: " or ")
+                    + " and a size from "
+                    + PreviewAppearance.dynamicTypeSizes.joined(separator: ", ") + ".")
+        }
+    }
+
+    /// The current setting, and a number that increases with each change.
+    var current: (appearance: PreviewAppearance, revision: Int) {
+        lock.withLock { (appearance, changes) }
+    }
+
+    /// Applies a change, and returns the new setting, or `nil` when the
+    /// change names a scheme or a size that does not exist.
+    func apply(_ change: PreviewAppearance.Change) -> PreviewAppearance? {
+        lock.withLock {
+            guard let changed = appearance.applying(change) else { return nil }
+            if changed != appearance {
+                appearance = changed
+                changes += 1
+            }
+            return changed
+        }
+    }
+
+    /// The environment variables that start an app with the setting.
+    var environment: [String: String] { current.appearance.environment }
+
+    /// Gives a running app the current setting. An app built with an older
+    /// Parhelion cannot take it; the message saying so prints once.
+    func send(to app: AppConnection?) {
+        guard let app else { return }
+        guard PreviewAppearance.isSupported(by: app.hello) else {
+            let warn = lock.withLock {
+                defer { warnedApps.insert(ObjectIdentifier(app)) }
+                return !warnedApps.contains(ObjectIdentifier(app))
+            }
+            if warn {
+                Self.warn(
+                    "\(app.hello.appName) was built with an older Parhelion, which cannot switch "
+                        + "the appearance or text size. Update its Parhelion dependency.")
+            }
+            return
+        }
+        app.post(current.appearance.command)
+    }
+
+    /// Writes a warning to standard error, because standard output carries
+    /// the protocol in `parhelion mcp`.
+    private static func warn(_ message: String) {
+        FileHandle.standardError.write(Data("parhelion: \(message)\n".utf8))
+    }
+
+    private var warnedApps: Set<ObjectIdentifier> = []
 }
 
 /// The preview's main loop: it forwards input to the app, shows the app's
@@ -53,6 +134,9 @@ enum SurfaceEvent {
 /// frame rate.
 final class FrameLoop {
     private let surface: PreviewSurface
+    private let appearance: AppearanceState
+    /// The revision of the appearance the surface shows.
+    private var shownAppearance = -1
     private var pacer: FramePacer
     /// The app the pacer's timing belongs to.
     private var appIdentity: ObjectIdentifier?
@@ -70,8 +154,9 @@ final class FrameLoop {
         case running(presentedFrame: Bool)
     }
 
-    init(surface: PreviewSurface) {
+    init(surface: PreviewSurface, appearance: AppearanceState) {
         self.surface = surface
+        self.appearance = appearance
         pacer = FramePacer(vsyncEnabled: surface.hasVSync)
         pacer.setRefreshPeriod(surface.refreshPeriod)
     }
@@ -114,6 +199,12 @@ final class FrameLoop {
             events = surface.events(waitingUpTo: idleTimeout)
         }
         if handle(events, app: app) { return .close }
+        // An agent can change the appearance too, from another thread.
+        let current = appearance.current
+        if current.revision != shownAppearance {
+            shownAppearance = current.revision
+            surface.show(current.appearance)
+        }
 
         let answer = app?.takeAnswer()
         if let answer {
@@ -200,6 +291,8 @@ final class FrameLoop {
             case .close: return true
             case .input(let message): app?.send(message)
             case .redraw: needsRedraw = true
+            case .appearance(let change):
+                if appearance.apply(change) != nil { appearance.send(to: app) }
             }
         }
         return false

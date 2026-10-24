@@ -11,6 +11,8 @@ static const SDL_WindowFlags parhelion_window_transparent = SDL_WINDOW_TRANSPARE
 static const Uint8 parhelion_button_left = SDL_BUTTON_LEFT;
 static const SDL_MouseButtonFlags parhelion_button_left_mask = SDL_BUTTON_LMASK;
 static const SDL_Keymod parhelion_keymod_shift = SDL_KMOD_SHIFT;
+static const SDL_Keymod parhelion_keymod_ctrl = SDL_KMOD_CTRL;
+static const SDL_Keymod parhelion_keymod_alt = SDL_KMOD_ALT;
 
 // Line-buffers standard output, so progress shows up immediately even when
 // output goes to a pipe or a file. C's `stdout` is a global variable, which

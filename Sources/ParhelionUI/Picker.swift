@@ -330,14 +330,24 @@ extension Picker: PrimitiveView {
             box.value.isOpen = false
             box.host?.setNeedsUpdate()
         }
+        // The menu takes its button's appearance and text size, and none of
+        // the button's other environment, such as its font.
+        let colorScheme = evaluator.environment.colorScheme
+        let dynamicTypeSize = evaluator.environment.dynamicTypeSize
         evaluator.registerPresentation(
             Presentation(id: menuPath.id, dismiss: close, onDismiss: nil) { evaluator in
                 // A tap outside the options closes the menu.
                 evaluator.registerAction(close, for: menuPath.id)
-                let children = options.enumerated().map { index, option in
-                    optionNode(
-                        option, id: optionID(option, index, in: menuPath), in: evaluator,
-                        afterSelecting: close)
+                let children = evaluator.withEnvironment({
+                    $0.colorScheme = colorScheme
+                    $0.dynamicTypeSize = dynamicTypeSize
+                    $0 = evaluator.startingPresentation(in: $0)
+                }) {
+                    options.enumerated().map { index, option in
+                        optionNode(
+                            option, id: optionID(option, index, in: menuPath), in: evaluator,
+                            afterSelecting: close)
+                    }
                 }
                 return ViewNode(
                     id: menuPath.id, kind: "Menu",

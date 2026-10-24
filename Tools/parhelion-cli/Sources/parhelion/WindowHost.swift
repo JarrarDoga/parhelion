@@ -15,6 +15,10 @@ final class WindowHost: PreviewSurface {
     private let window: OpaquePointer
     /// The title without a status.
     private let title: String
+    /// What the title shows after the app's name: the appearance, unless it
+    /// is light at the Large size, and the status.
+    private var appearanceSuffix = ""
+    private var statusSuffix = ""
     private let renderer: OpaquePointer
     private var texture: UnsafeMutablePointer<SDL_Texture>?
     private var textureSize = (width: 0, height: 0)
@@ -109,14 +113,48 @@ final class WindowHost: PreviewSurface {
 
     /// Shows a status after the title.
     func setStatus(_ status: PreviewStatus) {
-        let suffix =
+        statusSuffix =
             switch status {
             case .running: ""
             case .building: " — Rebuilding…"
             case .buildFailed: " — Build failed"
             case .stopped: " — Not running"
             }
-        _ = SDL_SetWindowTitle(window, title + suffix)
+        _ = SDL_SetWindowTitle(window, title + appearanceSuffix + statusSuffix)
+    }
+
+    /// Shows the appearance after the title, such as "Dark, accessibility2".
+    func show(_ appearance: PreviewAppearance) {
+        let summary = appearance.summary
+        appearanceSuffix = summary.isEmpty ? "" : " — " + summary
+        _ = SDL_SetWindowTitle(window, title + appearanceSuffix + statusSuffix)
+    }
+
+    /// The keys that switch the appearance and the text size, like the
+    /// Simulator's Toggle Appearance and Increase and Decrease Preferred
+    /// Text Size, with Control in place of Command.
+    static let appearanceShortcuts =
+        "Press Control-Shift-A to switch between light and dark, and Control-Alt-Plus or "
+        + "Control-Alt-Minus to make text larger or smaller."
+
+    /// The appearance change a key press with modifiers asks for, or `nil`.
+    static func appearanceChange(
+        _ key: SDL_Keycode, modifiers: SDL_Keymod
+    )
+        -> PreviewAppearance.Change?
+    {
+        let control = modifiers & parhelion_keymod_ctrl != 0
+        let shift = modifiers & parhelion_keymod_shift != 0
+        let alt = modifiers & parhelion_keymod_alt != 0
+        guard control else { return nil }
+        if !alt {
+            return shift && key == SDLK_A ? .toggleColorScheme : nil
+        }
+        switch key {
+        case SDLK_EQUALS, SDLK_PLUS, SDLK_KP_PLUS: return .textSize(steps: 1)
+        case SDLK_MINUS, SDLK_KP_MINUS: return .textSize(steps: -1)
+        default: return nil
+        }
     }
 
     /// The window was opened for the app's first hello; later apps from hot
@@ -194,6 +232,9 @@ final class WindowHost: PreviewSurface {
             guard let text = event.text.text else { return nil }
             return .input(.text(String(cString: text)))
         case SDL_EVENT_KEY_DOWN.rawValue:
+            if let change = Self.appearanceChange(event.key.key, modifiers: event.key.mod) {
+                return .appearance(change)
+            }
             return Self.keyName(event.key.key, shift: event.key.mod & parhelion_keymod_shift != 0)
                 .map { .input(.key($0)) }
         case SDL_EVENT_MOUSE_WHEEL.rawValue:

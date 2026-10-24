@@ -40,9 +40,10 @@ public final class WebPreview: @unchecked Sendable {
         /// The last frame sequence number sent and acknowledged.
         var sent: UInt32 = 0
         var acknowledged: UInt32 = 0
-        /// The hello and status the page has, by revision.
+        /// The hello, status, and appearance the page has, by revision.
         var helloRevision = -1
         var statusRevision = -1
+        var appearanceRevision = -1
         var isOpen = true
         /// What the page shows. Only the page's sending thread uses it.
         var image = PageImage()
@@ -66,8 +67,10 @@ public final class WebPreview: @unchecked Sendable {
     private var helloRevision = 0
     private var status = PreviewStatus.running
     private var statusRevision = 0
+    private var appearance = PreviewAppearance()
+    private var appearanceRevision = 0
     private var pages: [Page] = []
-    private var input: [HostMessage] = []
+    private var input: [PageInput] = []
     private var woken = false
     private var bezelImage: (revision: Int, png: [UInt8])?
     private var inputWaker: (@Sendable () -> Void)?
@@ -189,9 +192,20 @@ public final class WebPreview: @unchecked Sendable {
         }
     }
 
+    /// Shows the simulated device's appearance and text size on every page,
+    /// in its controls.
+    public func setAppearance(_ appearance: PreviewAppearance) {
+        condition.withLock {
+            guard appearance != self.appearance else { return }
+            self.appearance = appearance
+            appearanceRevision += 1
+            condition.broadcast()
+        }
+    }
+
     /// Waits up to `timeout` seconds for input from a page or a call to
     /// ``wake()``, then returns the input received so far.
-    public func waitForInput(timeout: Double) -> [HostMessage] {
+    public func waitForInput(timeout: Double) -> [PageInput] {
         let deadline = Date().addingTimeInterval(max(timeout, 0))
         return condition.withLock {
             while input.isEmpty, !woken, condition.wait(until: deadline) {}
@@ -279,12 +293,9 @@ public final class WebPreview: @unchecked Sendable {
                     condition.broadcast()
                 }
             case .input(let message):
-                let wake = condition.withLock {
-                    input.append(message)
-                    condition.broadcast()
-                    return inputWaker
-                }
-                wake?()
+                receive(.host(message))
+            case .appearance(let change):
+                receive(.appearance(change))
             }
         }
         condition.withLock {
@@ -294,8 +305,18 @@ public final class WebPreview: @unchecked Sendable {
         }
     }
 
-    /// Sends a page its hello, status, and frames as they change, until it
-    /// closes.
+    /// Queues input from a page and wakes whoever waits for it.
+    private func receive(_ received: PageInput) {
+        let wake = condition.withLock {
+            input.append(received)
+            condition.broadcast()
+            return inputWaker
+        }
+        wake?()
+    }
+
+    /// Sends a page its hello, status, appearance, and frames as they
+    /// change, until it closes.
     private func send(to page: Page) {
         while true {
             var texts: [String] = []
@@ -309,6 +330,10 @@ public final class WebPreview: @unchecked Sendable {
                 if page.statusRevision != statusRevision {
                     page.statusRevision = statusRevision
                     texts.append(Self.statusJSON(status))
+                }
+                if page.appearanceRevision != appearanceRevision {
+                    page.appearanceRevision = appearanceRevision
+                    texts.append(Self.appearanceJSON(appearance))
                 }
                 if let pending = page.pending, !frame.isEmpty,
                     page.framesInFlight < Self.maximumFramesInFlight
@@ -389,6 +414,14 @@ public final class WebPreview: @unchecked Sendable {
         }
     }
 
+    static func appearanceJSON(_ appearance: PreviewAppearance) -> String {
+        json([
+            "type": "appearance", "colorScheme": appearance.colorScheme,
+            "dynamicTypeSize": appearance.dynamicTypeSize,
+            "dynamicTypeSizes": PreviewAppearance.dynamicTypeSizes,
+        ])
+    }
+
     static func json(_ object: [String: Any]) -> String {
         let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
         return data.map { String(decoding: $0, as: UTF8.self) } ?? "{}"
@@ -424,12 +457,22 @@ public final class WebPreview: @unchecked Sendable {
     }
 }
 
+/// What a page asks for: input for the app, or a change to the simulated
+/// device's appearance or text size, which the tool keeps and passes on.
+public enum PageInput: Equatable, Sendable {
+    case host(HostMessage)
+    case appearance(PreviewAppearance.Change)
+}
+
 /// A message from the page.
 enum PageMessage: Equatable {
     /// The page drew the frame with this sequence number.
     case acknowledge(UInt32)
     /// Input for the app.
     case input(HostMessage)
+    /// A change to the appearance or the text size, from the page's
+    /// controls.
+    case appearance(PreviewAppearance.Change)
 
     /// The most text one message may type.
     static let maximumTextLength = 4096
@@ -449,11 +492,14 @@ enum PageMessage: Equatable {
         var dy: Double?
         var text: String?
         var key: String?
+        var colorScheme: String?
+        var dynamicTypeSize: String?
     }
 
     /// Decodes a message such as `{"type":"down","x":10,"y":20}`, or returns
     /// `nil` for anything the page should not send. Pages can only send
-    /// input; commands, ticks, and the other host messages are refused.
+    /// input and appearance changes; commands, ticks, and the other host
+    /// messages are refused.
     init?(json text: String) {
         guard let fields = try? JSONDecoder().decode(Fields.self, from: Data(text.utf8)) else {
             return nil
@@ -484,6 +530,13 @@ enum PageMessage: Equatable {
         case "key":
             guard let key = fields.key, Self.keys.contains(key) else { return nil }
             self = .input(.key(key))
+        case "appearance":
+            let change = PreviewAppearance.Change.set(
+                colorScheme: fields.colorScheme, dynamicTypeSize: fields.dynamicTypeSize)
+            guard fields.colorScheme != nil || fields.dynamicTypeSize != nil,
+                PreviewAppearance().applying(change) != nil
+            else { return nil }
+            self = .appearance(change)
         default:
             return nil
         }

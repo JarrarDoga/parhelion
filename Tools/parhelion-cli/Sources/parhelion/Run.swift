@@ -22,6 +22,11 @@ struct Run: ParsableCommand {
             connected across reloads and shows build errors. Press Control-C to \
             quit.
 
+            In the window, Control-Shift-A switches between light and dark, and \
+            Control-Alt-Plus and Control-Alt-Minus change the text size; the page \
+            has a button and a menu for them. Set PARHELION_COLOR_SCHEME or \
+            PARHELION_DYNAMIC_TYPE_SIZE to start with another setting.
+
             Example: parhelion run --package-path ~/Code/MyApp
             """
     )
@@ -89,11 +94,13 @@ struct Run: ParsableCommand {
         if let webHost { wakeBox.set(webHost.waker) }
         var environment = window.environment(socketPath: socketPath)
         environment[previewStateEnvironmentKey] = stateFile
+        // Each launch starts with the appearance the window or a page set.
+        let appearance = AppearanceState()
         func launch() throws -> AppConnection {
             try AppConnection(
                 executable: executable,
                 arguments: [],
-                environment: environment,
+                environment: environment.merging(appearance.environment) { $1 },
                 listener: listener,
                 wake: { wakeBox.wake() }
             )
@@ -110,10 +117,11 @@ struct Run: ParsableCommand {
             surface = host
             print(
                 "Running \(app!.hello.appName). Save a file to reload. Close the window to quit.")
+            print(WindowHost.appearanceShortcuts)
         }
         surface.setStatus(.running)
 
-        let loop = FrameLoop(surface: surface)
+        let loop = FrameLoop(surface: surface, appearance: appearance)
         let rebuild = BackgroundBuild()
         let changes = ChangeMonitor(watcher: watcher, wake: surface.waker)
         var reportedExit = false

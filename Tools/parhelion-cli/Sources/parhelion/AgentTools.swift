@@ -15,7 +15,8 @@ enum AgentTools {
         shows where views end up, even while an animation is still moving them; if a reply says \
         the screen is animating or a task is running, call wait before you take a screenshot. After you edit the app's \
         Swift files, call rebuild; it returns compiler errors if the build fails and keeps \
-        Codable @State values when it succeeds.
+        Codable @State values when it succeeds. To check the dark appearance or larger text, \
+        call set_appearance.
         """
     }
 
@@ -146,6 +147,22 @@ enum AgentTools {
                 """#
         ),
         MCPTool(
+            name: "set_appearance",
+            title: "Set the appearance and text size",
+            description: """
+                Sets the simulated device's appearance, light or dark, and its Dynamic Type \
+                size, as in the device's Settings; give either or both. The app's \
+                preferredColorScheme still wins for its own windows and sheets. The setting \
+                stays for later rebuilds, and the view tree's Root shows it as colorScheme and \
+                dynamicTypeSize when they are not light and large.
+                """,
+            inputSchema: #"""
+                {"type": "object", "properties": {
+                  "color_scheme": {"type": "string", "enum": ["light", "dark"]},
+                  "dynamic_type_size": {"type": "string", "enum": ["xSmall", "small", "medium", "large", "xLarge", "xxLarge", "xxxLarge", "accessibility1", "accessibility2", "accessibility3", "accessibility4", "accessibility5"]}}}
+                """#
+        ),
+        MCPTool(
             name: "rebuild",
             title: "Rebuild the app",
             description: """
@@ -214,6 +231,9 @@ enum AgentTools {
         case "scroll": "scroll needs x and y, and dx or dy."
         case "scroll_to": "scroll_to needs id."
         case "drag": "drag needs from_x, from_y, to_x, and to_y."
+        case "set_appearance":
+            "set_appearance needs color_scheme (\(PreviewAppearance.colorSchemes.joined(separator: " or "))) "
+                + "or dynamic_type_size (one of \(PreviewAppearance.dynamicTypeSizes.joined(separator: ", ")))."
         default: "\(name) received arguments it does not understand."
         }
     }

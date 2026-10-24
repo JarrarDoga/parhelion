@@ -44,11 +44,16 @@ extension ViewHost {
         )
         var overlay: CanvasOverlay?
         if chrome != .none {
-            if let cached = chromeOverlayCache, cached.chrome == chrome, cached.scale == scale {
+            // Assumed: the status bar and the home indicator follow the
+            // window's color scheme, not the content behind them.
+            let scheme = TreeRenderer.colorScheme(of: root)
+            if let cached = chromeOverlayCache, cached.chrome == chrome, cached.scale == scale,
+                cached.colorScheme == scheme
+            {
                 overlay = cached.overlay
             } else {
-                overlay = renderer.chromeOverlay(chrome, scale: scale)
-                chromeOverlayCache = overlay.map { (chrome, scale, $0) }
+                overlay = renderer.chromeOverlay(chrome, scale: scale, colorScheme: scheme)
+                chromeOverlayCache = overlay.map { (chrome, scale, scheme, $0) }
             }
         }
         return RenderedFrame(
@@ -78,10 +83,11 @@ struct TreeRenderer {
         // The root draws nothing of its own, so its children can be drawn
         // one at a time: those beneath the frontmost presentation, which
         // the cache can keep, and the rest.
+        let scheme = Self.colorScheme(of: root)
         if root.kind == "Root", root.modifiers.isEmpty, root.frame != nil {
             let inherited = Inherited(
                 foreground: root.attributes["foregroundStyle"], tint: root.attributes["tint"],
-                opacity: root.opacity)
+                opacity: root.opacity, scheme: scheme)
             var backdropGeneration: Int?
             var rest = root.children[...]
             if let cache, let front {
@@ -89,7 +95,7 @@ struct TreeRenderer {
                     root.children[..<front], inherited: inherited, scale: scale, cache: cache)
                 rest = root.children[front...]
             } else {
-                canvas = blankCanvas(scale: scale)
+                canvas = blankCanvas(scale: scale, scheme: scheme)
             }
             for child in rest {
                 drawChildOfRoot(
@@ -97,21 +103,26 @@ struct TreeRenderer {
                 backdropGeneration = nil
             }
         } else {
-            canvas = blankCanvas(scale: scale)
-            draw(root, inherited: Inherited(), into: &canvas)
+            canvas = blankCanvas(scale: scale, scheme: scheme)
+            draw(root, inherited: Inherited(scheme: scheme), into: &canvas)
         }
         // The system interface is above everything the app presents.
         if let chrome { canvas.draw(chrome) }
         return canvas
     }
 
-    private func blankCanvas(scale: Double) -> Canvas {
+    private func blankCanvas(scale: Double, scheme: ColorScheme) -> Canvas {
         Canvas(
             width: Double(device.screenSize.width),
             height: Double(device.screenSize.height),
             scale: scale,
-            background: ColorPalette.background
+            background: ColorPalette.appearance(scheme).background
         )
+    }
+
+    /// The color scheme a node records, or `light`.
+    static func colorScheme(of node: ViewNode) -> ColorScheme {
+        node.attributes["colorScheme"].flatMap(ColorScheme.init(name:)) ?? .light
     }
 
     /// The screen beneath the frontmost presentation, from the cache when
@@ -125,14 +136,14 @@ struct TreeRenderer {
         }
         let isFocused = contains(focusedNodeID)
         let key = RenderCache.BackdropKey(
-            scale: scale, device: device, nodes: Array(nodes),
+            scale: scale, device: device, colorScheme: inherited.scheme, nodes: Array(nodes),
             pressedNodeID: contains(pressedNodeID) ? pressedNodeID : nil,
             focusedNodeID: isFocused ? focusedNodeID : nil, caretOffset: isFocused ? caretOffset : 0
         )
         if let kept = cache.backdrop, kept.key == key {
             return (kept.canvas, kept.generation)
         }
-        var canvas = blankCanvas(scale: scale)
+        var canvas = blankCanvas(scale: scale, scheme: inherited.scheme)
         for node in nodes {
             drawChildOfRoot(node, inherited: inherited, over: nil, into: &canvas)
         }
@@ -160,7 +171,8 @@ struct TreeRenderer {
         opaque.attributes["opacity"] = nil
         let key = backdropGeneration.map {
             RenderCache.LayerKey(
-                backdropGeneration: $0, node: opaque, pressedNodeID: pressedNodeID,
+                backdropGeneration: $0, colorScheme: inherited.scheme, node: opaque,
+                pressedNodeID: pressedNodeID,
                 focusedNodeID: focusedNodeID, caretOffset: caretOffset)
         }
         guard opacity < 1 else {
@@ -213,6 +225,16 @@ struct TreeRenderer {
         var opacity = 1.0
         /// What the node is in, which changes how its buttons draw.
         var container = Container.standard
+        /// The color scheme, which a node's own `colorScheme` overrides.
+        var scheme = ColorScheme.light
+        /// Whether the node is in a sheet, whose dark backgrounds are
+        /// lighter.
+        var elevated = false
+
+        /// The colors and materials the node draws with.
+        var palette: ColorPalette.Appearance {
+            ColorPalette.appearance(scheme, elevated: elevated)
+        }
     }
 
     /// What a node is in, for how buttons inside it draw.
@@ -237,6 +259,12 @@ struct TreeRenderer {
         var opacity = inherited.opacity
         guard let frame = node.frame else { return }
         opacity *= node.opacity
+        var scheme = inherited.scheme
+        if let own = node.attributes["colorScheme"].flatMap(ColorScheme.init(name:)) {
+            scheme = own
+        }
+        let elevated = inherited.elevated || node.kind == "Sheet"
+        let palette = ColorPalette.appearance(scheme, elevated: elevated)
 
         // A pressed list row highlights its cell instead of dimming.
         if node.kind == "Button" || node.kind == "NavigationLink", node.id == pressedNodeID,
@@ -250,7 +278,7 @@ struct TreeRenderer {
             return color
         }
         func paint(_ style: String) -> RGBA {
-            paint(ColorPalette.color(named: style == "tint" ? tint ?? style : style))
+            paint(ColorPalette.color(named: style == "tint" ? tint ?? style : style, in: scheme))
         }
 
         // Backgrounds sit behind the view, the outermost one at the back.
@@ -263,7 +291,8 @@ struct TreeRenderer {
 
         // Controls draw their parts in Rendering+Controls.swift.
         if drawControl(
-            node, in: frame, foreground: &foreground, tint: tint, opacity: &opacity, into: &canvas)
+            node, in: frame, foreground: &foreground, tint: tint, opacity: &opacity,
+            scheme: scheme, palette: palette, into: &canvas)
         {
             return
         }
@@ -274,7 +303,7 @@ struct TreeRenderer {
 
         case "Text":
             drawText(
-                node.text ?? "", font: ResolvedFont(attribute: node.attributes["font"]), in: frame,
+                node.text ?? "", font: ResolvedFont(node: node), in: frame,
                 color: paint(foreground ?? "primary"), into: &canvas)
 
         case "TextField":
@@ -287,8 +316,8 @@ struct TreeRenderer {
         case "Button":
             let style = BuiltInButtonStyle(rawValue: node.attributes["buttonStyle"] ?? "")
             let drawn = drawButton(
-                node, in: frame, container: container, tint: tint, opacity: opacity, paint: paint,
-                into: &canvas)
+                node, in: frame, container: container, tint: tint, opacity: opacity,
+                scheme: scheme, paint: paint, paintStyle: paint, into: &canvas)
             if let drawn {
                 foreground = drawn
             } else if container == .standard || container == .navigationBar {
@@ -307,12 +336,13 @@ struct TreeRenderer {
             if node.attributes["glass"] == "prominent" {
                 let fill = node.children.first?.attributes["tint"] ?? tint ?? "tint"
                 drawGlass(
-                    frame, cornerRadius: radius, material: ColorPalette.prominentGlass,
-                    tint: ColorPalette.color(named: fill), opacity: opacity, into: &canvas)
+                    frame, cornerRadius: radius, material: palette.prominentGlass,
+                    tint: ColorPalette.color(named: fill, in: scheme), opacity: opacity,
+                    into: &canvas)
                 foreground = node.attributes["foregroundStyle"] ?? "white"
             } else {
                 drawGlass(
-                    frame, cornerRadius: radius, material: ColorPalette.smallGlass,
+                    frame, cornerRadius: radius, material: palette.smallGlass,
                     opacity: opacity, into: &canvas)
                 foreground = node.attributes["foregroundStyle"] ?? ColorPalette.glassLabelStyle
             }
@@ -323,13 +353,14 @@ struct TreeRenderer {
             container = .standard
 
         case "Sheet":
-            drawSheet(node, in: frame, paint: paint, opacity: opacity, into: &canvas)
+            drawSheet(
+                node, in: frame, palette: palette, paint: paint, opacity: opacity, into: &canvas)
 
         case "FullScreenCover":
-            canvas.fill(frame, color: paint(ColorPalette.background))
+            canvas.fill(frame, color: paint(palette.background))
 
         case "Alert":
-            drawAlert(in: frame, paint: paint, opacity: opacity, into: &canvas)
+            drawAlert(in: frame, palette: palette, paint: paint, opacity: opacity, into: &canvas)
             container = .alert
 
         case "NavigationLink":
@@ -338,17 +369,18 @@ struct TreeRenderer {
             foreground = foreground ?? (node.listRowFrame == nil ? "tint" : "primary")
 
         case "NavigationStack":
-            drawNavigationBarBackground(node, paint: paint, into: &canvas)
+            drawNavigationBarBackground(node, palette: palette, paint: paint, into: &canvas)
 
         case "NavigationBar":
             container = .navigationBar
 
         case "TabBar":
-            drawTabBar(node, in: frame, opacity: opacity, paint: paint, into: &canvas)
+            drawTabBar(
+                node, in: frame, opacity: opacity, palette: palette, paint: paint, into: &canvas)
             container = .tabBar
 
         case "List":
-            drawList(node, in: frame, paint: paint, into: &canvas)
+            drawList(node, in: frame, palette: palette, paint: paint, into: &canvas)
 
         case "SectionHeader", "SectionFooter":
             // Assumed: section headers and footers use the secondary label
@@ -365,7 +397,8 @@ struct TreeRenderer {
             canvas.clipRect = outerClip.map { $0.intersection(frame) } ?? frame
         }
         let inherited = Inherited(
-            foreground: foreground, tint: tint, opacity: opacity, container: container)
+            foreground: foreground, tint: tint, opacity: opacity, container: container,
+            scheme: scheme, elevated: elevated)
         for (index, child) in node.children.enumerated() {
             var childInherited = inherited
             // An alert's message, after its title, is gray.
@@ -383,8 +416,10 @@ struct TreeRenderer {
     /// label's foreground style when the style chooses one.
     private func drawButton(
         _ node: ViewNode, in frame: CGRect, container: Container, tint: String?, opacity: Double,
-        paint: (String) -> RGBA, into canvas: inout Canvas
+        scheme: ColorScheme, paint: (RGBA) -> RGBA, paintStyle: (String) -> RGBA,
+        into canvas: inout Canvas
     ) -> String? {
+        let palette = ColorPalette.appearance(scheme)
         let own = node.attributes["foregroundStyle"]
         let isDestructive = node.attributes["role"] == "destructive"
         let radius = min(frame.width, frame.height) / 2
@@ -392,7 +427,7 @@ struct TreeRenderer {
         case .navigationBar where node.id.rawValue.hasSuffix("/bar/back"):
             // The back button is a glass circle.
             drawGlass(
-                frame, cornerRadius: radius, material: ColorPalette.smallGlass, opacity: opacity,
+                frame, cornerRadius: radius, material: palette.smallGlass, opacity: opacity,
                 into: &canvas)
             return own ?? ColorPalette.glassLabelStyle
         case .toolbarGroup:
@@ -403,7 +438,7 @@ struct TreeRenderer {
             // label, red for a destructive one, in the iOS 27 UI Kit. Only a
             // preferred action is blue, and Parhelion has no way to mark one
             // yet.
-            canvas.fill(frame, cornerRadius: radius, color: paint(ColorPalette.tertiaryFillStyle))
+            canvas.fill(frame, cornerRadius: radius, color: paint(palette.alertButtonFill))
             return own ?? (isDestructive ? "red" : "primary")
         case .tabBar:
             // The bar draws the highlight. The selected tab is in the tint
@@ -418,20 +453,20 @@ struct TreeRenderer {
         let accent = isDestructive ? "red" : "tint"
         switch style {
         case .bordered:
-            canvas.fill(frame, cornerRadius: radius, color: paint(ColorPalette.tertiaryFillStyle))
+            canvas.fill(frame, cornerRadius: radius, color: paint(palette.borderedFill))
             return own ?? accent
         case .borderedProminent:
-            canvas.fill(frame, cornerRadius: radius, color: paint(accent))
+            canvas.fill(frame, cornerRadius: radius, color: paintStyle(accent))
             return own ?? "white"
         case .glass:
             drawGlass(
-                frame, cornerRadius: radius, material: ColorPalette.smallGlass, opacity: opacity,
+                frame, cornerRadius: radius, material: palette.smallGlass, opacity: opacity,
                 into: &canvas)
             return own ?? (isDestructive ? "red" : ColorPalette.glassLabelStyle)
         case .glassProminent:
             drawGlass(
-                frame, cornerRadius: radius, material: ColorPalette.prominentGlass,
-                tint: ColorPalette.color(named: isDestructive ? "red" : tint ?? "tint"),
+                frame, cornerRadius: radius, material: palette.prominentGlass,
+                tint: ColorPalette.color(named: isDestructive ? "red" : tint ?? "tint", in: scheme),
                 opacity: opacity, into: &canvas)
             return own ?? "white"
         case .plain:
@@ -451,6 +486,7 @@ struct TreeRenderer {
     private func drawList(
         _ node: ViewNode,
         in frame: CGRect,
+        palette: ColorPalette.Appearance,
         paint: (RGBA) -> RGBA,
         into canvas: inout Canvas
     ) {
@@ -469,7 +505,7 @@ struct TreeRenderer {
             if abs(frame.maxX - safeArea.maxX) < 0.5 {
                 background.size.width = screen.maxX - background.minX
             }
-            canvas.fill(background, color: paint(ColorPalette.groupedBackground))
+            canvas.fill(background, color: paint(palette.groupedBackground))
         }
 
         let outerClip = canvas.clipRect
@@ -487,12 +523,12 @@ struct TreeRenderer {
                 let group = first.1.union(last.1)
                 canvas.fill(
                     group, cornerRadius: style.cornerRadius, style: .continuous,
-                    color: paint(ColorPalette.groupedRowBackground)
+                    color: paint(palette.groupedRowBackground)
                 )
             }
             for (index, (row, cell, insets)) in rows.enumerated() {
                 if row.id == pressedNodeID {
-                    canvas.fill(cell, color: paint(ColorPalette.rowHighlight))
+                    canvas.fill(cell, color: paint(palette.rowHighlight))
                 }
                 if row.kind == "NavigationLink" {
                     let size = LayoutDefaults.disclosureIndicatorSize
@@ -506,7 +542,7 @@ struct TreeRenderer {
                         Self.chevron(
                             in: indicator, pointingLeft: false,
                             thickness: LayoutDefaults.disclosureIndicatorThickness),
-                        color: paint(ColorPalette.color(named: "tertiary"))
+                        color: paint(palette.tertiaryLabel)
                     )
                 }
                 guard index < rows.count - 1 else { continue }
@@ -523,7 +559,7 @@ struct TreeRenderer {
                             cell.width - insets.leading - LayoutDefaults.listRowInsets.trailing, 0),
                         height: thickness
                     ),
-                    color: paint(ColorPalette.separator)
+                    color: paint(palette.separator)
                 )
             }
         }
@@ -567,11 +603,11 @@ struct TreeRenderer {
     ) {
         let value = node.attributes["value"] ?? ""
         let isFocused = node.id == focusedNodeID
-        let geometry = TextFieldGeometry()
+        let geometry = TextFieldGeometry(node: node)
         let caret = min(caretOffset, value.count)
         let shift =
             isFocused ? geometry.horizontalShift(text: value, caret: caret, width: frame.width) : 0
-        let baseline = Double(TextFieldGeometry.resolvedFont.baseline)
+        let baseline = Double(geometry.resolvedFont.baseline)
 
         let outerClip = canvas.clipRect
         canvas.clipRect = outerClip.map { $0.intersection(frame) } ?? frame
@@ -599,13 +635,14 @@ struct TreeRenderer {
     /// Draws the dimmed screen behind an alert and the alert's large glass.
     /// Its buttons draw their own capsules.
     private func drawAlert(
-        in frame: CGRect, paint: (RGBA) -> RGBA, opacity: Double, into canvas: inout Canvas
+        in frame: CGRect, palette: ColorPalette.Appearance, paint: (RGBA) -> RGBA,
+        opacity: Double, into canvas: inout Canvas
     ) {
         let screen = CGRect(origin: .zero, size: device.screenSize)
-        canvas.fill(screen, color: paint(ColorPalette.alertDim))
+        canvas.fill(screen, color: paint(palette.alertDim))
         drawGlass(
             frame, cornerRadius: LayoutDefaults.alertCornerRadius, style: .continuous,
-            material: ColorPalette.largeGlass, opacity: opacity, into: &canvas)
+            material: palette.largeGlass, opacity: opacity, into: &canvas)
     }
 
     /// Draws the dimmed screen behind a sheet, and the sheet: opaque with
@@ -613,20 +650,20 @@ struct TreeRenderer {
     /// rounded corners at a smaller one. A grabber shows at the top when the
     /// sheet has several detents or asks for one.
     private func drawSheet(
-        _ node: ViewNode, in frame: CGRect, paint: (RGBA) -> RGBA, opacity: Double,
-        into canvas: inout Canvas
+        _ node: ViewNode, in frame: CGRect, palette: ColorPalette.Appearance,
+        paint: (RGBA) -> RGBA, opacity: Double, into canvas: inout Canvas
     ) {
         // The dimming deepens as the sheet slides up into view.
         let screen = CGRect(origin: .zero, size: device.screenSize)
         let shown = min(max((screen.maxY - frame.minY) / max(frame.height, 1), 0), 1)
-        var dim = ColorPalette.sheetDim
+        var dim = palette.sheetDim
         dim.alpha = UInt8((Double(dim.alpha) * Double(shown)).rounded())
         canvas.fill(screen, color: paint(dim))
 
         if frame.minX > 0.5 {
             drawGlass(
                 frame, cornerRadius: LayoutDefaults.partialSheetCornerRadius, style: .continuous,
-                material: ColorPalette.partialSheetGlass, opacity: opacity, into: &canvas)
+                material: palette.partialSheetGlass, opacity: opacity, into: &canvas)
         } else {
             let radius = LayoutDefaults.sheetCornerRadius
             let shadow = ColorPalette.sheetShadow
@@ -657,7 +694,7 @@ struct TreeRenderer {
                 CGRect(
                     x: frame.minX, y: frame.minY, width: frame.width,
                     height: frame.height + radius),
-                cornerRadius: radius, style: .continuous, color: paint(ColorPalette.background))
+                cornerRadius: radius, style: .continuous, color: paint(palette.background))
         }
 
         let detents = node.attributes["detents"]?.split(separator: ",").count ?? 0
@@ -668,7 +705,7 @@ struct TreeRenderer {
                 CGRect(
                     x: frame.midX - size.width / 2, y: frame.minY + LayoutDefaults.grabberTop,
                     width: size.width, height: size.height),
-                cornerRadius: size.height / 2, color: paint(ColorPalette.grabber))
+                cornerRadius: size.height / 2, color: paint(palette.grabber))
         }
     }
 
@@ -677,6 +714,7 @@ struct TreeRenderer {
     /// does at the top of scrolling content.
     private func drawNavigationBarBackground(
         _ node: ViewNode,
+        palette: ColorPalette.Appearance,
         paint: (RGBA) -> RGBA,
         into canvas: inout Canvas
     ) {
@@ -688,7 +726,7 @@ struct TreeRenderer {
         else { return }
         if barNode.attributes["presentation"] != "sheet" {
             let area = CGRect(x: bar.minX, y: 0, width: bar.width, height: bar.maxY)
-            canvas.fill(area, color: paint(ColorPalette.groupedBackground))
+            canvas.fill(area, color: paint(palette.groupedBackground))
         } else {
             // A sheet's top corners are rounded, and more so at its large
             // detent, where it spans the screen. The fill extends under the
@@ -700,7 +738,7 @@ struct TreeRenderer {
                 x: bar.minX, y: bar.minY, width: bar.width, height: bar.height + radius)
             canvas.fill(
                 area, cornerRadius: radius, style: .continuous,
-                color: paint(ColorPalette.groupedBackground))
+                color: paint(palette.groupedBackground))
         }
     }
 

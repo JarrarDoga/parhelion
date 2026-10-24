@@ -14,6 +14,7 @@ marked *Superseded* and links to the record that replaces it.
 | [0006](0006-host-clock-and-shared-frames.md) | The window host owns the frame clock, and frames travel through shared memory | Accepted |
 | [0007](0007-phosphor-symbol-images.md) | Draw SF Symbol names with Phosphor Icons, embedded as SVG path data | Accepted |
 | [0008](0008-observation-and-main-actor-work.md) | Views observe models with the toolchain's Observation, and the app runs main-actor work while it waits | Accepted |
+| [0009](0009-appearance-in-the-tree.md) | The tree records the color scheme and the text size, and preferences take a second pass | Accepted |
 
 To add a record, copy the structure of an existing one, use the next number, and add it to this
 table in the same pull request as the change it describes.

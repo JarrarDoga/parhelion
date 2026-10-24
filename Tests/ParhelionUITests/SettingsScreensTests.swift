@@ -16,6 +16,15 @@ private enum Appearance: String, CaseIterable, Identifiable {
     case automatic = "Automatic"
 
     var id: Self { self }
+
+    /// The color scheme the app prefers, or `nil` to follow the device.
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .light: .light
+        case .dark: .dark
+        case .automatic: nil
+        }
+    }
 }
 
 private enum TextSize: String, CaseIterable {
@@ -97,6 +106,7 @@ private struct SettingsView: View {
             }
             .navigationTitle("Settings")
         }
+        .preferredColorScheme(appearance.colorScheme)
     }
 }
 

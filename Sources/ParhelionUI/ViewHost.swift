@@ -54,6 +54,9 @@ public final class ViewHost {
     var visitedNavigationStacks: Set<NodeID> = []
     /// The presentations on screen, by identifier.
     private var presentations: [NodeID: Presentation] = [:]
+    /// The color scheme each presentation preferred in the last evaluation,
+    /// by its identifier; the window's is under the empty identifier.
+    private var preferredColorSchemes: [NodeID: ColorScheme] = [:]
 
     // Animation state. See docs/adr/0005-model-tree-and-presented-frames.md.
     private let animations = AnimationEngine()
@@ -99,6 +102,30 @@ public final class ViewHost {
     /// The device the tree is laid out for.
     public let device: Device
 
+    /// The appearance the simulated device is set to, as in its Settings:
+    /// `light` by default. A presentation's `preferredColorScheme(_:)`
+    /// overrides it for that presentation. Setting it updates the tree, whose
+    /// root records `colorScheme=dark` while the window is dark.
+    public var colorScheme: ColorScheme {
+        didSet {
+            guard colorScheme != oldValue else { return }
+            setNeedsUpdate()
+            update()
+        }
+    }
+
+    /// The text size the simulated device is set to, as in its Settings:
+    /// `large` by default. Text styles, custom fonts, and `@ScaledMetric`
+    /// values scale with it. Setting it updates the tree, whose root records
+    /// `dynamicTypeSize` while it is not `large`.
+    public var dynamicTypeSize: DynamicTypeSize {
+        didSet {
+            guard dynamicTypeSize != oldValue else { return }
+            setNeedsUpdate()
+            update()
+        }
+    }
+
     /// A number that increases whenever anything on screen changes: the
     /// tree, the layout, a scroll position, or the pressed button. Clients
     /// compare it to decide whether to draw a new frame.
@@ -111,7 +138,8 @@ public final class ViewHost {
 
     /// The device chrome last drawn by `render(scale:chrome:)`, kept because
     /// it does not change from frame to frame.
-    var chromeOverlayCache: (chrome: DeviceChrome, scale: Double, overlay: CanvasOverlay)?
+    var chromeOverlayCache:
+        (chrome: DeviceChrome, scale: Double, colorScheme: ColorScheme, overlay: CanvasOverlay)?
 
     /// Drawing that `render(scale:chrome:)` keeps between frames: the screen
     /// beneath a presentation, a fading presentation, and glass surfaces.
@@ -119,13 +147,20 @@ public final class ViewHost {
 
     /// Creates a host for a view.
     ///
-    /// - Parameter snapshot: State saved by ``stateSnapshot()``, for example by
-    ///   an earlier run of the same app. Each `@State` whose structural
-    ///   position and type still match starts from its saved value.
-    public init(_ rootView: some View, device: Device = .iPhone16, restoring snapshot: Data? = nil)
-    {
+    /// - Parameters:
+    ///   - colorScheme: The appearance the simulated device is set to.
+    ///   - dynamicTypeSize: The text size the simulated device is set to.
+    ///   - snapshot: State saved by ``stateSnapshot()``, for example by an
+    ///     earlier run of the same app. Each `@State` whose structural
+    ///     position and type still match starts from its saved value.
+    public init(
+        _ rootView: some View, device: Device = .iPhone16, colorScheme: ColorScheme = .light,
+        dynamicTypeSize: DynamicTypeSize = .large, restoring snapshot: Data? = nil
+    ) {
         self.rootView = rootView
         self.device = device
+        self.colorScheme = colorScheme
+        self.dynamicTypeSize = dynamicTypeSize
         let scrolling = ScrollLayout()
         self.scrolling = scrolling
         self.layoutEngine = LayoutEngine(device: device, scrolling: scrolling)
@@ -135,10 +170,14 @@ public final class ViewHost {
     }
 
     init(
-        anyRootView rootView: any View, device: Device = .iPhone16, restoring snapshot: Data? = nil
+        anyRootView rootView: any View, device: Device = .iPhone16,
+        colorScheme: ColorScheme = .light, dynamicTypeSize: DynamicTypeSize = .large,
+        restoring snapshot: Data? = nil
     ) {
         self.rootView = rootView
         self.device = device
+        self.colorScheme = colorScheme
+        self.dynamicTypeSize = dynamicTypeSize
         let scrolling = ScrollLayout()
         self.scrolling = scrolling
         self.layoutEngine = LayoutEngine(device: device, scrolling: scrolling)
@@ -487,9 +526,10 @@ public final class ViewHost {
     }
 
     private func focusTextField(_ id: NodeID, caretAt point: CGPoint) {
-        guard let field = textFields[id], let frame = root.node(withID: id)?.frame else { return }
+        guard let field = textFields[id], let node = root.node(withID: id), let frame = node.frame
+        else { return }
         let text = field.wrappedValue
-        let geometry = TextFieldGeometry()
+        let geometry = TextFieldGeometry(node: node)
         let shift =
             focusedNodeID == id
             ? geometry.horizontalShift(text: text, caret: caretOffset, width: frame.width) : 0
@@ -753,22 +793,56 @@ public final class ViewHost {
         visitedNavigationStacks = []
         visitedAnimationKeys = []
         let evaluator = Evaluator(host: self)
+        // Each presentation starts in the color scheme it preferred in the
+        // last evaluation, and the window in the device's otherwise.
+        let windowScheme = preferredColorSchemes[NodeID("")] ?? colorScheme
+        evaluator.environment.colorScheme = windowScheme
+        evaluator.environment.dynamicTypeSize = dynamicTypeSize
+        var preferences: [NodeID: ColorScheme] = [:]
         var presented: [NodeID: Presentation] = [:]
         // A change to an observable property that a view reads marks the
         // host as needing an update.
         let children = observation.track(for: self) {
             var children = evaluator.evaluate(rootView, at: ViewPath())
+            preferences[NodeID("")] = evaluator.preferredColorScheme
             // Presented content can present more, so the list grows as it goes.
             var index = 0
             while index < evaluator.presentations.count {
                 let presentation = evaluator.presentations[index]
-                children.append(presentation.makeNode(evaluator))
+                evaluator.preferredColorScheme = nil
+                evaluator.presentationColorScheme = preferredColorSchemes[presentation.id]
+                evaluator.presentationEnvironment = nil
+                var node = presentation.makeNode(evaluator)
+                // The renderer draws a presentation in the scheme it started
+                // with; the root's children inherit the window's.
+                if let start = evaluator.presentationEnvironment {
+                    if start.colorScheme != windowScheme {
+                        node.attributes["colorScheme"] = start.colorScheme.name
+                    }
+                    if start.dynamicTypeSize != dynamicTypeSize {
+                        node.attributes["dynamicTypeSize"] = start.dynamicTypeSize.name
+                    }
+                }
+                preferences[presentation.id] = evaluator.preferredColorScheme
+                children.append(node)
                 presented[presentation.id] = presentation
                 index += 1
             }
             return children
         }
-        resolvedRoot = ViewNode(id: "", kind: "Root", children: children)
+        var rootAttributes: [String: String] = [:]
+        if windowScheme != .light { rootAttributes["colorScheme"] = windowScheme.name }
+        if dynamicTypeSize != .large { rootAttributes["dynamicTypeSize"] = dynamicTypeSize.name }
+        resolvedRoot = ViewNode(
+            id: "", kind: "Root", attributes: rootAttributes, children: children)
+        // A preference that changed applies to its whole presentation,
+        // including views evaluated before the modifier that states it, so
+        // the tree is evaluated again with it.
+        let collected = preferences.compactMapValues { $0 }
+        if collected != preferredColorSchemes {
+            preferredColorSchemes = collected
+            needsUpdate = true
+        }
         actions = evaluator.actions
         textFields = evaluator.textFields
         implicitAnimations = evaluator.implicitAnimations

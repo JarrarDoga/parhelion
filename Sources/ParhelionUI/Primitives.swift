@@ -29,9 +29,9 @@ extension Text: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         var attributes = ["text": content]
         // Text in the body font, the default, records no font, so outlines
-        // show a font only where one was chosen.
-        let font = resolvedFont(in: evaluator.environment)
-        if font != .body { attributes["font"] = font.attribute }
+        // show a font only where one was chosen, and a size only where
+        // Dynamic Type changed it.
+        resolvedFont(in: evaluator.environment).record(in: &attributes)
         return [ViewNode(id: path.appending("Text").id, kind: "Text", attributes: attributes)]
     }
 }

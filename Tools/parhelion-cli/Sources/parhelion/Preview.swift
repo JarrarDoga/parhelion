@@ -83,7 +83,9 @@ struct Preview: ParsableCommand {
         abstract: "Run a built Parhelion app in a preview window.",
         discussion: """
             Starts the app, connects to it over a local socket, and shows its \
-            frames in a window. Click to tap. Close the window to quit.
+            frames in a window. Click to tap. Control-Shift-A switches between \
+            light and dark, and Control-Alt-Plus and Control-Alt-Minus change the \
+            text size. Close the window to quit.
 
             With --web, the app appears on a web page instead, at the URL that \
             parhelion prints, and no display is needed. Press Control-C to quit.
@@ -115,10 +117,13 @@ struct Preview: ParsableCommand {
         // Frames that arrive before the window exists are kept until it does.
         let wakeBox = WakeBox()
         if let webHost { wakeBox.set(webHost.waker) }
+        let appearance = AppearanceState()
         let app = try AppConnection(
             executable: URL(fileURLWithPath: executable).path,
             arguments: arguments,
-            environment: window.environment(socketPath: socketPath),
+            environment: window.environment(socketPath: socketPath).merging(
+                appearance.environment
+            ) { $1 },
             listener: listener,
             wake: { wakeBox.wake() }
         )
@@ -131,9 +136,10 @@ struct Preview: ParsableCommand {
             wakeBox.set(host.waker)
             surface = host
             print("Previewing \(app.hello.appName). Close the window to quit.")
+            print(WindowHost.appearanceShortcuts)
         }
 
-        let loop = FrameLoop(surface: surface)
+        let loop = FrameLoop(surface: surface, appearance: appearance)
         while true {
             switch try loop.step(app: app, idleTimeout: 0.25) {
             case .close:

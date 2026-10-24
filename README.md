@@ -99,6 +99,27 @@ each keep their own navigation stack, and symbol images drawn with
   <img src="docs/images/tabs-search.png" alt="The search tab: a search field and matching places, with the search circle highlighted." width="190">
 </p>
 
+The same screens draw in the dark appearance, with iOS 27's dark system colors and dark Liquid
+Glass. The Settings example's Appearance picker sets `preferredColorScheme(_:)`, which turns the
+whole window dark on a light device. Text styles follow the Dynamic Type size: rows, titles, and
+footers grow with their text, while the toolbar, the tab bar, and segmented controls keep their
+size. These images come from
+`PARHELION_README_IMAGES=docs/images swift test --filter writeAppearanceReadmeImages`:
+
+<p align="center">
+  <img src="docs/images/tasks-list-dark.png" alt="The Tasks list in dark: black screen, 28-gray grouped cells, white text, and an Add button on dark glass." width="190">
+  <img src="docs/images/tasks-alert-dark.png" alt="A Delete this task? alert on dark large glass with dark gray Cancel and red Delete capsules over a dimmed screen." width="190">
+  <img src="docs/images/tasks-sheet-dark.png" alt="The New task sheet in dark: a 28-gray sheet with a lighter title field, Cancel on dark glass, and a blue Add button." width="190">
+  <img src="docs/images/tabs-places-dark.png" alt="The Places tab in dark, scrolling under a dark glass tab bar with Places selected in blue." width="190">
+</p>
+
+<p align="center">
+  <img src="docs/images/settings-dark.png" alt="The Settings example with Appearance set to Dark: switches, a slider, and a segmented control in dark grouped cells." width="190">
+  <img src="docs/images/settings-menu-dark.png" alt="The Appearance menu open on dark glass, with Dark checked." width="190">
+  <img src="docs/images/tasks-list-accessibility2.png" alt="The Tasks list at the accessibility2 text size: a larger title, taller rows, and a footer on two lines, with the Add button at its usual size." width="190">
+  <img src="docs/images/settings-xxxlarge.png" alt="The Settings example at the xxxLarge text size, with larger labels in taller rows and the segmented control at its usual size." width="190">
+</p>
+
 The bundled `HelloParhelion` example is the app that `xtool new` generates, copied without changes:
 
 ```console
@@ -169,6 +190,12 @@ optimizes the whole build instead; it says so when it starts. `parhelion run -c 
 everything optimized. Builds go to `.build/parhelion`, so they do not disturb your own
 `swift build`.
 
+Press Control-Shift-A to switch the simulated iPhone between light and dark, and Control-Alt-Plus
+or Control-Alt-Minus to make its text larger or smaller, as the Simulator's Toggle Appearance and
+text size commands do. The window's title shows the setting, and the app keeps it when it
+reloads. To start with one, set `PARHELION_COLOR_SCHEME=dark` or
+`PARHELION_DYNAMIC_TYPE_SIZE=accessibility2`; an app run with `--png` reads them too.
+
 The app draws its own frames and sends them to the window over a local socket, so the same app
 can also run with no window at all, for tests and agents.
 
@@ -187,7 +214,8 @@ Running MyApp. Save a file to reload. Press Control-C to quit.
 
 The page shows the phone scaled to fit the browser window. Click or touch to tap, drag to scroll,
 scroll with the mouse wheel or trackpad, and type; on a phone, the Keyboard button opens the
-keyboard. The page stays connected while `parhelion run` rebuilds and restarts the app, and shows
+keyboard. The Light or Dark button and the text size menu above the phone switch the appearance
+and the Dynamic Type size, for the window and every page at once. The page stays connected while `parhelion run` rebuilds and restarts the app, and shows
 build errors. It needs a browser from 2023 or later: Chrome 80, Safari 16.4, or Firefox 113.
 
 Anyone who can open the page controls the app, so the URL carries a random token, and the tool
@@ -219,6 +247,7 @@ The agent gets these tools:
 | `screenshot` | A PNG of the screen, with the status bar and the home indicator |
 | `tap`, `type_text`, `press_key` | Tap by identifier, label, or position; type into text fields; Tab, Return, Backspace, and the caret keys |
 | `scroll`, `scroll_to`, `drag`, `wait` | Scroll like a mouse wheel, to an offset, or by dragging with momentum, and wait for it to settle |
+| `set_appearance` | Switch the simulated iPhone between light and dark, and set its Dynamic Type size; the setting stays for later rebuilds |
 | `rebuild`, `app_output` | Rebuild after editing the code, keeping `@State`, with compiler errors on failure; read what the app printed |
 
 Each interaction reports the screen's revision, so the agent can tell whether it changed
@@ -231,14 +260,14 @@ works, or `--web` to do that from a browser.
 | --- | --- |
 | Views | `Text`, `Image`, `Label`, `Button`, `TextField`, `VStack`, `HStack`, `ZStack`, `Spacer`, `Color`, `ScrollView`, `List`, `Section`, `ForEach`, `NavigationStack`, `NavigationLink`, `TabView` and `Tab`, `EmptyView`; sheets, full-screen covers, and alerts |
 | Builders | Multiple children, `if`/`else`, optional content |
-| State | `@State` and `@Binding`, with SwiftUI's structural identity and lifetime rules; `@Environment` with `dismiss`, `isPresented`, and custom keys |
-| Modifiers | `padding`, `frame` (fixed and flexible), `background`, `foregroundStyle`, `font`, `fontWeight`, `bold`, `imageScale`, `labelStyle`, `tabItem`, `listStyle`, `navigationTitle`, `navigationBarTitleDisplayMode`, `navigationDestination`, `toolbar`, `opacity`, `offset`, `animation`, `transition`, and `Color.opacity` |
+| State | `@State` and `@Binding`, with SwiftUI's structural identity and lifetime rules; `@Environment` with `dismiss`, `isPresented`, `colorScheme`, `dynamicTypeSize`, and custom keys; `@ScaledMetric` |
+| Modifiers | `padding`, `frame` (fixed and flexible), `background`, `foregroundStyle`, `font`, `fontWeight`, `bold`, `preferredColorScheme`, `dynamicTypeSize` (a size or a range), `imageScale`, `labelStyle`, `tabItem`, `listStyle`, `navigationTitle`, `navigationBarTitleDisplayMode`, `navigationDestination`, `toolbar`, `opacity`, `offset`, `animation`, `transition`, and `Color.opacity` |
 | Animation | `withAnimation` and `animation(_:value:)` with timing curves and springs on a deterministic clock; opacity, move, slide, offset, and push transitions; animated navigation and presentations |
-| Layout | SwiftUI's propose-and-respond stack algorithm, iOS text styles and text wrapping with the bundled Inter font in four weights, large and inline navigation titles, the screens and safe areas of nine iPhones from iPhone 16 to iPhone 17 Pro Max |
+| Layout | SwiftUI's propose-and-respond stack algorithm, iOS text styles at every Dynamic Type size and `Font.custom`, text wrapping with the bundled Inter font in four weights, large and inline navigation titles, the screens and safe areas of nine iPhones from iPhone 16 to iPhone 17 Pro Max |
 | Input | Tap by node, by button label, or by screen position; press, drag away to cancel, and release with the mouse; scroll by dragging with momentum, or with the mouse wheel and trackpad; type into text fields, with the caret keys, Backspace, Delete, and Tab between fields |
 | Window | `parhelion run` with hot reload that keeps `Codable` state, and `parhelion preview`; an SDL3 window host for Wayland and X11 that shows the screen in a phone bezel; `--web` for the same preview in a browser |
 | Agents | `parhelion mcp`, with or without a window or web page |
-| Rendering | Anti-aliased shapes and Inter text drawn in pure Swift at any scale, with PNG output; iOS 27's system colors and inset grouped lists; the status bar, Dynamic Island or notch, home indicator, and rounded screen corners; the floating glass tab bar; SF Symbol names drawn with Phosphor Icons, and other names as placeholder rings |
+| Rendering | Anti-aliased shapes and Inter text drawn in pure Swift at any scale, with PNG output; iOS 27's system colors and inset grouped lists, in light and dark; the status bar, Dynamic Island or notch, home indicator, and rounded screen corners; the floating glass tab bar; SF Symbol names drawn with Phosphor Icons, and other names as placeholder rings |
 | App | `App`, `Scene`, `WindowGroup`, with a headless runner |
 
 Not yet available: text selection, letter spacing, iOS 27's Liquid Glass toolbar buttons, alerts,
