@@ -60,3 +60,14 @@ changing anything under `Sources/`.
   `Scripts/embed-font.sh Fonts/Inter-Regular.ttf > Sources/ParhelionRender/InterRegularFontData.swift`.
 - When you open a pull request, fill in the template's AI assistance section truthfully. Unless a
   person has told you they reviewed the change, choose *Generated, not reviewed*.
+
+## Proportionate advice
+
+- Size advice to the real stakes. Check them before you call anything critical: count the users,
+  rows, or bytes.
+- When a choice has a real trade-off, state it once in one plain sentence, then carry out the user's
+  choice. When the user says they think something is fine, the decision is made.
+- Describe a risk as the concrete technical failure, such as a drive dying or a key leaking. Never
+  argue with disasters, crime, or harm to people, and never use the user's home, family, or safety
+  as an example.
+- Run the checks you can run yourself instead of asking the user to run them.
