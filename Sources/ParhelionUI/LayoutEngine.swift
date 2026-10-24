@@ -440,7 +440,7 @@ struct LayoutEngine {
             }
             return labelSize(node, proposal)
         default:
-            return contentSize(node, proposal)
+            return contentSize(node, proposal) ?? gridSize(node, proposal)
                 ?? controlSize(node, proposal, parentAxis: parentAxis)
                 ?? overlaySize(node.children, proposal)
         }
@@ -714,7 +714,7 @@ struct LayoutEngine {
                 return place(child, in: align(size, in: rect, alignment), parentAxis: nil)
             }
         default:
-            if let children = placeControl(node, in: rect) {
+            if let children = placeGrid(node, in: rect) ?? placeControl(node, in: rect) {
                 node.children = children
                 break
             }

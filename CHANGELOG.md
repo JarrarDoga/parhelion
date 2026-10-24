@@ -258,6 +258,14 @@ may contain breaking changes.
   a blurred shadow of everything the view draws; and `scaleEffect` with an anchor, which mirrors
   the view at a negative scale. None of them changes layout, and each applies at its place in the
   modifier chain: a clip clips the backgrounds inside it and not those outside.
+- `LazyVGrid`, `LazyHGrid`, and `GridItem` with `.fixed`, `.flexible`, and `.adaptive` sizes:
+  fixed items and spacing come first, flexible and adaptive items share the rest within their
+  bounds, and an adaptive item holds as many columns of its minimum as fit. Parhelion evaluates
+  every cell, and accepts `PinnedScrollableViews` without pinning anything yet.
+- `Grid` and `GridRow`, with `gridCellColumns(_:)`, `gridColumnAlignment(_:)`,
+  `gridCellUnsizedAxes(_:)`, and `gridCellAnchor(_:)`. Columns are as wide as their widest cell
+  and rows as tall as their tallest; columns and rows with flexible cells share the space left,
+  and a view outside a `GridRow` spans every column. The default spacing is 8 points.
 - `ParhelionRender` clips drawing to any path (`Canvas.beginClip(to:evenOdd:)` and
   `endClip(_:)`), draws and shadows layers (`draw(layer:atPixelX:y:flipX:flipY:)` and
   `drawShadow(ofLayer:atPixelX:y:color:offset:blur:)`), draws `Bitmap` images scaled with bilinear
