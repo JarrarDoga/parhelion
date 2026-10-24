@@ -29,6 +29,9 @@ final class RenderCache {
     struct BackdropKey: Equatable {
         var scale: Double
         var device: Device
+        /// The window's color scheme, which the root records and its
+        /// children inherit.
+        var colorScheme: ColorScheme
         /// The nodes drawn before the frontmost presentation.
         var nodes: [ViewNode]
         /// The pressed button and the focused field, only when they are
@@ -49,6 +52,8 @@ final class RenderCache {
     /// What a fading presentation's layer depends on.
     struct LayerKey: Equatable {
         var backdropGeneration: Int
+        /// The window's color scheme, which the presentation inherits.
+        var colorScheme: ColorScheme
         /// The presentation, without its own opacity.
         var node: ViewNode
         var pressedNodeID: NodeID?

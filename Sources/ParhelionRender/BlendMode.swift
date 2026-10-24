@@ -12,11 +12,13 @@ extension Canvas {
     /// Graphics and add or subtract the colors themselves. All of them work
     /// on straight-alpha 8-bit colors in sRGB, without linearizing.
     ///
+    /// `luminosity` is not separable: it mixes all three channels at once,
+    /// also as the W3C spec defines it.
+    ///
     /// Liquid Glass recipes use `plusLighter` for specular highlights,
-    /// `plusDarker` for rims, and `lighten`, `darken`, and `screen` in their
-    /// tint stacks. The luminosity, color, hue, saturation, overlay, and
-    /// light and dodge modes are not implemented: the glass tints they make
-    /// over gray backdrops reduce to `normal` and `plusLighter` fills.
+    /// `plusDarker` for rims, and `lighten`, `darken`, `screen`, and, in the
+    /// dark appearance, `luminosity` in their tint stacks. The color, hue,
+    /// saturation, overlay, and light and dodge modes are not implemented.
     public enum BlendMode: Sendable, Hashable {
         /// The source covers the backdrop in proportion to its opacity.
         case normal
@@ -34,6 +36,9 @@ extension Canvas {
         /// Backdrop − opacity × (1 − source), clamped: a 219 gray source
         /// lowers each channel by 36 levels.
         case plusDarker
+        /// The backdrop's hue and saturation with the source's luminosity:
+        /// over a gray backdrop, a gray source acts as `normal` does.
+        case luminosity
     }
 
     /// Blends `color`, weighted by `coverage` in `0...1`, over the pixel at a
@@ -76,6 +81,10 @@ extension Canvas {
         into bytes: UnsafeMutableBufferPointer<UInt8>,
         at index: Int
     ) {
+        if mode == .luminosity {
+            blendLuminosity(color, coverage, into: bytes, at: index)
+            return
+        }
         if bytes[index + 3] == 255 {
             blendOverOpaque(color, coverage, mode: mode, into: bytes, at: index)
             return
@@ -166,5 +175,45 @@ extension Canvas {
         bytes[index] = channel(color.red, bytes[index])
         bytes[index + 1] = channel(color.green, bytes[index + 1])
         bytes[index + 2] = channel(color.blue, bytes[index + 2])
+    }
+}
+
+extension Canvas {
+    /// Blends with `luminosity`, composited "source over" like the separable
+    /// modes. The mixed color is the W3C spec's SetLum(backdrop, Lum(source)),
+    /// with luminosity weighted 0.3, 0.59, and 0.11, and clipped back into
+    /// range around its luminosity.
+    private static func blendLuminosity(
+        _ color: RGBA,
+        _ coverage: Float,
+        into bytes: UnsafeMutableBufferPointer<UInt8>,
+        at index: Int
+    ) {
+        let sourceAlpha = min(coverage, 1) * Float(color.alpha) / 255
+        guard sourceAlpha > 0 else { return }
+        let backdropAlpha = Float(bytes[index + 3]) / 255
+        let outAlpha = sourceAlpha + backdropAlpha * (1 - sourceAlpha)
+        let source = SIMD3<Float>(Float(color.red), Float(color.green), Float(color.blue)) / 255
+        let backdrop =
+            SIMD3<Float>(Float(bytes[index]), Float(bytes[index + 1]), Float(bytes[index + 2]))
+            / 255
+        func luminosity(_ color: SIMD3<Float>) -> Float {
+            0.3 * color.x + 0.59 * color.y + 0.11 * color.z
+        }
+        var mixed = backdrop + (luminosity(source) - luminosity(backdrop))
+        let level = luminosity(mixed)
+        let lowest = mixed.min()
+        let highest = mixed.max()
+        if lowest < 0 { mixed = level + (mixed - level) * (level / (level - lowest)) }
+        if highest > 1 { mixed = level + (mixed - level) * ((1 - level) / (highest - level)) }
+        // Over a transparent backdrop there is nothing to mix with, so the
+        // source shows as it is.
+        let blended = (1 - backdropAlpha) * source + backdropAlpha * mixed
+        let premultiplied = sourceAlpha * blended + (1 - sourceAlpha) * backdropAlpha * backdrop
+        let result = premultiplied / outAlpha * 255
+        for channel in 0..<3 {
+            bytes[index + channel] = UInt8(min(max(result[channel].rounded(), 0), 255))
+        }
+        bytes[index + 3] = UInt8(min(max((outAlpha * 255).rounded(), 0), 255))
     }
 }

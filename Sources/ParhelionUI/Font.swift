@@ -7,11 +7,13 @@ import Foundation
 /// A font for text, mirroring SwiftUI's `Font`.
 ///
 /// A font is one of the platform's text styles, such as ``body`` or
-/// ``headline``, or the system font at a fixed size, optionally with a
-/// weight. Parhelion draws every font with the bundled Inter typeface in
-/// place of San Francisco, at the nearest of the weights it bundles:
-/// regular, medium, semibold, and bold. Set a font for a view and its
-/// content with ``View/font(_:)``.
+/// ``headline``, the system font at a fixed size, or a custom font by name,
+/// optionally with a weight. Text styles and custom fonts scale with the
+/// environment's Dynamic Type size; the system font at a fixed size does
+/// not, as in SwiftUI. Parhelion draws every font with the bundled Inter
+/// typeface in place of San Francisco or the named font, at the nearest of
+/// the weights it bundles: regular, medium, semibold, and bold. Set a font
+/// for a view and its content with ``View/font(_:)``.
 public struct Font: Hashable, Sendable {
     /// A text style, which sets a size, line height, and weight.
     public enum TextStyle: String, CaseIterable, Hashable, Sendable {
@@ -59,7 +61,13 @@ public struct Font: Hashable, Sendable {
 
     enum Base: Hashable, Sendable {
         case textStyle(TextStyle)
-        case system(size: CGFloat)
+        /// The system font at a size, scaled in proportion to a text style
+        /// when one is given. Only Parhelion's own fonts, such as a list
+        /// footer's, give one.
+        case system(size: CGFloat, relativeTo: TextStyle?)
+        /// A font by name, scaled in proportion to a text style unless it
+        /// has a fixed size.
+        case custom(name: String, size: CGFloat, relativeTo: TextStyle?)
     }
 
     let base: Base
@@ -83,11 +91,12 @@ public struct Font: Hashable, Sendable {
     public static let caption = Font(base: .textStyle(.caption))
     public static let caption2 = Font(base: .textStyle(.caption2))
 
-    /// The system font at a fixed size.
+    /// The system font at a fixed size, which does not scale with Dynamic
+    /// Type.
     public static func system(
         size: CGFloat, weight: Weight? = nil, design: Design? = nil
     ) -> Font {
-        Font(base: .system(size: size), weight: weight)
+        Font(base: .system(size: size, relativeTo: nil), weight: weight)
     }
 
     /// The system font for a text style.
@@ -95,6 +104,28 @@ public struct Font: Hashable, Sendable {
         _ style: TextStyle, design: Design? = nil, weight: Weight? = nil
     ) -> Font {
         Font(base: .textStyle(style), weight: weight)
+    }
+
+    /// A custom font by name, which scales with the body text style.
+    /// Parhelion draws it with Inter.
+    public static func custom(_ name: String, size: CGFloat) -> Font {
+        Font(base: .custom(name: name, size: size, relativeTo: .body))
+    }
+
+    /// A custom font by name, which scales with the given text style.
+    /// Parhelion draws it with Inter.
+    public static func custom(
+        _ name: String, size: CGFloat, relativeTo textStyle: TextStyle
+    )
+        -> Font
+    {
+        Font(base: .custom(name: name, size: size, relativeTo: textStyle))
+    }
+
+    /// A custom font by name at a fixed size, which does not scale with
+    /// Dynamic Type. Parhelion draws it with Inter.
+    public static func custom(_ name: String, fixedSize: CGFloat) -> Font {
+        Font(base: .custom(name: name, size: fixedSize, relativeTo: nil))
     }
 
     /// The same font with the given weight.
@@ -107,28 +138,39 @@ public struct Font: Hashable, Sendable {
         weight(.bold)
     }
 
-    /// The size, line height, and weight the font resolves to, with
-    /// `weight`, when it is not `nil`, replacing the font's own weight.
-    func resolved(weight: Weight? = nil) -> ResolvedFont {
+    /// The size, line height, and weight the font resolves to at a Dynamic
+    /// Type size, with `weight`, when it is not `nil`, replacing the font's
+    /// own weight.
+    func resolved(
+        weight: Weight? = nil, dynamicTypeSize: DynamicTypeSize = .large
+    )
+        -> ResolvedFont
+    {
         let weight = weight ?? weightOverride
         switch base {
         case .textStyle(let style):
-            let metrics = LayoutDefaults.textStyleMetrics(style)
+            let weightAtLarge = LayoutDefaults.textStyleMetrics(style).weight
+            let entry = DynamicTypeTable.entry(style, dynamicTypeSize)
             return ResolvedFont(
                 name: style.rawValue,
-                size: metrics.size,
-                lineHeight: metrics.lineHeight,
-                weight: weight ?? metrics.weight,
-                defaultWeight: metrics.weight
+                size: entry.size,
+                lineHeight: entry.lineHeight,
+                weight: weight ?? weightAtLarge,
+                defaultWeight: weightAtLarge,
+                defaultSize: LayoutDefaults.textStyleMetrics(style).size
             )
-        case .system(let size):
+        case .system(let size, let style):
             return ResolvedFont(
-                name: "system(\(formatPoints(size)))",
-                size: size,
-                lineHeight: LayoutDefaults.systemLineHeight(size: size),
-                weight: weight ?? .regular,
-                defaultWeight: .regular
-            )
+                fixedFontNamed: "system(\(formatPoints(size)))", size: size,
+                scaled: style.map {
+                    DynamicTypeTable.scale(size, relativeTo: $0, at: dynamicTypeSize)
+                }, weight: weight)
+        case .custom(let name, let size, let style):
+            return ResolvedFont(
+                fixedFontNamed: "custom(\(name),\(formatPoints(size)))", size: size,
+                scaled: style.map {
+                    DynamicTypeTable.scale(size, relativeTo: $0, at: dynamicTypeSize)
+                }, weight: weight)
         }
     }
 }
@@ -144,6 +186,9 @@ struct ResolvedFont: Hashable, Sendable {
     var weight: Font.Weight
     /// The weight of the text style or system font before any override.
     var defaultWeight: Font.Weight
+    /// The size at the default Dynamic Type size, Large. A text style or a
+    /// custom font that scales is a different size at other sizes.
+    var defaultSize: CGFloat
 
     /// The font of text that sets none: the body style.
     static let body = Font.body.resolved()
@@ -154,11 +199,32 @@ struct ResolvedFont: Hashable, Sendable {
         weight == defaultWeight ? name : "\(name).\(weight.name)"
     }
 
-    /// The font an attribute value written by ``attribute`` names, or the
-    /// body font if the value is missing or unknown.
-    init(attribute: String?) {
+    /// The size as an attribute value, when Dynamic Type makes it differ
+    /// from the size at Large, as in `"23"` for `body` at xxxLarge.
+    var sizeAttribute: String? {
+        abs(size - defaultSize) < 0.005 ? nil : formatPoints(size)
+    }
+
+    /// Records the font in a node's attributes: `font` unless it is the body
+    /// style's name and weight, and `fontSize` when Dynamic Type scaled it.
+    func record(in attributes: inout [String: String]) {
+        if attribute != ResolvedFont.body.attribute { attributes["font"] = attribute }
+        if let sizeAttribute { attributes["fontSize"] = sizeAttribute }
+    }
+
+    /// The font a node's `font` and `fontSize` attributes describe.
+    init(node: ViewNode) {
+        self.init(attribute: node.attributes["font"], fontSize: node.attributes["fontSize"])
+    }
+
+    /// The font that attribute values written by ``attribute`` and
+    /// ``sizeAttribute`` name, or the body font if the name is missing or
+    /// unknown.
+    init(attribute: String?, fontSize: String? = nil) {
+        let size = fontSize.flatMap(Double.init).map { CGFloat($0) }
         guard let attribute else {
             self = .body
+            if let size { scale(to: size, style: .body) }
             return
         }
         var name = Substring(attribute)
@@ -173,10 +239,15 @@ struct ResolvedFont: Hashable, Sendable {
         }
         if let style = Font.TextStyle(rawValue: String(name)) {
             self = Font.system(style).resolved(weight: weight)
-        } else if name.hasPrefix("system("), name.hasSuffix(")"),
-            let size = Double(name.dropFirst(7).dropLast())
+            if let size { scale(to: size, style: style) }
+        } else if name.hasSuffix(")"),
+            let open = name.firstIndex(of: "("),
+            ["system", "custom"].contains(name[..<open]),
+            let points = name[name.index(after: open)..<name.index(before: name.endIndex)]
+                .split(separator: ",").last.flatMap({ Double($0) })
         {
-            self = Font.system(size: CGFloat(size)).resolved(weight: weight)
+            self = ResolvedFont(
+                fixedFontNamed: String(name), size: CGFloat(points), scaled: size, weight: weight)
         } else {
             self = .body
         }
@@ -184,13 +255,33 @@ struct ResolvedFont: Hashable, Sendable {
 
     init(
         name: String, size: CGFloat, lineHeight: CGFloat, weight: Font.Weight,
-        defaultWeight: Font.Weight
+        defaultWeight: Font.Weight, defaultSize: CGFloat
     ) {
         self.name = name
         self.size = size
         self.lineHeight = lineHeight
         self.weight = weight
         self.defaultWeight = defaultWeight
+        self.defaultSize = defaultSize
+    }
+
+    /// The system font or a custom font, at `scaled` when Dynamic Type
+    /// scaled it. Its line height is San Francisco's own for the size it is
+    /// drawn at.
+    fileprivate init(
+        fixedFontNamed name: String, size: CGFloat, scaled: CGFloat?, weight: Font.Weight?
+    ) {
+        let drawn = scaled ?? size
+        self.init(
+            name: name, size: drawn, lineHeight: LayoutDefaults.systemLineHeight(size: drawn),
+            weight: weight ?? .regular, defaultWeight: .regular, defaultSize: size)
+    }
+
+    /// Moves a text style to a size from the Dynamic Type table, with the
+    /// line height the table gives that size.
+    private mutating func scale(to size: CGFloat, style: Font.TextStyle) {
+        self.size = size
+        lineHeight = DynamicTypeTable.lineHeight(style, size: size)
     }
 
     private static let weights: [Font.Weight] = [
@@ -284,8 +375,11 @@ extension Text {
     }
 
     /// The font this text resolves to in an environment: its own font and
-    /// weight first, then the environment's, then the body style.
+    /// weight first, then the environment's, then the body style, at the
+    /// environment's Dynamic Type size.
     func resolvedFont(in environment: EnvironmentValues) -> ResolvedFont {
-        (font ?? environment.font ?? .body).resolved(weight: weight ?? environment.fontWeight)
+        (font ?? environment.font ?? .body).resolved(
+            weight: weight ?? environment.fontWeight,
+            dynamicTypeSize: environment.dynamicTypeSize)
     }
 }

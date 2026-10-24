@@ -125,9 +125,27 @@ struct EnvironmentWriter<Content: View>: View {
 
 extension EnvironmentWriter: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
-        evaluator.withEnvironment(transform) {
+        let outer = evaluator.environment
+        var nodes = evaluator.withEnvironment(transform) {
             evaluator.evaluate(content, at: path)
         }
+        // The renderer reads the color scheme from the tree, and tools read
+        // both values there: a change is recorded on the nodes it covers,
+        // unless a writer inside already recorded its own.
+        var inner = outer
+        transform(&inner)
+        var changes: [String: String] = [:]
+        if inner.colorScheme != outer.colorScheme {
+            changes["colorScheme"] = inner.colorScheme.name
+        }
+        if inner.dynamicTypeSize != outer.dynamicTypeSize {
+            changes["dynamicTypeSize"] = inner.dynamicTypeSize.name
+        }
+        guard !changes.isEmpty else { return nodes }
+        for index in nodes.indices {
+            nodes[index].attributes.merge(changes) { own, _ in own }
+        }
+        return nodes
     }
 }
 

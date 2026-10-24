@@ -17,7 +17,8 @@ extension TreeRenderer {
     /// nothing more for it.
     func drawControl(
         _ node: ViewNode, in frame: CGRect, foreground: inout String?, tint: String?,
-        opacity: inout Double, into canvas: inout Canvas
+        opacity: inout Double, scheme: ColorScheme, palette: ColorPalette.Appearance,
+        into canvas: inout Canvas
     ) -> Bool {
         if node.isDisabled, node.kind != "StepperButton" {
             // Assumed: a disabled button without a shape draws its label in
@@ -30,14 +31,14 @@ extension TreeRenderer {
                 opacity *= ColorPalette.disabledOpacity
             }
         }
-        let style = ControlPaint(opacity: opacity, tint: tint)
+        let style = ControlPaint(opacity: opacity, tint: tint, scheme: scheme, palette: palette)
 
         switch node.kind {
         case "Switch":
             drawSwitch(node, in: frame, style: style, into: &canvas)
             return true
         case "Divider":
-            canvas.fill(frame, color: style.paint(ColorPalette.separator))
+            canvas.fill(frame, color: style.paint(palette.separator))
             return true
         case "SliderTrack":
             drawSliderTrack(node, in: frame, style: style, into: &canvas)
@@ -52,14 +53,15 @@ extension TreeRenderer {
             drawPicker(node, in: frame, style: style, into: &canvas)
             return false
         case "SegmentIndicator":
-            let shadow = ColorPalette.segmentShadow
-            canvas.drawShadow(
-                of: frame, cornerRadius: frame.height / 2, style: .continuous,
-                color: style.paint(shadow.color), offset: CGSize(width: 0, height: shadow.offset),
-                blur: shadow.blur)
+            if let shadow = palette.segmentShadow {
+                canvas.drawShadow(
+                    of: frame, cornerRadius: frame.height / 2, style: .continuous,
+                    color: style.paint(shadow.color),
+                    offset: CGSize(width: 0, height: shadow.offset), blur: shadow.blur)
+            }
             canvas.fill(
                 frame, cornerRadius: frame.height / 2, style: .continuous,
-                color: style.paint(ColorPalette.selectedSegment))
+                color: style.paint(palette.selectedSegment))
             return true
         case "PickerOption":
             // A selected row of an inline picker in a list has a checkmark
@@ -95,7 +97,7 @@ extension TreeRenderer {
         case "segmented":
             canvas.fill(
                 frame, cornerRadius: frame.height / 2, style: .continuous,
-                color: style.paint(ColorPalette.controlFill))
+                color: style.paint(style.palette.segmentedFill))
             if let pressed = node.children.first(where: { $0.id == pressedNodeID })?.frame {
                 let outset = LayoutDefaults.pressedSegmentOutset
                 let lens = pressed.insetBy(dx: -outset.width, dy: -outset.height)
@@ -120,15 +122,15 @@ extension TreeRenderer {
         guard let panel = node.menuPanel else { return }
         canvas.drawGlass(
             panel, cornerRadius: LayoutDefaults.menuCornerRadius, style: .continuous,
-            material: ColorPalette.menuGlass, opacity: style.opacity)
+            material: style.palette.menuGlass, opacity: style.opacity)
         for item in node.children {
             guard let cell = item.frame else { continue }
             if item.id == pressedNodeID {
                 let outerBlendMode = canvas.blendMode
-                canvas.blendMode = .plusDarker
+                canvas.blendMode = style.palette.menuHighlightBlendMode
                 canvas.fill(
                     cell, cornerRadius: LayoutDefaults.menuHighlightCornerRadius,
-                    style: .continuous, color: style.paint(ColorPalette.menuHighlight))
+                    style: .continuous, color: style.paint(style.palette.menuHighlight))
                 canvas.blendMode = outerBlendMode
             }
             guard item.attributes["selected"] == "true" else { continue }
@@ -234,7 +236,7 @@ extension TreeRenderer {
             x: frame.minX, y: frame.midY - thickness / 2, width: frame.width, height: thickness)
         canvas.fill(
             bar, cornerRadius: thickness / 2, style: .continuous,
-            color: style.paint(ColorPalette.sliderTrack))
+            color: style.paint(style.palette.sliderTrack))
         var filled = bar
         filled.size.width = min(max(knob.midX - bar.minX, 0), bar.width)
         canvas.fill(
@@ -270,7 +272,7 @@ extension TreeRenderer {
         let radius = capsule.height / 2
         canvas.fill(
             capsule, cornerRadius: radius, style: .continuous,
-            color: style.paint(ColorPalette.controlFill))
+            color: style.paint(style.palette.stepperFill))
         if let pressed = halves.first(where: { $0.id == pressedNodeID })?.frame {
             let outerClip = canvas.clipRect
             let outerBlendMode = canvas.blendMode
@@ -287,7 +289,7 @@ extension TreeRenderer {
             CGRect(
                 x: first.maxX - size.width / 2, y: capsule.midY - size.height / 2,
                 width: size.width, height: size.height),
-            color: style.paint(ColorPalette.stepperSeparator))
+            color: style.paint(style.palette.stepperSeparator))
     }
 
     /// Draws the minus or plus of a stepper's half, in the tertiary color
@@ -326,12 +328,16 @@ extension TreeRenderer {
         let inset = LayoutDefaults.switchKnobInset
         let travel = max(frame.width - 2 * inset - knob.width, 1)
         let progress = min(max((knob.minX - frame.minX - inset) / travel, 0), 1)
-        let on = ColorPalette.color(named: style.tint ?? ColorPalette.switchOnTrackStyle)
-        let track = ColorPalette.switchOffTrack.mixed(with: on, by: Double(progress))
+        let on = ColorPalette.color(
+            named: style.tint ?? ColorPalette.switchOnTrackStyle, in: style.scheme)
+        let track = style.palette.switchOffTrack.mixed(with: on, by: Double(progress))
         canvas.fill(
             frame, cornerRadius: frame.height / 2, style: .continuous, color: style.paint(track))
         if node.id == pressedNodeID {
             let size = LayoutDefaults.switchPressedKnobSize
+            // Assumed: a pressed knob's lens is the light small glass in
+            // both appearances. The kit's dark lens (Toggles/􀻃/Dark/Knob) is
+            // brighter than the light one, not darker like dark glass.
             canvas.drawGlass(
                 CGRect(
                     x: knob.midX - size.width / 2, y: knob.midY - size.height / 2,
@@ -353,6 +359,9 @@ struct ControlPaint {
     /// The style name of the tint color set around the control, or `nil`
     /// for the default tint.
     var tint: String?
+    var scheme: ColorScheme
+    /// The colors of the control's color scheme.
+    var palette: ColorPalette.Appearance
 
     func paint(_ color: RGBA) -> RGBA {
         var color = color
@@ -361,7 +370,7 @@ struct ControlPaint {
     }
 
     func paint(_ style: String) -> RGBA {
-        paint(ColorPalette.color(named: style == "tint" ? tint ?? style : style))
+        paint(ColorPalette.color(named: style == "tint" ? tint ?? style : style, in: scheme))
     }
 }
 

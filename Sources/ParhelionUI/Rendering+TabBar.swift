@@ -10,10 +10,10 @@ extension TreeRenderer {
     /// tabs' buttons draw their symbols and titles afterward.
     ///
     /// The kit's tab bar uses the same Liquid Glass recipe as its toolbar
-    /// buttons, so it is drawn with ``ColorPalette/smallGlass``.
+    /// buttons, so it is drawn with the appearance's small glass.
     func drawTabBar(
-        _ node: ViewNode, in frame: CGRect, opacity: Double, paint: (RGBA) -> RGBA,
-        into canvas: inout Canvas
+        _ node: ViewNode, in frame: CGRect, opacity: Double, palette: ColorPalette.Appearance,
+        paint: (RGBA) -> RGBA, into canvas: inout Canvas
     ) {
         let search = node.children.first { $0.attributes["role"] == "search" }?.frame
         var capsule = frame
@@ -23,12 +23,12 @@ extension TreeRenderer {
         }
         if capsule.width > 0, node.children.count > (search == nil ? 0 : 1) {
             canvas.drawGlass(
-                capsule, cornerRadius: capsule.height / 2, material: ColorPalette.smallGlass,
+                capsule, cornerRadius: capsule.height / 2, material: palette.smallGlass,
                 opacity: opacity)
         }
         if let search {
             canvas.drawGlass(
-                search, cornerRadius: search.height / 2, material: ColorPalette.smallGlass,
+                search, cornerRadius: search.height / 2, material: palette.smallGlass,
                 opacity: opacity)
         }
 
@@ -45,6 +45,6 @@ extension TreeRenderer {
         }
         canvas.fill(
             highlight, cornerRadius: highlight.height / 2,
-            color: paint(ColorPalette.tabBarSelection))
+            color: paint(palette.tabBarSelection))
     }
 }

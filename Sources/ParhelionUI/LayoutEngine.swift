@@ -139,6 +139,8 @@ struct LayoutEngine {
         var buttons: [ViewNode]
         var buttonsInRow: Bool
         var buttonsHeight: CGFloat
+        /// The height of each button's capsule.
+        var buttonHeight: CGFloat
     }
 
     /// Stacks an alert's title and message at its leading edge, above its
@@ -161,8 +163,18 @@ struct LayoutEngine {
             + LayoutDefaults.alertContentSpacing * CGFloat(max(content.count - 1, 0))
         let buttonsInRow = buttons.count == 2
         let rows = CGFloat(buttonsInRow ? 1 : buttons.count)
+        // Assumed: a label that Dynamic Type makes taller than a line of
+        // body text at the default size keeps the kit's space above and
+        // below it, so every capsule grows with the tallest label.
+        let tallestLabel =
+            buttons.map {
+                sizeThatFits($0, ProposedSize(width: nil, height: nil), parentAxis: nil).height
+            }.max() ?? 0
+        let buttonHeight = max(
+            LayoutDefaults.alertButtonHeight,
+            tallestLabel + LayoutDefaults.alertButtonHeight - ResolvedFont.body.lineHeight)
         let buttonsHeight =
-            LayoutDefaults.alertButtonHeight * rows
+            buttonHeight * rows
             + LayoutDefaults.alertStackedButtonSpacing * max(rows - 1, 0)
         let height =
             insets.vertical + contentHeight + buttonsHeight + LayoutDefaults.alertButtonInset
@@ -171,7 +183,8 @@ struct LayoutEngine {
             content: content,
             buttons: buttons,
             buttonsInRow: buttonsInRow,
-            buttonsHeight: buttonsHeight
+            buttonsHeight: buttonsHeight,
+            buttonHeight: buttonHeight
         )
     }
 
@@ -189,7 +202,7 @@ struct LayoutEngine {
         // Each button fills its capsule, so the whole capsule responds to
         // taps.
         let inset = LayoutDefaults.alertButtonInset
-        let height = LayoutDefaults.alertButtonHeight
+        let height = layout.buttonHeight
         let width = frame.width - 2 * inset
         var top = frame.maxY - inset - layout.buttonsHeight
         for (index, button) in layout.buttons.enumerated() {
@@ -316,7 +329,7 @@ struct LayoutEngine {
         case "Text":
             return measurer.size(
                 of: node.text ?? "",
-                font: ResolvedFont(attribute: node.attributes["font"]),
+                font: ResolvedFont(node: node),
                 width: proposal.width
             )
 
@@ -414,9 +427,15 @@ struct LayoutEngine {
                     ProposedSize(
                         width: proposal.width.map { max($0 - 2 * metrics.padding, 0) },
                         height: nil))
+                // Assumed: when Dynamic Type makes the label taller than at
+                // the default size, the capsule keeps the kit's space above
+                // and below it.
+                let line =
+                    (metrics.fontSize == LayoutDefaults.bodyFontSize ? Font.body : .subheadline)
+                    .resolved().lineHeight
                 return CGSize(
                     width: label.width + 2 * metrics.padding,
-                    height: max(label.height, metrics.height))
+                    height: max(label.height + metrics.height - line, metrics.height))
             }
             return labelSize(node, proposal)
         default:
@@ -739,9 +758,15 @@ struct LayoutEngine {
     /// The height of a navigation bar, which depends on how it displays its
     /// title and whether it is in a sheet.
     static func navigationBarHeight(_ bar: ViewNode?) -> CGFloat {
-        let height =
-            bar?.attributes["titleDisplayMode"] == "large"
-            ? LayoutDefaults.largeTitleNavigationBarHeight : LayoutDefaults.navigationBarHeight
+        var height = LayoutDefaults.navigationBarHeight
+        if let bar, bar.attributes["titleDisplayMode"] == "large" {
+            // The bar's height follows a large title's line, which Dynamic
+            // Type changes.
+            let atLarge = LayoutDefaults.largeTitleFont.resolved().lineHeight
+            let title = bar.children.first { $0.kind == "Text" }
+            let lineHeight = title.map { ResolvedFont(node: $0).lineHeight } ?? atLarge
+            height = LayoutDefaults.largeTitleNavigationBarHeight - atLarge + lineHeight
+        }
         return height + (bar.map(navigationBarTopInset) ?? 0)
     }
 

@@ -46,7 +46,7 @@ enum LayoutDefaults {
     /// Assumed: the size, line height, and weight of each text style at the
     /// default ("Large") Dynamic Type size, on iOS. From the typography
     /// table of the Human Interface Guidelines, which the iOS 27 UI Kit's
-    /// text styles repeat.
+    /// text styles repeat. ``DynamicTypeTable`` has the other sizes.
     static func textStyleMetrics(_ style: Font.TextStyle) -> TextStyleMetrics {
         switch style {
         case .largeTitle: TextStyleMetrics(size: 34, lineHeight: 41, weight: .regular)
@@ -116,8 +116,10 @@ enum LayoutDefaults {
     static let listHeaderFont = Font.headline
 
     /// Assumed: the font of a list's section footers, 13 points on a 16-point
-    /// line in the iOS 27 UI Kit.
-    static let listFooterFont = Font.system(size: 13)
+    /// line in the iOS 27 UI Kit. Footers scale with Dynamic Type like
+    /// `footnote`, with San Francisco's own line height for the size they
+    /// are drawn at, which keeps the kit's 16-point line at Large.
+    static let listFooterFont = Font(base: .system(size: 13, relativeTo: .footnote))
 
     /// Assumed: the thickness of a list's row separators, one pixel on a 3×
     /// screen.

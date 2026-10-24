@@ -152,10 +152,13 @@ extension Image {
     /// Parhelion has no outline for the name.
     func symbolAttributes(_ name: String, in environment: EnvironmentValues) -> [String: String] {
         var attributes = ["systemName": name]
-        // A symbol takes the size of the font around it. Phosphor has one
-        // weight for every font weight, so only the font's size is recorded.
-        let font = (environment.font ?? .body).resolved()
+        // A symbol takes the size of the font around it, and scales with
+        // Dynamic Type as its font does. Phosphor has one weight for every
+        // font weight, so only the font's size is recorded.
+        let font = (environment.font ?? .body).resolved(
+            dynamicTypeSize: environment.dynamicTypeSize)
         if font.name != ResolvedFont.body.name { attributes["font"] = font.name }
+        if let size = font.sizeAttribute { attributes["fontSize"] = size }
         if environment.imageScale != .medium {
             attributes["imageScale"] = environment.imageScale.rawValue
         }
@@ -166,7 +169,7 @@ extension Image {
     /// The side of a symbol image's square frame: the size of its font,
     /// scaled for its image scale.
     nonisolated static func symbolSide(of node: ViewNode) -> CGFloat {
-        let font = ResolvedFont(attribute: node.attributes["font"])
+        let font = ResolvedFont(node: node)
         let scale = node.attributes["imageScale"].flatMap(Image.Scale.init) ?? .medium
         return LayoutDefaults.symbolSide(for: scale) * font.size / LayoutDefaults.bodyFontSize
     }

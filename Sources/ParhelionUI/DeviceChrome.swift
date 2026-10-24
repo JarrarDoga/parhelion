@@ -75,25 +75,31 @@ enum ChromeMetrics {
 
 extension TreeRenderer {
     /// The system interface drawn once, to blend over every frame. It
-    /// depends only on the device, the scale, and the kind of chrome, so the
-    /// host keeps it between frames.
-    func chromeOverlay(_ chrome: DeviceChrome, scale: Double) -> CanvasOverlay {
+    /// depends only on the device, the scale, the kind of chrome, and the
+    /// color scheme, so the host keeps it between frames.
+    func chromeOverlay(
+        _ chrome: DeviceChrome, scale: Double, colorScheme: ColorScheme
+    )
+        -> CanvasOverlay
+    {
         var canvas = Canvas(
             width: Double(device.screenSize.width),
             height: Double(device.screenSize.height),
             scale: scale,
             background: RGBA(red: 0, green: 0, blue: 0, alpha: 0)
         )
-        drawChrome(chrome, into: &canvas)
+        drawChrome(chrome, colorScheme: colorScheme, into: &canvas)
         return CanvasOverlay(canvas)
     }
 
-    /// Draws the system interface. It reads only the device, not the tree.
-    private func drawChrome(_ chrome: DeviceChrome, into canvas: inout Canvas) {
+    /// Draws the system interface. It reads only the device and the color
+    /// scheme, not the tree. The status bar and the home indicator are black
+    /// in light and white in dark; the Dynamic Island stays black.
+    private func drawChrome(
+        _ chrome: DeviceChrome, colorScheme: ColorScheme, into canvas: inout Canvas
+    ) {
         guard chrome != .none else { return }
-        // Assumed: Parhelion draws only the light appearance so far, in
-        // which the status bar and the home indicator are black.
-        let color = ColorPalette.systemBarForeground
+        let color = ColorPalette.appearance(colorScheme).systemBarForeground
         drawStatusBar(color: color, into: &canvas)
         if let width = device.homeIndicatorWidth {
             let screen = device.screenSize

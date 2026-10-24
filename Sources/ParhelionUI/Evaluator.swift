@@ -45,6 +45,15 @@ final class Evaluator {
     var presentationDetents: Set<PresentationDetent> = []
     /// The grabber visibility declared inside the sheet being evaluated.
     var presentationDragIndicator = Visibility.automatic
+    /// The color scheme that `preferredColorScheme(_:)` modifiers in the
+    /// presentation being evaluated prefer, or `nil` for none so far.
+    var preferredColorScheme: ColorScheme?
+    /// The color scheme the presentation being evaluated preferred in the
+    /// last evaluation, which its content starts with.
+    var presentationColorScheme: ColorScheme?
+    /// The environment the content of the presentation being evaluated
+    /// started with, which the host records on the presentation's node.
+    var presentationEnvironment: EnvironmentValues?
     private(set) var actions: [NodeID: @MainActor () -> Void] = [:]
     private(set) var textFields: [NodeID: Binding<String>] = [:]
     /// The lifecycle modifiers evaluated, for the host to act on.
@@ -82,6 +91,15 @@ final class Evaluator {
             action()
             extra()
         }
+    }
+
+    /// The environment a presentation's content starts with: `environment`,
+    /// in the color scheme the presentation prefers, if it prefers one.
+    func startingPresentation(in environment: EnvironmentValues) -> EnvironmentValues {
+        var environment = environment
+        if let presentationColorScheme { environment.colorScheme = presentationColorScheme }
+        presentationEnvironment = environment
+        return environment
     }
 
     /// Evaluates `body` with a changed environment.
