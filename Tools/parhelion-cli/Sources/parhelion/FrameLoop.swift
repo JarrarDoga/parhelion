@@ -63,8 +63,8 @@ final class AppearanceState: @unchecked Sendable {
         if let start = appearance.applying(change) {
             appearance = start
         } else {
-            print(
-                "Ignoring \(previewColorSchemeEnvironmentKey) or "
+            Self.warn(
+                "ignoring \(previewColorSchemeEnvironmentKey) or "
                     + "\(previewDynamicTypeSizeEnvironmentKey): use a color scheme of "
                     + PreviewAppearance.colorSchemes.joined(separator: " or ")
                     + " and a size from "
@@ -103,13 +103,19 @@ final class AppearanceState: @unchecked Sendable {
                 return !warnedApps.contains(ObjectIdentifier(app))
             }
             if warn {
-                print(
+                Self.warn(
                     "\(app.hello.appName) was built with an older Parhelion, which cannot switch "
                         + "the appearance or text size. Update its Parhelion dependency.")
             }
             return
         }
         app.post(current.appearance.command)
+    }
+
+    /// Writes a warning to standard error, because standard output carries
+    /// the protocol in `parhelion mcp`.
+    private static func warn(_ message: String) {
+        FileHandle.standardError.write(Data("parhelion: \(message)\n".utf8))
     }
 
     private var warnedApps: Set<ObjectIdentifier> = []
