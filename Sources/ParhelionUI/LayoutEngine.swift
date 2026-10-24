@@ -278,6 +278,11 @@ struct LayoutEngine {
                 height: size.height + insets.vertical
             )
 
+        case .aspectRatio(let ratio, let fill):
+            return child(
+                Self.aspectRatioProposal(
+                    proposal, ratio: ratio ?? Self.ratio(of: child(.unspecified)), fill: fill))
+
         case .listRow(let insets):
             let size = child(proposal.inset(by: insets))
             return CGSize(
@@ -624,6 +629,14 @@ struct LayoutEngine {
             )
             let content = align(size, in: rect, alignment)
             return place(node, in: content, modifierCount: inner, parentAxis: parentAxis)
+
+        case .aspectRatio:
+            let size = sizeThatFits(
+                node, ProposedSize(rect.size), modifierCount: modifierCount,
+                parentAxis: parentAxis)
+            return place(
+                node, in: align(size, in: rect, .center), modifierCount: inner,
+                parentAxis: parentAxis)
 
         case .flexibleFrame(let frame):
             let alignment = frame.alignment

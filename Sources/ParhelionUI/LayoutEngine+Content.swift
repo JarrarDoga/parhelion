@@ -83,3 +83,40 @@ extension LayoutEngine {
             width: proposal.width ?? intrinsic.width, height: proposal.height ?? intrinsic.height)
     }
 }
+
+// MARK: - Aspect ratios
+
+extension LayoutEngine {
+    /// The ratio of a size's width to its height, or 1 for a size without
+    /// height.
+    static func ratio(of size: CGSize) -> CGFloat {
+        size.height > 0 ? size.width / size.height : 1
+    }
+
+    /// What an aspect ratio proposes its view: the largest size with the
+    /// ratio inside the proposal, or with `fill` the smallest that covers
+    /// it. A dimension without a finite proposal follows the other, and
+    /// without either the view gets no proposal and takes its ideal size.
+    static func aspectRatioProposal(
+        _ proposal: ProposedSize, ratio: CGFloat, fill: Bool
+    )
+        -> ProposedSize
+    {
+        let width = proposal.width.flatMap { $0.isFinite ? $0 : nil }
+        let height = proposal.height.flatMap { $0.isFinite ? $0 : nil }
+        guard ratio > 0, ratio.isFinite else { return proposal }
+        switch (width, height) {
+        case (let width?, let height?):
+            let wider = width / max(height, .leastNonzeroMagnitude) > ratio
+            return wider != fill
+                ? ProposedSize(width: height * ratio, height: height)
+                : ProposedSize(width: width, height: width / ratio)
+        case (let width?, nil):
+            return ProposedSize(width: width, height: width / ratio)
+        case (nil, let height?):
+            return ProposedSize(width: height * ratio, height: height)
+        case (nil, nil):
+            return .unspecified
+        }
+    }
+}

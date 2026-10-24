@@ -85,6 +85,10 @@ public enum LayoutModifier: Hashable, Sendable, Codable {
     /// Scales how the view draws around an anchor, a unit point in the
     /// bounds at this point in the chain, without changing its layout.
     case scaleEffect(x: CGFloat, y: CGFloat, anchor: CGPoint)
+    /// Proposes the view the largest size with a width-to-height ratio that
+    /// fits the proposal, or with `fill`, the smallest that covers it. A
+    /// `nil` ratio is the view's ideal size's.
+    case aspectRatio(CGFloat?, fill: Bool)
 
     var outlineDescription: String {
         switch self {
@@ -112,6 +116,9 @@ public enum LayoutModifier: Hashable, Sendable, Codable {
             if x != 0 { parts.append("x: \(formatPoints(x))") }
             if y != 0 { parts.append("y: \(formatPoints(y))") }
             return "shadow(" + parts.joined(separator: ", ") + ")"
+        case .aspectRatio(let ratio, let fill):
+            let mode = "contentMode: \(fill ? "fill" : "fit")"
+            return "aspectRatio(" + (ratio.map { "\(formatUnit($0)), " } ?? "") + mode + ")"
         case .scaleEffect(let x, let y, let anchor):
             var parts =
                 x == y ? [formatPoints(x)] : ["x: \(formatPoints(x))", "y: \(formatPoints(y))"]
@@ -209,5 +216,39 @@ extension View {
                 )
             )
         )
+    }
+}
+
+/// How a view fills the space a ratio gives it, mirroring SwiftUI's
+/// `ContentMode`.
+public enum ContentMode: Hashable, CaseIterable, Sendable {
+    /// The view fits inside the space.
+    case fit
+    /// The view covers the space.
+    case fill
+}
+
+extension View {
+    /// Constrains the view to a width-to-height ratio, or, for `nil`, to its
+    /// ideal size's, fitting or filling the space it is offered.
+    public func aspectRatio(_ aspectRatio: CGFloat? = nil, contentMode: ContentMode) -> some View {
+        layoutModifier(.aspectRatio(aspectRatio, fill: contentMode == .fill))
+    }
+
+    /// Constrains the view to the ratio of a size's width to its height.
+    public func aspectRatio(_ aspectRatio: CGSize, contentMode: ContentMode) -> some View {
+        self.aspectRatio(
+            aspectRatio.height == 0 ? nil : aspectRatio.width / aspectRatio.height,
+            contentMode: contentMode)
+    }
+
+    /// Scales the view to fit the space it is offered, keeping its ratio.
+    public func scaledToFit() -> some View {
+        aspectRatio(contentMode: .fit)
+    }
+
+    /// Scales the view to cover the space it is offered, keeping its ratio.
+    public func scaledToFill() -> some View {
+        aspectRatio(contentMode: .fill)
     }
 }

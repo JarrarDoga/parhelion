@@ -26,6 +26,12 @@ extension TreeRenderer {
         return color
     }
 
+    /// The system fills that content in these files draws with, by name,
+    /// as the colors `ColorPalette` reads: `AsyncImage`'s placeholder is
+    /// `secondarySystemFill`, 120,120,128 at 16% in light (swatch
+    /// `Fills/Light/2 Secondary`).
+    static let systemFills = ["secondarySystemFill": "rgba(0.4706,0.4706,0.502,0.16)"]
+
     /// The paint of a style in a rectangle. `foreground` is the style that
     /// `.foreground` stands for, and `color` resolves each color name, with
     /// the node's tint and opacity.
@@ -34,7 +40,7 @@ extension TreeRenderer {
     ) -> Paint {
         switch StyleDescription(style) {
         case .color(let name):
-            return .color(color(name))
+            return .color(color(Self.systemFills[name] ?? name))
         case .foreground:
             guard let foreground, foreground != "foreground" else {
                 return .color(color("primary"))

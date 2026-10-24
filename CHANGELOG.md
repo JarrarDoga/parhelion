@@ -276,6 +276,15 @@ may contain breaking changes.
   `renderingMode`, `resizable`, `capInsets`, and `resizingMode`. A missing image, or one that is
   not a PNG image, records `missingImage=true` and draws as a ring, as a missing symbol does.
 - A resizable symbol image fills its frame, and symbols take gradient foreground styles.
+- `AsyncImage` with all three initializer families for a URL and for a `URLRequest`,
+  `AsyncImagePhase`, `Transaction`, and `asyncImageURLSession(_:)`. The load is a `task` of the
+  view, so `ViewHost.waitForTasks()` waits for it and `parhelion mcp` counts it in
+  `pendingTasks`. It reads `file:` URLs from disk and others with `URLSession`, decodes PNG
+  images, and fails on anything else. Until the image loads, `AsyncImage(url:scale:)` shows a
+  gray `secondarySystemFill` rectangle. Its node records `url`, `phase`, and `scale`.
+- `aspectRatio(_:contentMode:)`, `scaledToFit()`, and `scaledToFill()`, with `ContentMode`.
+- `import SwiftUI` re-exports FoundationNetworking on Linux, where `URLRequest` and `URLSession`
+  live, as Apple's SwiftUI makes them available through Foundation.
 - `ParhelionRender` decodes PNG images in pure Swift (`Bitmap(pngData:)`), with every color type
   and bit depth, transparency, all five filters, and Adam7 interlacing, through its own inflate.
 - The `xtool`-shaped `LibraryApp` fixture shows an image from its own `Assets.xcassets`.
