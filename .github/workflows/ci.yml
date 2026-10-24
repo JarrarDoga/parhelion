@@ -87,8 +87,9 @@ jobs:
         # Rendering is deterministic, so the image in the README must match a
         # fresh render. After an intended rendering change, regenerate it with
         # `swift run Counter --png docs/images/counter.png`. `swift test` checks the
-        # Tasks images in the README the same way; regenerate them with
-        # `PARHELION_README_IMAGES=docs/images swift test --filter writeReadmeImages`.
+        # Tasks, Tabs, dark, and Dynamic Type images in the README the same way;
+        # regenerate them with
+        # `PARHELION_README_IMAGES=docs/images swift test --filter 'write.*ReadmeImages'`.
         run: |
           swift run Counter --png "$RUNNER_TEMP/counter.png"
           cmp "$RUNNER_TEMP/counter.png" docs/images/counter.png
