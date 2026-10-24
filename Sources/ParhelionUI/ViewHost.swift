@@ -526,9 +526,10 @@ public final class ViewHost {
     }
 
     private func focusTextField(_ id: NodeID, caretAt point: CGPoint) {
-        guard let field = textFields[id], let frame = root.node(withID: id)?.frame else { return }
+        guard let field = textFields[id], let node = root.node(withID: id), let frame = node.frame
+        else { return }
         let text = field.wrappedValue
-        let geometry = TextFieldGeometry()
+        let geometry = TextFieldGeometry(node: node)
         let shift =
             focusedNodeID == id
             ? geometry.horizontalShift(text: text, caret: caretOffset, width: frame.width) : 0

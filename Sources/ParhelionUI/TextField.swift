@@ -31,6 +31,9 @@ extension TextField: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         let ownPath = path.appending("TextField")
         var attributes = ["placeholder": placeholder, "value": text.wrappedValue]
+        // A field's text is body text, which scales with Dynamic Type.
+        Font.body.resolved(dynamicTypeSize: evaluator.environment.dynamicTypeSize)
+            .record(in: &attributes)
         if evaluator.environment.isEnabled {
             evaluator.registerTextField(text, for: ownPath.id)
         } else {
@@ -43,11 +46,17 @@ extension TextField: PrimitiveView {
 /// Where the caret and text of a single-line field sit, shared by hit
 /// testing and drawing so that both agree.
 struct TextFieldGeometry {
-    /// The font of a field's text: the body style.
-    static let resolvedFont = ResolvedFont.body
+    /// The font of a field's text: the body style, at the size its node
+    /// records.
+    let resolvedFont: ResolvedFont
+    let font: TrueTypeFont
+    let fontSize: Double
 
-    let font = Self.resolvedFont.typeface
-    let fontSize = Double(Self.resolvedFont.size)
+    init(node: ViewNode) {
+        resolvedFont = ResolvedFont(node: node)
+        font = resolvedFont.typeface
+        fontSize = Double(resolvedFont.size)
+    }
 
     /// Assumed: the caret's width in points.
     static let caretWidth: CGFloat = 2

@@ -603,11 +603,11 @@ struct TreeRenderer {
     ) {
         let value = node.attributes["value"] ?? ""
         let isFocused = node.id == focusedNodeID
-        let geometry = TextFieldGeometry()
+        let geometry = TextFieldGeometry(node: node)
         let caret = min(caretOffset, value.count)
         let shift =
             isFocused ? geometry.horizontalShift(text: value, caret: caret, width: frame.width) : 0
-        let baseline = Double(TextFieldGeometry.resolvedFont.baseline)
+        let baseline = Double(geometry.resolvedFont.baseline)
 
         let outerClip = canvas.clipRect
         canvas.clipRect = outerClip.map { $0.intersection(frame) } ?? frame

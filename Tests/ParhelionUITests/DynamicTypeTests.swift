@@ -261,6 +261,18 @@ struct DynamicTypeTests {
         #expect(smallBordered.frame?.height == 34)
     }
 
+    @Test("A text field's text scales like body text")
+    func textField() throws {
+        let host = ViewHost(
+            TextField("Name", text: .constant("Ada")), device: square,
+            dynamicTypeSize: .accessibility1)
+        let field = try #require(host.root.allNodes.first { $0.kind == "TextField" })
+        #expect(field.attributes["fontSize"] == "28")
+        #expect(field.frame?.height == 34)
+        let large = ViewHost(TextField("Name", text: .constant("Ada")), device: square)
+        #expect(large.root.allNodes.first { $0.kind == "TextField" }?.attributes["fontSize"] == nil)
+    }
+
     @Test("Symbols scale with the font around them")
     func symbols() throws {
         let host = ViewHost(

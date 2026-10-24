@@ -335,7 +335,7 @@ struct LayoutEngine {
 
         case "TextField":
             // A text field fills the width it is offered and is one line tall.
-            let font = TextFieldGeometry.resolvedFont
+            let font = TextFieldGeometry(node: node).resolvedFont
             let widest =
                 [node.attributes["value"] ?? "", node.attributes["placeholder"] ?? ""]
                 .map { measurer.size(of: $0, font: font, width: nil).width }

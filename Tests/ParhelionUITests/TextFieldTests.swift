@@ -102,8 +102,9 @@ struct TextFieldTests {
     @Test("Clicking a field focuses it and puts the caret near the click")
     func clickToFocus() throws {
         let host = ViewHost(Form(), device: square)
-        let city = try #require(host.root.node(withID: fieldIDs(host)[1])?.frame)
-        let geometry = TextFieldGeometry()
+        let field = try #require(host.root.node(withID: fieldIDs(host)[1]))
+        let city = try #require(field.frame)
+        let geometry = TextFieldGeometry(node: field)
         let afterO = geometry.caretX(in: "Oslo", at: 1)
 
         host.pointerDown(at: CGPoint(x: city.minX + afterO + 0.5, y: city.midY))

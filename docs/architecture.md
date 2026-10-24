@@ -159,8 +159,8 @@ the child. A `nil` dimension in a proposal asks for the child's ideal size.
   Large, as in `font=title fontSize=34`. Within a style, every size has one line height, so
   layout and drawing find the line height from the style and the size. A custom font scales by
   the ratio of its text style's sizes, as `@ScaledMetric` does; the system font at a fixed size
-  does not scale. List rows, footers, large titles and their bar, and bordered and alert buttons
-  grow with their text. Toolbar items are evaluated at Large, and the tab bar and segmented
+  does not scale. List rows, footers, text fields, large titles and their bar, and bordered and
+  alert buttons grow with their text. Toolbar items are evaluated at Large, and the tab bar and segmented
   controls use fixed sizes, so they keep their size, as on iOS. Each line is the line height tall, with the difference
   from Inter's own height split above and below the glyphs, and the renderer draws with the same
   font and baselines so that layout and pixels agree.

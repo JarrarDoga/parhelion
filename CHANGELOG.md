@@ -260,7 +260,7 @@ may contain breaking changes.
   `@ScaledMetric`, and `Font.custom(_:size:)`, `Font.custom(_:size:relativeTo:)`, and
   `Font.custom(_:fixedSize:)`, drawn with Inter.
 - List rows, list footers, large navigation titles and their bar, bordered buttons, alert
-  buttons, and symbols grow with Dynamic Type. Toolbar items, the tab bar, and segmented controls
+  buttons, text fields, and symbols grow with Dynamic Type. Toolbar items, the tab bar, and segmented controls
   keep their size, as on iOS.
 - Control-Shift-A in the preview window switches between light and dark, and Control-Alt-Plus
   and Control-Alt-Minus change the text size. The window's title shows the setting.
