@@ -439,7 +439,8 @@ struct LayoutEngine {
             }
             return labelSize(node, proposal)
         default:
-            return controlSize(node, proposal, parentAxis: parentAxis)
+            return contentSize(node, proposal)
+                ?? controlSize(node, proposal, parentAxis: parentAxis)
                 ?? overlaySize(node.children, proposal)
         }
     }

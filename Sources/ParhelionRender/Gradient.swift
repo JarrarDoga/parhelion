@@ -80,17 +80,19 @@ extension Canvas {
         }
     }
 
-    /// Fills a path given in points with a linear gradient.
+    /// Fills a path given in points with a linear gradient, with the
+    /// even-odd rule when `evenOdd` is set and the nonzero rule otherwise.
     ///
     /// The path's coverage comes from the general rasterizer, and each
     /// covered pixel takes the gradient's color at its center.
-    public mutating func fill(_ path: Path, gradient: LinearGradient) {
+    public mutating func fill(_ path: Path, gradient: LinearGradient, evenOdd: Bool = false) {
         guard !gradient.stops.isEmpty else { return }
         let pixelPath = path.applying(scaleX: scale, scaleY: scale, translateX: 0, translateY: 0)
         guard
             let coverage = Rasterizer.coverage(
                 of: pixelPath.polygons(tolerance: 0.2),
-                clip: pixelClip
+                clip: pixelClip,
+                evenOdd: evenOdd
             )
         else { return }
         composite(coverage, gradient: gradient)

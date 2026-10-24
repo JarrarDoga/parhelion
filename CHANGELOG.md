@@ -239,6 +239,18 @@ may contain breaking changes.
   `ForEach($library.books)` and `@Bindable`, and loads it in `task`.
 - `parhelion mcp` reports `task` work that is still running, and its `wait` tool returns as soon
   as animations and that work finish. `PreviewReply.pendingTasks` carries the count.
+- Shapes: the `Shape` protocol, `Rectangle`, `RoundedRectangle`, `Circle`, `Ellipse`, `Capsule`,
+  and `Path` as a view, with `fill(_:style:)`, `fill(style:)`, and `FillStyle`'s even-odd rule.
+  `RoundedRectangle` and `Capsule` have continuous corners by default, as in iOS 27. A shape of
+  an app's own type draws the path it returns for its frame, and its node records its
+  description as `shape`. `Path` gains `init(_:)`, `addRect(_:)`, `addRects(_:)`,
+  `addRoundedRect(in:cornerSize:style:)`, `addEllipse(in:)`, `addLines(_:)`,
+  `addArc(center:radius:startAngle:endAngle:clockwise:)`, and `currentPoint`, with `Angle`.
+- `LinearGradient` as a view and as a shape style, with `Gradient`, `Gradient.Stop`, `UnitPoint`,
+  and `.linearGradient(_:startPoint:endPoint:)` and its `colors:` and `stops:` forms. A gradient
+  fills each shape or background it paints, and the tree records it as
+  `linearGradient(red 0, blue 1, top, bottom)`. `ForegroundStyle` and `.foreground` name the
+  current foreground style.
 
 - Dark mode. `ViewHost.colorScheme` sets the simulated device's appearance, and
   `preferredColorScheme(_:)` sets the preferred color scheme of the window or the sheet that

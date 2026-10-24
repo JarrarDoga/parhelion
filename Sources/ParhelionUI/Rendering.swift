@@ -286,7 +286,9 @@ struct TreeRenderer {
             guard case .background(let style) = node.modifiers[index],
                 index < node.modifierFrames.count
             else { continue }
-            canvas.fill(node.modifierFrames[index], color: paint(style))
+            fill(
+                node.modifierFrames[index], style: style, foreground: foreground, paint: paint,
+                into: &canvas)
         }
 
         // Controls draw their parts in Rendering+Controls.swift.
@@ -388,7 +390,7 @@ struct TreeRenderer {
             foreground = foreground ?? "secondary"
 
         default:
-            break
+            drawContent(node, in: frame, foreground: foreground, paint: paint, into: &canvas)
         }
 
         // A scroll view shows only the part of its content inside its bounds.
