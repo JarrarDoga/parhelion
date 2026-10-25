@@ -1,0 +1,21 @@
+name: Claude token check
+
+# Temporary, on the throwaway review-smoke-test PR only. Do not merge.
+on: pull_request
+
+jobs:
+  check:
+    runs-on: parhelion-optiplex
+    timeout-minutes: 10
+    steps:
+      - name: Check the token's shape and make one call
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          t="$CLAUDE_CODE_OAUTH_TOKEN"
+          echo "length=${#t}"
+          case "$t" in sk-ant-oat01-*) echo "prefix ok" ;; *) echo "unexpected prefix" ;; esac
+          if printf %s "$t" | grep -q '[[:space:]]'; then echo "contains whitespace"; else echo "no whitespace"; fi
+          curl -fsSL https://claude.ai/install.sh | bash >/dev/null
+          ~/.local/bin/claude --version
+          ~/.local/bin/claude -p "Reply with OK" --output-format json || true
