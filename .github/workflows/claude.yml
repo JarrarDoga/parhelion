@@ -42,6 +42,9 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # The action's own prompt says how to read the PR but not what to look
           # for. The appended prompt makes every run a reviewer with a fixed bar.
+          # Without --model the action uses Sonnet; reviews get Opus at high effort.
           claude_args: |
+            --model claude-opus-5-5
+            --effort high
             --allowedTools "mcp__github_inline_comment__create_inline_comment"
             --append-system-prompt "Review this pull request. Report only problems worth fixing: bugs, regressions, security issues, data loss, races, and missing or wrong tests. Check the change against the rules in CLAUDE.md and AGENTS.md. Skip style nits and anything CI already catches. Post each finding as an inline comment on the line, with a severity (blocker, should-fix, or nit) and a concrete fix. End with one summary comment that lists the findings or says there are none. On a re-review, first check whether earlier findings were fixed."
