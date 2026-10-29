@@ -18,10 +18,13 @@ concurrency:
 # toolchains under /opt/swift/<version>. No Swift is on PATH until a job selects
 # one.
 #
-# Each job's first step refuses pull requests from forks, before checkout, so
-# that code from outside the repository never runs on the pool. It fails the
-# required check instead of skipping the job, because branch protection treats
-# a skipped required check as passed.
+# The pool's job image refuses pull requests from forks before the first step,
+# with a job-started hook that no workflow can change. Each job's first step
+# refuses them too, which gives a clearer error for a fork that leaves this
+# file alone; on its own it is not a boundary, because a fork's pull request
+# runs the fork's copy of this file. Both fail the required check instead of
+# skipping the job, because branch protection treats a skipped required check
+# as passed.
 jobs:
   lint:
     name: Lint

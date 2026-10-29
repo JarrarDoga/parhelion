@@ -1,7 +1,7 @@
 name: Claude
 
-# On-demand pull request review. Nothing runs until someone with write access
-# mentions @claude in a pull request comment, for example:
+# On-demand pull request review. Nothing runs until the owner, a member, or a
+# collaborator mentions @claude in a pull request comment, for example:
 #
 #   gh pr comment 12 --body "@claude review this PR"
 #
@@ -21,8 +21,12 @@ on:
 
 jobs:
   claude:
+    # The action also refuses commenters without write access, but only after
+    # the job has taken the pool. Checking here keeps anyone else's comment
+    # from queueing a job at all.
     if: >-
       contains(github.event.comment.body, '@claude') &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&
       (github.event_name == 'pull_request_review_comment' || github.event.issue.pull_request)
     runs-on: parhelion-optiplex
     # The pool runs one job at a time, so a stalled review would hold CI behind it.
