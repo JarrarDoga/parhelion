@@ -183,7 +183,8 @@ func lazyStacksOutline() {
             └─ VStack
                ├─ VStack
                │  └─ Text "A"
-               ├─ Text "More"
+               ├─ Button menu=true
+               │  └─ Text "More"
                └─ Text "Loading"
             """)
 }

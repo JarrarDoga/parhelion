@@ -642,6 +642,16 @@ renderer call for the kinds they do not handle themselves.
 - **Menus.** An open menu picker presents a `Menu` node at the root, like an alert, which is
   placed level with its button after everything below it is placed. While it is open it is the
   `interactiveRoot`; its node covers the screen and closes the menu when a tap misses its items.
+- **`Menu` and `contextMenu`.** A `Menu` is a `Button` node with `menu=true`, so button styles
+  apply; the node kind `Menu` is already the open menu picker's panel, which is why the button does
+  not use it. Opening it registers a `MenuPopover` presentation holding a `MenuPanel`: the content's
+  `Button`s, `Section`s, `Divider`s (`MenuSeparator`), and `ControlGroup`s, with a separator
+  inserted around each section and group. `contextMenu` puts a long press handler on its content's
+  nodes; the long press registers a `ContextMenu` presentation with a `ContextMenuPreview`, a copy
+  of the view (or its `preview`) scaled to 1.03 over a blur of the screen, and a `MenuPanel`.
+  All of these register through `NodeExtensions` in `Rendering+Menu.swift`. A tap on an item runs
+  its action, then closes the menu; a tap outside closes it. Menus fade in like sheets, so a test
+  that renders one calls `advanceTime(by:)` first.
 - **Tags.** `tag(_:includeOptional:)` records a value that `Evaluator.evaluateTagged` returns to
   the container evaluating the content, such as a picker. Inside such a container, `ForEach`
   tags its elements' views with their identifiers.
