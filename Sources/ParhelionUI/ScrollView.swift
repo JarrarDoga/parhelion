@@ -57,7 +57,9 @@ extension ScrollView: PrimitiveView {
             ViewNode(
                 id: ownPath.id,
                 kind: "ScrollView",
-                attributes: ["axes": axesName],
+                attributes: ["axes": axesName].merging(evaluator.environment.scrollAttributes) {
+                    own, _ in own
+                },
                 children: evaluator.evaluate(content, at: ownPath)
             )
         ]

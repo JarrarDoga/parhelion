@@ -320,6 +320,17 @@ enum LayoutDefaults {
         }
     }
 
+    /// How far a top scroll edge effect reaches below the navigation bar's
+    /// row of buttons. Assumed: 6 points, the 112 points of every iPhone
+    /// example in the iOS 27 UI Kit (a 62-point status bar and a 44-point
+    /// row) less the 62, less the row, on the device they were drawn for.
+    static let scrollEdgeEffectOverhang: CGFloat = 6
+
+    /// How far a bottom scroll edge effect reaches above the tab bar.
+    /// Assumed: 16 points, the space the kit's tab bar symbol leaves above
+    /// its capsule.
+    static let scrollEdgeEffectBottomGap: CGFloat = 16
+
     /// The height of the tab bar: a 62-point glass capsule in the iOS 27 UI
     /// Kit's iPhone tab bar.
     static let tabBarHeight: CGFloat = 62

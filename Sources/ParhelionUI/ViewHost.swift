@@ -870,7 +870,7 @@ public final class ViewHost {
             NodeExtensions.behavior(for: node.kind)?.hitTest?(node, point)
             ?? node.hitFrame?.contains(point) ?? false
         if node.isScrollContainer, !isInside { return nil }
-        for child in node.children.reversed() {
+        for child in node.hitOrder {
             if let match = frontmostNode(at: point, in: child, where: matches) { return match }
         }
         guard isInside else { return nil }

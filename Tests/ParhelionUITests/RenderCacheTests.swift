@@ -299,7 +299,8 @@ struct RenderCacheTests {
         expectCachedFrameMatches(host, scale: 2)
     }
 
-    @Test("Glass over a still bar is reused while a list scrolls beneath it")
+    @Test(
+        "A list scrolling under the bar draws like a fresh frame, and its still frames reuse glass")
     func glassOverScrolling() throws {
         let host = ViewHost(LongList())
         expectCachedFrameMatches(host)
@@ -310,12 +311,16 @@ struct RenderCacheTests {
         }
         host.pointerUp(at: CGPoint(x: 200, y: 550))
         expectAnimationMatches(host, stride: 7)
-        // The toolbar button's glass was kept and reused in nearly every
-        // frame.
-        #expect(host.renderCache.glassCount == 1)
-        #expect(host.renderCache.glassReuses > 20)
         let list = try #require(host.root.allNodes.first { $0.kind == "List" })
         #expect(try #require(host.scrollOffset(of: list.id)).y > 100)
+        // Content lies under the bar now, so the bar's glass and the scroll
+        // edge effect over it change with every scrolled frame. Frames in
+        // which the list stands still copy both.
+        #expect(list.attributes["contentUnderBars"] == "top")
+        let before = host.renderCache.glassReuses
+        for _ in 0..<4 { expectCachedFrameMatches(host) }
+        #expect(host.renderCache.glassCount >= 2)
+        #expect(host.renderCache.glassReuses - before >= 4)
     }
 
     @Test("Pressing a button in an alert reuses the alert's glass")

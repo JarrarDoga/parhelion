@@ -108,7 +108,11 @@ extension List: PrimitiveView {
                 return row
             }
         }
-        return [ViewNode(id: ownPath.id, kind: "List", children: sections)]
+        return [
+            ViewNode(
+                id: ownPath.id, kind: "List", attributes: evaluator.environment.scrollAttributes,
+                children: sections)
+        ]
     }
 }
 

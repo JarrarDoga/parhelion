@@ -332,6 +332,33 @@ moves (see *The preview window*). On a manual clock, `advanceTime` moves it inst
 with every `Task.sleep`. `ViewHost.revision` increases whenever the screen changes, and
 the session sends a frame only then.
 
+### Scrolling under bars
+
+A scroll view that scrolls vertically and reaches the top or bottom of the safe area takes the
+whole screen height there. Its content starts at the safe area, or below the navigation bar when
+the scroll view is a navigation stack's screen, or ends above the tab bar when it is a tab
+view's content. The layout engine passes those two edges down as `ScrollLayout.obscuredTop` and
+`obscuredBottom`, and a scroll view records them in its `ScrollMetrics` as `topInset` and
+`bottomInset`, which `maxOffset` counts. A sheet's bar keeps its content below it. The
+`contentMargins` and `safeAreaPadding` of a scroll view are padding around its content, which
+scrolls with the content; `ignoresSafeArea` moves the edges of a view's space to the screen's
+where they meet the safe area's.
+
+A scroll view records `contentUnderBars` (`top`, `bottom`, or `top,bottom`) while its content lies
+under a bar, so tools can see whether the scroll edge effect shows. The renderer draws a
+navigation bar after its stack's screen, and draws the effect in between
+(`Rendering+ScrollEdge.swift`): the **soft** style blurs the region with a radius of 100 and mixes
+the blur back with a weight that falls from 0.6 at the screen's edge to 0, and the **hard** style
+blurs with a radius of 6 under a tint (white at 85% in light, black at 55% in dark) with a
+hairline along the inner edge. The top effect runs from the top of the screen to 6 points below
+the bar's row of buttons, or to the bottom of a large title's bar; the bottom effect from 16
+points above the tab bar to the bottom of the screen. Hit testing reaches a navigation bar before
+the screen it covers. The effect blurs only the pixels inside its rectangle, on blocks of them
+resampled bilinearly, so its cost follows the rectangle (about 2 to 6 ms at 2× and 3×). `RenderCache`
+keeps an effect that stays where it was with the pixels it read and left, as it does glass, and
+copies it while the pixels beneath do not change; a checksum of those pixels tells whether they
+changed, so a list scrolling under the bar does not pay for copies.
+
 ### Lists
 
 A `List` lays out like a vertical scroll view whose content is its sections, so scrolling,

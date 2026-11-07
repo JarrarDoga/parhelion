@@ -299,7 +299,8 @@ struct TabViewTests {
     func scrollsUnderBar() throws {
         let host = ViewHost(LongList(), device: screen)
         let list = try node(host, "TabView/Tab/List")
-        #expect(list.frame == CGRect(x: 0, y: 40, width: 300, height: 430))
+        // It takes the whole screen, and starts its content at the safe area.
+        #expect(list.frame == CGRect(x: 0, y: 0, width: 300, height: 500))
         try host.scroll(list.id, to: CGPoint(x: 0, y: 10_000))
         let bar = try #require(try node(host, "TabView/bar").frame)
         let last = try #require(host.nodes(withText: "Row 11").first?.frame)
