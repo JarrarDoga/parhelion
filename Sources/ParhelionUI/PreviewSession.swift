@@ -198,12 +198,19 @@ final class PreviewSession {
         let now = PreviewClock.now()
         // A manual clock moves only when the host says so.
         if hasManualClock { return nil }
-        if hostIsTicking(at: now) {
-            return PreviewClock.seconds(lastTickArrival + Self.tickTimeout - now)
+        // A `TimelineView` with a schedule of dates needs the clock moved
+        // when its next date comes. The host's time stopped at the last
+        // event, so the time since then counts.
+        let timelineWake = host.secondsUntilNextTimelineUpdate.map {
+            max($0 - PreviewClock.seconds(now &- min(now, timeline.current)), 0)
         }
-        guard host.isAnimating || sentAnimating else { return nil }
+        func earlier(_ seconds: Double) -> Double { min(seconds, timelineWake ?? seconds) }
+        if hostIsTicking(at: now) {
+            return earlier(PreviewClock.seconds(lastTickArrival + Self.tickTimeout - now))
+        }
+        guard host.isAnimating || sentAnimating else { return timelineWake }
         if nextOwnFrame <= now { scheduleOwnFrame(after: now) }
-        return PreviewClock.seconds(nextOwnFrame - now)
+        return earlier(PreviewClock.seconds(nextOwnFrame - now))
     }
 
     /// Moves the session's own schedule one interval on, or restarts it

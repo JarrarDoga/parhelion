@@ -33,9 +33,39 @@ extension ViewHost {
     /// and the tree updates) before the next one. Work that waits for
     /// something other than time, such as a socket, gets a short moment of
     /// real time once no sleep is left. With a real clock, this only advances
-    /// ``time``.
+    /// ``time``. Either way, each `TimelineView` with a schedule of dates
+    /// updates at every date it passes.
     public func advanceClock(by seconds: TimeInterval) {
         update()
+        // Stop at each date a `TimelineView` updates at, so that it updates
+        // once per period however far the clock moves.
+        var remaining = seconds
+        repeat {
+            var step = remaining
+            if let wake = secondsUntilNextTimelineUpdate, wake < remaining {
+                // Whole milliseconds, the manual clock's unit, and never
+                // zero, so that every step makes progress.
+                step = max((wake * 1000).rounded(.up) / 1000, 0.001)
+            }
+            moveClock(by: step)
+            remaining -= step
+        } while remaining > 1e-9
+        #if canImport(Glibc)
+        // A task that waits for something other than time needs real time. A
+        // sleeping one is not waiting for that, so wait only when none sleeps.
+        if ManualClock.isInstalled {
+            let deadline = Date(timeIntervalSinceNow: Self.realTimeAllowance)
+            while pendingTaskCount > 0, ManualClock.pendingSleepCount == 0, Date() < deadline {
+                _ = RunLoop.main.run(mode: .default, before: Date(timeIntervalSinceNow: 0.01))
+                ManualClock.advance(by: 0, moving: { advanceTime(by: $0) }, settled: { update() })
+            }
+        }
+        #endif
+    }
+
+    /// Moves the clock `seconds` on in one step, waking the sleeps that fall
+    /// due on the way.
+    private func moveClock(by seconds: TimeInterval) {
         #if canImport(Glibc)
         guard ManualClock.isInstalled else {
             advanceTime(by: seconds)
@@ -43,13 +73,6 @@ extension ViewHost {
         }
         ManualClock.advance(
             by: seconds, moving: { advanceTime(by: $0) }, settled: { update() })
-        // A task that waits for something other than time needs real time. A
-        // sleeping one is not waiting for that, so wait only when none sleeps.
-        let deadline = Date(timeIntervalSinceNow: Self.realTimeAllowance)
-        while pendingTaskCount > 0, ManualClock.pendingSleepCount == 0, Date() < deadline {
-            _ = RunLoop.main.run(mode: .default, before: Date(timeIntervalSinceNow: 0.01))
-            ManualClock.advance(by: 0, moving: { advanceTime(by: $0) }, settled: { update() })
-        }
         #else
         advanceTime(by: seconds)
         #endif

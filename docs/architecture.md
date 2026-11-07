@@ -359,6 +359,36 @@ keeps an effect that stays where it was with the pixels it read and left, as it 
 copies it while the pixels beneath do not change; a checksum of those pixels tells whether they
 changed, so a list scrolling under the bar does not pay for copies.
 
+### Timelines
+
+`TimelineView` reads the host's clock, not the real one, so it follows `advanceTime(by:)` and the
+manual clock ([ADR 0012](adr/0012-manual-clock.md)). `ViewHost.date` is `referenceDate` plus
+`time`. The reference date is the real date at the first moment a view asks for it, so a
+`Date.now` read just before agrees with it, and then it stays; set it, or pass it to `ViewHost`,
+to make dates repeat. (Assumed, against research for #31, which suggested a fixed date: `Date.now`
+is real, so `.periodic(from: .now, by: 1)` would never fire against a fixed date.)
+
+- The view is a primitive. Its node is `TimelineView` with `schedule` and `date`, and the
+  content built for that date as its children; it is sized like an `AsyncImage`.
+- The host keeps, for each timeline node, the date shown and the schedule's next date
+  (`TimelineHostState`). An evaluation walks the schedule's `entries(from:)` from the date shown
+  to the latest entry that has passed, so an update visits only the dates since the last one.
+  The view shows that date, or the date it appeared at before the first entry.
+- `advanceTime(by:)` evaluates again when a next date has been reached, once however far it
+  moved, with the latest date. `advanceClock(by:)`, which the manual clock and MCP `wait` use,
+  stops at each date, so a view that counts its updates sees every period.
+- `.animation` is driven by frames: the view updates on every `advanceTime`, at most once per
+  `minimumInterval`, with the host's date, and `isAnimating` is true while one is on screen and
+  not paused, so a window host keeps asking for frames. `secondsUntilNextTimelineUpdate` covers
+  schedules of dates only.
+- A session that is not on a manual clock waits for the next date as it waits for the next
+  animation frame (`PreviewSession.waitTimeout`), moves the clock to the real time, and sends a
+  frame.
+- The cadence in the context is derived: the interval of `periodic`, a minute for
+  `everyMinute`, `live` for `animation`, and the gap to the next date otherwise. Less than a
+  second is `live`, less than a minute `seconds`.
+- `lowFrequency` mode is ignored. An `.explicit` schedule shows the latest date that has passed.
+
 ### Lists
 
 A `List` lays out like a vertical scroll view whose content is its sections, so scrolling,
