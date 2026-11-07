@@ -331,6 +331,7 @@ The agent gets these tools:
 | `get_view_tree` | The screen as a tree of views with identifiers and frames, as an outline or JSON |
 | `screenshot` | A PNG of the screen, with the status bar and the home indicator |
 | `tap`, `type_text`, `press_key` | Tap by identifier, label, or position; type into text fields; Tab, Return, Backspace, and the caret keys |
+| `long_press` | Hold a press at a point for a duration, so a view's long press gesture fires |
 | `scroll`, `scroll_to`, `drag`, `wait` | Scroll like a mouse wheel, to an offset, or by dragging with momentum, and wait for it to settle |
 | `set_appearance` | Switch the simulated iPhone between light and dark, and set its Dynamic Type size; the setting stays for later rebuilds |
 | `compare_image` | Render the screen at a design board PNG's scale and return the share of pixels that differ, within a tolerance, with a diff PNG that marks them in red |

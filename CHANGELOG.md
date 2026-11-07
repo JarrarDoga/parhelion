@@ -387,7 +387,7 @@ may contain breaking changes.
 
 - Placeholder for #53 (`LazyVStack`, `LazyHStack`, and lazy `List` rows): the change for that issue replaces this line.
 
-- Placeholder for #56 (gestures: tap, long press, drag): the change for that issue replaces this line.
+- Gestures: `TapGesture`, `SpatialTapGesture`, `LongPressGesture`, and `DragGesture` with `onChanged`, `onEnded`, and `updating` with `@GestureState`; `simultaneously`, `sequenced`, and `exclusively`; and the `onTapGesture`, `onLongPressGesture`, `gesture`, `simultaneousGesture`, and `highPriorityGesture` modifiers. A drag follows the pointer one to one, a long press fires after its minimum duration on the host's clock, and buttons, gestures, and scroll views resolve conflicts as SwiftUI does (see ADR 0015). The `long_press` MCP tool holds a press at a point; `drag` already took a duration.
 
 - `glassEffect(_:in:isEnabled:)` draws Liquid Glass, `.regular`, `.clear`, `.tint(_:)`, and `.interactive()`, in any shape.
   `GlassEffectContainer(spacing:)` draws the glass of its views as one piece where shapes come closer than the spacing,

@@ -30,7 +30,11 @@ enum AgentTools {
 
     /// The tools that plug in from files of their own; see
     /// ``AgentToolRegistry``.
-    static let registry = AgentToolRegistry.shared
+    static let registry: AgentToolRegistry = {
+        let registry = AgentToolRegistry.shared
+        registry.register(LongPressTool())
+        return registry
+    }()
 
     /// The built-in tools, `compare_image`, then the registered ones.
     static var definitions: [MCPTool] { builtInDefinitions + [compareImage] + registry.definitions }

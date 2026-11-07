@@ -52,7 +52,7 @@ public final class ViewHost {
     private var storage: [String: AnyObject] = [:]
     private var visitedKeys: Set<String> = []
     private var actions: [NodeID: @MainActor () -> Void] = [:]
-    private var textFields: [NodeID: Binding<String>] = [:]
+    var textFields: [NodeID: Binding<String>] = [:]
     private var inputHandlers: [NodeID: NodeInputHandlers] = [:]
     /// The entries each navigation stack keeps above its root view, by the
     /// stack's identifier.
@@ -84,6 +84,8 @@ public final class ViewHost {
     let lifecycle = ViewLifecycle()
     /// What each `TimelineView` shows and when it updates. See TimelineView.swift.
     var timelines = TimelineHostState()
+    /// The gestures views attached and the press being recognized. See ViewHost+Gestures.swift.
+    var gestures = GestureHostState()
 
     /// Whether a state change is waiting for the next ``update()``.
     public private(set) var needsUpdate = false
@@ -270,7 +272,10 @@ public final class ViewHost {
         update()
         guard root.node(withID: id) != nil else { throw .nodeNotFound(id) }
         guard interactiveRoot.node(withID: id) != nil else { throw .covered(id) }
-        guard let action = actions[id] else { throw .notTappable(id) }
+        guard let action = actions[id] else {
+            if tapThroughGestures(on: id) { return }
+            throw .notTappable(id)
+        }
         action()
         update()
     }
@@ -284,6 +289,7 @@ public final class ViewHost {
     public func tap(at point: CGPoint) throws(InteractionError) {
         update()
         if tapSlider(at: point) { return }
+        if tapThroughGestures(at: point) { return }
         guard let target = frontmostTappableNode(at: point, in: interactiveRoot) else {
             throw .nothingTappable(at: point)
         }
@@ -297,14 +303,14 @@ public final class ViewHost {
     /// A press that starts on a button taps it only if the pointer is
     /// released over the same button, as on iOS. The renderer draws the
     /// pressed button dimmed.
-    public private(set) var pressedNodeID: NodeID? {
+    public internal(set) var pressedNodeID: NodeID? {
         didSet {
             if pressedNodeID != oldValue { revision += 1 }
         }
     }
 
     /// A press in progress.
-    private struct Press {
+    struct Press {
         var start: CGPoint
         var last: CGPoint
         /// The button the press started on, until the press turns into a
@@ -318,7 +324,7 @@ public final class ViewHost {
         /// Recent pointer positions, for the release velocity.
         var samples: [(time: TimeInterval, point: CGPoint)]
     }
-    private var press: Press?
+    var press: Press?
 
     /// Starts a press at a point on the screen. A press stops any scroll
     /// momentum, as touching a scrolling list does on iOS.
@@ -326,8 +332,13 @@ public final class ViewHost {
         update()
         momentum.removeAll()
         // A press on a slider takes its knob, before it can become a scroll.
-        let button =
-            beginSliderDrag(at: point) ?? frontmostTappableNode(at: point, in: interactiveRoot)?.id
+        let slider = beginSliderDrag(at: point)
+        let button = slider ?? frontmostTappableNode(at: point, in: interactiveRoot)?.id
+        if slider == nil {
+            beginGesturePress(at: point, control: button)
+        } else {
+            gestures.session = nil
+        }
         press = Press(
             start: point,
             last: point,
@@ -355,16 +366,23 @@ public final class ViewHost {
         }
         if let button = press.button, dragSlider(button, to: point) { return }
         let moved = CGSize(width: point.x - press.start.x, height: point.y - press.start.y)
-        if press.scrollView == nil, press.sheet == nil,
-            hypot(moved.width, moved.height) > LayoutDefaults.dragThreshold
-        {
+        // Gestures see the pointer first. A scroll view or sheet that the press
+        // could still turn into holds back the gestures outside it.
+        let scrolls = press.scrollView == nil && press.sheet == nil
+        moveGesturePress(
+            to: point,
+            scrollView: scrolls
+                ? innermostScrollView(at: press.start, along: moved, requireRoom: false) : nil)
+        press.button = self.press?.button
+        if scrolls, hypot(moved.width, moved.height) > LayoutDefaults.dragThreshold {
             let scrollView = innermostScrollView(at: press.start, along: moved, requireRoom: false)
-            if let sheet = sheetToDrag(from: press.start, along: moved, over: scrollView) {
-                press.sheet = sheet
-            } else {
-                press.scrollView = scrollView
-            }
-            if press.sheet != nil || press.scrollView != nil {
+            let sheet = sheetToDrag(from: press.start, along: moved, over: scrollView)
+            if sheet != nil || scrollView != nil, handOverPress(to: sheet ?? scrollView) {
+                if let sheet {
+                    press.sheet = sheet
+                } else {
+                    press.scrollView = scrollView
+                }
                 press.button = nil
                 pressedNodeID = nil
             }
@@ -399,6 +417,7 @@ public final class ViewHost {
         self.press = nil
         pressedNodeID = nil
         if let button = press.button, endSliderDrag(button, at: point) { return button }
+        let released = releaseGesturePress(at: point)
 
         if let sheet = press.sheet {
             let distance = scrolling.presentationOffsets[sheet] ?? 0
@@ -419,6 +438,7 @@ public final class ViewHost {
             startMomentum(scrollView, samples: press.samples + [(time, point)])
             return nil
         }
+        if released.handled { return released.tapped }
         guard let button = press.button,
             frontmostTappableNode(at: point, in: interactiveRoot)?.id == button
         else { return nil }
@@ -442,7 +462,16 @@ public final class ViewHost {
             let target = frontmostNode(
                 at: point, in: interactiveRoot, where: { inputHandlers[$0.id]?.longPress != nil }),
             let handler = inputHandlers[target.id]?.longPress
-        else { throw .nothingTappable(at: point) }
+        else {
+            // A view with a long press gesture gets a real press: down, the
+            // time, and up.
+            guard hasLongPressGesture(at: point) else { throw .nothingTappable(at: point) }
+            pointerDown(at: point)
+            advanceTime(by: max(duration, 0))
+            pointerUp(at: point)
+            update()
+            return
+        }
         advanceTime(by: max(duration, 0))
         handler(point, duration)
         update()
@@ -586,7 +615,7 @@ public final class ViewHost {
         try? focus(next)
     }
 
-    private func focusTextField(_ id: NodeID, caretAt point: CGPoint) {
+    func focusTextField(_ id: NodeID, caretAt point: CGPoint) {
         guard let field = textFields[id], let node = root.node(withID: id), let frame = node.frame
         else { return }
         let text = field.wrappedValue
@@ -608,6 +637,7 @@ public final class ViewHost {
     /// ``advanceTime(by:)`` and drawing frames.
     public var isAnimating: Bool {
         !momentum.isEmpty || animations.isActive(at: time) || timelines.followsFrames
+            || gestures.wantsTicks
     }
 
     /// How far a scroll view's content is scrolled, or `nil` if the node is
@@ -652,6 +682,7 @@ public final class ViewHost {
         defer { updateTimelines() }
         let wasAnimating = animations.isActive(at: time)
         time += interval
+        tickGesturePress()
         if wasAnimating {
             animations.removeFinished(at: time)
             presentedCache = nil
@@ -881,7 +912,7 @@ public final class ViewHost {
     /// The frontmost button or text field at a point.
     /// Children outside their parent's bounds, such as views moved by
     /// `offset`, still receive taps, except where a scroll view clips them.
-    private func frontmostTappableNode(at point: CGPoint, in node: ViewNode) -> ViewNode? {
+    func frontmostTappableNode(at point: CGPoint, in node: ViewNode) -> ViewNode? {
         frontmostNode(at: point, in: node) { actions[$0.id] != nil || textFields[$0.id] != nil }
     }
 
@@ -940,6 +971,7 @@ public final class ViewHost {
         visitedNavigationStacks = []
         visitedAnimationKeys = []
         timelines.beginEvaluation()
+        gestures.beginEvaluation()
         let evaluator = Evaluator(host: self)
         // Each presentation starts in the color scheme it preferred in the
         // last evaluation, and the window in the device's otherwise.
@@ -999,6 +1031,7 @@ public final class ViewHost {
         transitions = evaluator.transitions
         animationValues = animationValues.filter { visitedAnimationKeys.contains($0.key) }
         timelines.finishEvaluation()
+        gestures.finishEvaluation()
         let dismissed = presentations.filter { presented[$0.key] == nil }.values
         presentations = presented
         scrolling.presentationOffsets = scrolling.presentationOffsets.filter {
