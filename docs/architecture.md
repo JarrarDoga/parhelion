@@ -924,6 +924,43 @@ screen, under the bezel, as a texture with an opacity.
 The screenshot tool is the off-screen rendering path: any process that speaks the socket
 protocol can request frames and send input without a window.
 
+### Recorded flows
+
+A `Flow` (in `ParhelionPreview`, so the tool and the app share it) is a recorded run: a `version`
+(the file's own format, apart from the protocol's), the `device` name, and `steps`. A step is
+`command(PreviewCommand)`, `wait(seconds:)`, or `expect(outline:)`. The file is indented JSON with
+sorted keys; a checkpoint is a list of lines, so changes read well in a diff, and commands are the
+`PreviewCommand`s the agent tools send, so an agent can write a flow too.
+
+```text
+ window ── pointer, text, key, F2 ──►  app (PreviewSession)  ──►  FlowRecorder ──► FLOW.json
+ parhelion test ── replay(flow) ──►  app (manual clock)  ──►  ViewHost.replay ──► FlowReport
+```
+
+**The app records, not the window host**, because only the app knows which control a release hit.
+`parhelion run --record FILE` sets `PARHELION_RECORD_FLOW` for the first launch. `PreviewSession`
+calls `FlowRecorder` around each input it applies, because a tap is named from the screen as it was
+before the tap ran. A press that moved more than the drag threshold becomes `drag`; a release on a
+control becomes a tap that names it by accessibility identifier if that finds only it (the lookup a
+`tapAccessibilityIdentifier` command makes), else by label if exactly one control has it, else by
+node identifier. A slider is recorded by its point, since no command names a knob position. A
+text field is focused by identifier or node identifier, which puts the caret at the end. Wheel
+events and typing without a pause between them merge into one `scroll` or `typeText`. The real time
+between steps becomes `wait` steps: pauses under 50 ms are dropped, and one step waits at most 10 s.
+The flow is written after every step, and the window's F2 key sends `HostMessage.checkpoint`.
+Assumed, since no source covers it: F2 is the checkpoint key, a reload ends the recording, and the
+file ends with a checkpoint when the host closes the app.
+
+**`ViewHost.replay(_:updatingCheckpoints:)` is the one engine.** It runs commands with `execute`,
+moves the clock for waits with `advanceClock(by:)`, and compares `root.outline()` without
+identifiers or frames at checkpoints; frames would fail on every layout tweak. It stops at the
+first failing step and returns a `FlowReport` with the step, the message, and a line diff. With
+`updatingCheckpoints`, differing checkpoints are rewritten and returned in `updatedFlow`.
+`parhelion test` starts a fresh app for each flow on the flow's device with `PARHELION_MANUAL_CLOCK=1`,
+sends one `replay` command, and prints the report; a Swift Testing test calls `replay` directly, on
+the real clock. An app lists the `flowReplay` capability when it takes `replay` and
+`checkpoint`.
+
 ### Extension points
 
 A new view kind, layout modifier, MCP tool, or window hook plugs in from its own file

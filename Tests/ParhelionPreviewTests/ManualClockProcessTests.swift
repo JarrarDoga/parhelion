@@ -30,13 +30,16 @@ struct ManualClockProcessTests {
         let hello: PreviewHello
         private var nextID = 1
 
-        init(executable: String, manualClock: Bool) throws {
+        init(
+            executable: String, manualClock: Bool, environment extra: [String: String] = [:]
+        ) throws {
             let path = NSTemporaryDirectory() + "parhelion-clock-\(UUID().uuidString).sock"
             let listener = try PreviewListener(path: path)
             process.executableURL = URL(fileURLWithPath: executable)
             var environment = ProcessInfo.processInfo.environment
             environment[previewSocketEnvironmentKey] = path
             environment[previewManualClockEnvironmentKey] = manualClock ? "1" : nil
+            environment.merge(extra) { $1 }
             process.environment = environment
             try process.run()
             guard let channel = try listener.accept(timeout: 30) else {

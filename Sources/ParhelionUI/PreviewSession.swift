@@ -39,6 +39,9 @@ final class PreviewSession {
     /// not main-actor work, as in `App.main()`; a test that runs a session
     /// leaves it off, and the session then only waits for messages.
     let runsMainActorWork: Bool
+    /// Writes the flow the window host's input makes, when the app was
+    /// started with `PARHELION_RECORD_FLOW`.
+    private let recorder: FlowRecorder?
 
     /// How many frames the shared memory holds: one the host is copying, one
     /// waiting for it, and one to draw the next frame into.
@@ -52,13 +55,14 @@ final class PreviewSession {
 
     init(
         host: ViewHost, channel: PreviewChannel, scale: Double, appName: String,
-        runsMainActorWork: Bool = false
+        runsMainActorWork: Bool = false, recordingFlowTo recordingPath: String? = nil
     ) {
         self.host = host
         self.channel = channel
         self.scale = scale
         self.appName = appName
         self.runsMainActorWork = runsMainActorWork
+        recorder = recordingPath.map { FlowRecorder(host: host, path: $0) }
     }
 
     /// The moment the app's clock shows.
@@ -110,6 +114,7 @@ final class PreviewSession {
             )
         )
         let inbox = HostMessageInbox(channel: channel, wakesMainRunLoop: runsMainActorWork)
+        recorder?.start()
         try sendFrame(target: 0)
         while true {
             let event: WaitResult
@@ -237,25 +242,37 @@ final class PreviewSession {
         debugLog("received \(message)")
         switch message {
         case .pointerDown(let x, let y):
+            recorder?.pointerDown(at: CGPoint(x: x, y: y))
             host.pointerDown(at: CGPoint(x: x, y: y))
         case .pointerMoved(let x, let y):
+            recorder?.pointerMoved(to: CGPoint(x: x, y: y))
             host.pointerMoved(to: CGPoint(x: x, y: y))
         case .pointerUp(let x, let y):
-            if let tapped = host.pointerUp(at: CGPoint(x: x, y: y)) {
+            let tapped = host.pointerUp(at: CGPoint(x: x, y: y))
+            recorder?.pointerUp(at: CGPoint(x: x, y: y), tapped: tapped)
+            if let tapped {
                 debugLog("tapped \(tapped)")
             }
             debugLog("released at time \(host.time); animating: \(host.isAnimating)")
         case .scroll(let dx, let dy, let x, let y):
-            host.scroll(by: CGSize(width: dx, height: dy), at: CGPoint(x: x, y: y))
+            let scrolled = host.scroll(by: CGSize(width: dx, height: dy), at: CGPoint(x: x, y: y))
+            recorder?.scroll(dx: dx, dy: dy, x: x, y: y, scrolled: scrolled)
         case .text(let text):
+            recorder?.text(text)
             host.typeText(text)
         case .key(let name):
+            recorder?.key(name)
             if let key = ViewHost.Key(rawValue: name) { host.press(key) }
+        case .checkpoint:
+            recorder?.checkpoint()
         case .command(let id, let command):
-            try channel.send(.reply(id: id, host.execute(command)))
+            let reply = host.execute(command)
+            if reply.ok { recorder?.appearance(command) }
+            try channel.send(.reply(id: id, reply))
         case .welcome(let welcome):
             welcomed = Set(welcome.capabilities)
         case .close:
+            recorder?.finish()
             saveState()
             return false
         case .tick, .releaseSlot:
@@ -455,6 +472,7 @@ extension PreviewSession {
         // name as the app exiting, with the message in its output.
         let device = simulatedDevice()
         let appearance = simulatedAppearance()
+        let recordingPath = environment[previewRecordFlowEnvironmentKey]
         do {
             let channel = try PreviewChannel.connect(to: socketPath)
             let savedState = stateFilePath.flatMap {
@@ -467,7 +485,8 @@ extension PreviewSession {
                 channel: channel,
                 scale: scale,
                 appName: appName,
-                runsMainActorWork: true
+                runsMainActorWork: true,
+                recordingFlowTo: recordingPath
             )
             try session.run()
             channel.close()

@@ -140,6 +140,12 @@ extension ViewHost {
                 advanceClock(by: seconds)
                 return reply(true, "Advanced the clock by \(formatSeconds(seconds)).")
 
+            case .replay(let flow, let updatingCheckpoints):
+                let report = replay(flow, updatingCheckpoints: updatingCheckpoints)
+                var result = reply(report.passed, report.summary)
+                result.flowReport = report
+                return result
+
             case .drag(let fromX, let fromY, let toX, let toY, let duration):
                 drag(
                     from: CGPoint(x: fromX, y: fromY), to: CGPoint(x: toX, y: toY),

@@ -422,7 +422,13 @@ may contain breaking changes.
 
 - `TimelineView` with the `periodic(from:by:)`, `everyMinute`, `animation`, and `explicit(_:)` schedules, on the host's clock: it updates once per period as `advanceTime` or the manual clock moves, not with the real time. `ViewHost.date`, `referenceDate`, and `secondsUntilNextTimelineUpdate` report the host's date (#72).
 
-- Placeholder for #73 (recorded tests): the change for that issue replaces this line.
+- Recorded interaction tests. `parhelion run --record FLOW.json` writes what you do in the window
+  as a JSON flow: taps that name the control by accessibility identifier, else label, else node,
+  drags, scrolls, typing, the pauses between them, and checkpoints of the screen at the start, at
+  the end, and whenever you press F2. `parhelion test FLOW...` replays flows without a window on
+  the manual clock, compares the tree at each checkpoint, prints the lines that differ, exits
+  nonzero on a failure, and rewrites checkpoints with `--update`. `ViewHost.replay(_:)` runs a
+  `Flow` from Swift Testing, and apps list a new `flowReplay` capability.
 
 - Placeholder for #66 (comparison with Apple's SwiftUI on Rustle's screens): the change for that issue replaces this line.
 

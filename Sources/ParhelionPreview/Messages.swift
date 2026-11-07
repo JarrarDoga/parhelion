@@ -56,9 +56,16 @@ public enum PreviewCapability {
     /// ``PreviewCommand/scrollToAccessibilityIdentifier(_:x:y:)``. A host only
     /// needs to see it in the hello.
     public static let accessibilityIdentifiers = "accessibilityIdentifiers"
+    /// The app records flows and replays them: it understands
+    /// ``PreviewCommand/replay(_:updatingCheckpoints:)`` and, when it was started
+    /// with `PARHELION_RECORD_FLOW`, ``HostMessage/checkpoint``. A host only
+    /// needs to see it in the hello.
+    public static let flowReplay = "flowReplay"
     /// Every capability a window host can use. ``manualClock`` is not one:
     /// it replaces the host's clock instead of adding to it.
-    public static let all = [hostClock, sharedFrames, appearance, accessibilityIdentifiers]
+    public static let all = [
+        hostClock, sharedFrames, appearance, accessibilityIdentifiers, flowReplay,
+    ]
 }
 
 /// The first message an app sends after it connects.
@@ -276,6 +283,12 @@ public enum PreviewCommand: Codable, Equatable, Sendable {
     /// deadline order, with the app settled after each. Only an app that
     /// lists ``PreviewCapability/manualClock`` understands it.
     case advanceTime(seconds: Double)
+    /// Plays a recorded ``Flow`` in the app, step by step, and answers with a
+    /// ``FlowReport`` in ``PreviewReply/flowReport``. With
+    /// `updatingCheckpoints`, checkpoints that differ are rewritten instead of
+    /// failing. Only an app that lists ``PreviewCapability/flowReplay``
+    /// understands it.
+    case replay(Flow, updatingCheckpoints: Bool)
 }
 
 /// The app's answer to a ``PreviewCommand``.
@@ -296,10 +309,12 @@ public struct PreviewReply: Codable, Equatable, Sendable {
     /// On a manual clock, the seconds until the next `Task.sleep` wakes, or
     /// `nil` when none is waiting or the clock is real.
     public var nextWake: Double?
+    /// How a replay went, for ``PreviewCommand/replay(_:updatingCheckpoints:)``.
+    public var flowReport: FlowReport?
 
     public init(
         ok: Bool, message: String, png: Data? = nil, revision: Int, isAnimating: Bool,
-        pendingTasks: Int? = nil, nextWake: Double? = nil
+        pendingTasks: Int? = nil, nextWake: Double? = nil, flowReport: FlowReport? = nil
     ) {
         self.ok = ok
         self.message = message
@@ -308,6 +323,7 @@ public struct PreviewReply: Codable, Equatable, Sendable {
         self.isAnimating = isAnimating
         self.pendingTasks = pendingTasks
         self.nextWake = nextWake
+        self.flowReport = flowReport
     }
 }
 
@@ -331,6 +347,10 @@ public enum HostMessage: Codable, Equatable, Sendable {
     case key(String)
     /// A request that the app answers with ``AppMessage/reply(id:_:)``.
     case command(id: Int, PreviewCommand)
+    /// The person marked a checkpoint, so a recording adds one. Only an app
+    /// that lists ``PreviewCapability/flowReplay`` understands it, and the
+    /// window host sends it only while recording.
+    case checkpoint
     /// The host is closing; the app should exit.
     case close
     /// The capabilities the host will use, in answer to a hello that listed

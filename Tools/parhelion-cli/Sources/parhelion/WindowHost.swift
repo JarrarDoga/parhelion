@@ -19,6 +19,9 @@ final class WindowHost: PreviewSurface {
     /// is light at the Large size, and the status.
     private var appearanceSuffix = ""
     private var statusSuffix = ""
+    /// Whether F2 marks a checkpoint in a recording. It is off otherwise,
+    /// because only an app that records understands the message.
+    var recordsFlow = false
     private let renderer: OpaquePointer
     private var texture: UnsafeMutablePointer<SDL_Texture>?
     private var textureSize = (width: 0, height: 0)
@@ -244,6 +247,7 @@ final class WindowHost: PreviewSurface {
             guard let text = event.text.text else { return nil }
             return .input(.text(String(cString: text)))
         case SDL_EVENT_KEY_DOWN.rawValue:
+            if recordsFlow, event.key.key == SDLK_F2 { return .input(.checkpoint) }
             if let change = Self.appearanceChange(event.key.key, modifiers: event.key.mod) {
                 return .appearance(change)
             }

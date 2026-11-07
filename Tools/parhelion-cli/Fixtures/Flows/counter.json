@@ -1,0 +1,79 @@
+{
+  "device" : "iPhone 16",
+  "steps" : [
+    {
+      "expect" : [
+        "Root",
+        "└─ VStack padding(16) spacing=24",
+        "   ├─ Text \"Count: 0\"",
+        "   ├─ HStack spacing=12",
+        "   │  ├─ Button buttonStyle=bordered",
+        "   │  │  └─ Text \"Decrease\"",
+        "   │  └─ Button buttonStyle=borderedProminent",
+        "   │     └─ Text \"Increase\"",
+        "   └─ Button",
+        "      └─ Text \"Reset\""
+      ]
+    },
+    {
+      "command" : {
+        "tapButton" : {
+          "label" : "Increase"
+        }
+      }
+    },
+    {
+      "wait" : 0.5
+    },
+    {
+      "command" : {
+        "tapButton" : {
+          "label" : "Increase"
+        }
+      }
+    },
+    {
+      "command" : {
+        "tapButton" : {
+          "label" : "Decrease"
+        }
+      }
+    },
+    {
+      "expect" : [
+        "Root",
+        "└─ VStack padding(16) spacing=24",
+        "   ├─ Text \"Count: 1\"",
+        "   ├─ HStack spacing=12",
+        "   │  ├─ Button buttonStyle=bordered",
+        "   │  │  └─ Text \"Decrease\"",
+        "   │  └─ Button buttonStyle=borderedProminent",
+        "   │     └─ Text \"Increase\"",
+        "   └─ Button",
+        "      └─ Text \"Reset\""
+      ]
+    },
+    {
+      "command" : {
+        "tapButton" : {
+          "label" : "Reset"
+        }
+      }
+    },
+    {
+      "expect" : [
+        "Root",
+        "└─ VStack padding(16) spacing=24",
+        "   ├─ Text \"Count: 0\"",
+        "   ├─ HStack spacing=12",
+        "   │  ├─ Button buttonStyle=bordered",
+        "   │  │  └─ Text \"Decrease\"",
+        "   │  └─ Button buttonStyle=borderedProminent",
+        "   │     └─ Text \"Increase\"",
+        "   └─ Button",
+        "      └─ Text \"Reset\""
+      ]
+    }
+  ],
+  "version" : 1
+}

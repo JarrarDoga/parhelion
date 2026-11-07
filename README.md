@@ -283,6 +283,38 @@ The tool sends the page only the rows of each frame that changed, compressed. Sc
 screen costs about 35 to 40 KB a frame, so the page keeps up with a 60 Hz iPhone over a 50 Mbit/s
 connection.
 
+## Recorded tests
+
+Record a run through your screens once, and replay it without a window in CI:
+
+```console
+$ parhelion run --record flows/checkout.json --package-path ~/Code/MyApp
+$ parhelion test flows/checkout.json --package-path ~/Code/MyApp
+PASS flows/checkout.json (14 steps)
+1 flow passed.
+```
+
+While you use the window, the app writes your taps, drags, scrolls, typing, and pauses to a JSON
+file. A tap names the control by its accessibility identifier if only it has that identifier,
+else by its label if only it has that label, so a flow survives layout changes. The flow starts
+with a checkpoint of the screen, adds one whenever you press F2, and ends with one when you close
+the window. A reload ends the recording.
+
+`parhelion test` starts the app once for each flow, headless and on the manual clock, so waits and
+`Task.sleep` take no real time. At each checkpoint it compares the tree's outline, without frames,
+with the recorded one, prints the lines that differ, and exits nonzero on a mismatch. After an
+intended change, `parhelion test --update` rewrites the checkpoints. A flow is a list of steps,
+so you can edit one by hand or have an agent write it:
+
+```json
+{ "command": { "tapAccessibilityIdentifier": { "_0": "checkout" } } }
+{ "wait": 0.5 }
+{ "expect": ["Root", "└─ Text \"Total: $12\""] }
+```
+
+From a Swift Testing test, `ViewHost.replay(_:)` plays a `Flow` against a `ViewHost`; there a
+`Task.sleep` in the app still takes real time.
+
 ## Agents
 
 `parhelion mcp` serves your app to a coding agent over the Model Context Protocol. Register it

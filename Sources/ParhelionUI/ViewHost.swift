@@ -866,6 +866,18 @@ public final class ViewHost {
         root.allNodes.filter { $0.text == text }
     }
 
+    /// The frontmost button or text field at a point, for recording a tap as
+    /// a command that names it.
+    func tappableNode(at point: CGPoint) -> ViewNode? {
+        frontmostTappableNode(at: point, in: interactiveRoot)
+    }
+
+    /// Whether a tap on the node runs an action.
+    func hasAction(_ id: NodeID) -> Bool { actions[id] != nil }
+
+    /// Whether the node is a text field that can take focus.
+    func isTextField(_ id: NodeID) -> Bool { textFields[id] != nil }
+
     /// The frontmost button or text field at a point.
     /// Children outside their parent's bounds, such as views moved by
     /// `offset`, still receive taps, except where a scroll view clips them.
