@@ -91,7 +91,10 @@ public final class MPNowPlayingInfoCenter: @unchecked Sendable {
     /// How far into the item playback is now, from the elapsed time the app
     /// last set and the time since.
     func estimatedElapsed() -> TimeInterval {
-        let (info, state, changedAt) = lock.withLock { (info, state, changedAt) }
+        // Swift 6.3 cannot type-check `withLock` returning a tuple with `Any`.
+        lock.lock()
+        let (info, state, changedAt) = (self.info, self.state, self.changedAt)
+        lock.unlock()
         let snapshot = Self.snapshot(info: info, state: state)
         let base = snapshot.elapsed ?? 0
         guard snapshot.state == "playing" else { return base }
@@ -102,7 +105,9 @@ public final class MPNowPlayingInfoCenter: @unchecked Sendable {
     /// Sends the current info and state, with the commands enabled now, to
     /// the preview session.
     func publish() {
-        let (info, state) = lock.withLock { (info, state) }
+        lock.lock()
+        let (info, state) = (self.info, self.state)
+        lock.unlock()
         var message = Self.snapshot(info: info, state: state)
         message.enabledCommands = commands().enabledCommandNames
         bridge.publish(message)
