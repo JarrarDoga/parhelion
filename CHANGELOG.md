@@ -414,7 +414,10 @@ may contain breaking changes.
 
 - Placeholder for #75 (`onMove`, `onDelete`, `EditMode`): the change for that issue replaces this line.
 
-- Placeholder for #59 (`searchable`): the change for that issue replaces this line.
+- `searchable(text:placement:prompt:)` adds a search field and binds its text. In a tab with the search role it is a glass
+  capsule at the bottom, above the tab bar; elsewhere, in a navigation stack or a sheet, it is a capsule under the
+  navigation bar with a Cancel button while the user searches. Focus it, then `type_text` writes the binding.
+  `isSearching` is true in the content while the field is focused or holds text, and `dismissSearch` ends the search.
 
 - Placeholder for #61 (`rotationEffect`, `blur`, `mask`): the change for that issue replaces this line.
 

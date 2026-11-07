@@ -559,6 +559,20 @@ screen instead of in the root's implicit stack.
   dismisses it. An alert's buttons dismiss it after their actions run. When a sheet leaves the
   tree, the host runs its `onDismiss`.
 
+### Search
+
+`searchable(text:placement:prompt:)` is a primitive view that returns a `Searchable` node: the content's
+nodes, then a `SearchField` node (`Searchable.swift`, registered through the extension seam). Its layout
+stacks the field and the content, the field first, or last for `placement=bottom`, so the field sits under
+the navigation bar of a stack or a sheet, or above the tab bar in a tab with the search role. The field's
+parts are ordinary views, so a `TextField` takes focus, typing, and `type_text`, and the bound text is the
+text field's. `isSearching` is true in the content while the field has focus or the text is not empty; a
+focus change in a search field marks the host as needing an update, because focus is not state.
+`dismissSearch` clears the text and ends editing. Assumed, since no source covers it: the heights of 36
+points at the top and 48 at the bottom, the bottom field's glass capsule, a placement other than the
+automatic or toolbar one in a search tab staying at the top, and a Cancel button only at the top. Selecting
+a search tab does not focus its field, as it does on iOS, so an agent focuses the field before `type_text`.
+
 ### The environment
 
 `EnvironmentValues` flow down through evaluation. The evaluator holds the current values,

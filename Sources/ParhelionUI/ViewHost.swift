@@ -532,7 +532,13 @@ public final class ViewHost {
     /// The text field that receives typing, if any.
     public private(set) var focusedNodeID: NodeID? {
         didSet {
-            if focusedNodeID != oldValue { revision += 1 }
+            if focusedNodeID != oldValue {
+                revision += 1
+                // Focus in a search field changes `isSearching` in its content.
+                if oldValue?.isInSearchField == true || focusedNodeID?.isInSearchField == true {
+                    needsUpdate = true
+                }
+            }
         }
     }
 
