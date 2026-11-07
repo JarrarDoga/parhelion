@@ -53,7 +53,7 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [x] An agent and a person using the same app: `parhelion mcp --window`
 - [x] A manual clock for agents, so that `wait` advances time instead of sleeping
 - [x] Extend the deterministic clock to animations
-- [ ] Extend the deterministic clock to timers
+- [x] Extend the deterministic clock to timers: `Task.sleep` and `TimelineView`
 
 ## 0.6: More of SwiftUI
 
@@ -62,7 +62,7 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [x] `sheet` and `alert`
 - [x] Animations
 
-## 0.7: Real apps (in progress)
+## 0.7: Real apps
 
 - [x] `@Observable`, `@Bindable`, bindings into models and collections, `Group`, `AnyView`, and
       `onAppear`, `onChange`, and `task` ([#26](https://github.com/JarrarDoga/parhelion/issues/26))
@@ -70,13 +70,20 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
       ([#27](https://github.com/JarrarDoga/parhelion/issues/27))
 - [x] `TabView` with iOS 27's glass tab bar, `Label`, and open-source symbol images in place of SF
       Symbols ([#28](https://github.com/JarrarDoga/parhelion/issues/28))
-- [ ] Dark mode, Dynamic Type, the scroll edge effect, asset catalog images, `AsyncImage`, grids,
+- [x] Dark mode, Dynamic Type, the scroll edge effect, asset catalog images, `AsyncImage`, grids,
       and more styling modifiers ([#30](https://github.com/JarrarDoga/parhelion/issues/30))
 
 ## 0.8: Agent workflow
 
-- [ ] A manual clock, accessibility identifiers, recorded interaction tests, and snapshot tests
-      ([#31](https://github.com/JarrarDoga/parhelion/issues/31))
+Tracked in [#31](https://github.com/JarrarDoga/parhelion/issues/31).
+
+- [x] A manual clock ([#70](https://github.com/JarrarDoga/parhelion/issues/70)) and `TimelineView`
+      on it ([#72](https://github.com/JarrarDoga/parhelion/issues/72))
+- [x] Accessibility identifiers and labels
+      ([#69](https://github.com/JarrarDoga/parhelion/issues/69))
+- [x] Recorded interaction tests and `parhelion test`
+      ([#73](https://github.com/JarrarDoga/parhelion/issues/73))
+- [ ] Snapshot tests ([#71](https://github.com/JarrarDoga/parhelion/issues/71))
 
 ## 0.9: Preview anywhere (in progress)
 
@@ -110,7 +117,7 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [x] iOS 27 Liquid Glass: toolbar and back buttons, alerts, sheets, and button styles
 - [x] Animation paced to the simulated iPhone's refresh rate, and iPhone 18 Pro presets
 - [x] Faster Liquid Glass, by caching glass between frames, so alerts and sheets hold 120 Hz
-- [ ] The scroll edge effect, with content laid out under the navigation bar
+- [x] The scroll edge effect, with content laid out under the navigation bar
 - [ ] Letter spacing, to bring Inter's widths closer to San Francisco's
 - [ ] CI on macOS and on Linux arm64
 - [ ] Verify each constant in `LayoutDefaults.swift` against Apple's SwiftUI
