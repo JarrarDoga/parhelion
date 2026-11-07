@@ -385,7 +385,11 @@ may contain breaking changes.
 
 - Placeholder for #34 (your own SF Symbols in front of Phosphor): the change for that issue replaces this line.
 
-- Placeholder for #53 (`LazyVStack`, `LazyHStack`, and lazy `List` rows): the change for that issue replaces this line.
+- `LazyVStack` and `LazyHStack` with `pinnedViews`, and lazy rows in `List`: inside a scroll view they
+  evaluate only the rows on screen and a margin, keep the `@State` of rows that scrolled out by
+  identity, and run `onAppear` as a row is created, so a 5,000-row list scrolls at 120 Hz.
+  `scroll_to` reaches rows that do not exist yet. A node records `lazyCount` and `lazyResolved`
+  while it holds only some of its rows.
 
 - Gestures: `TapGesture`, `SpatialTapGesture`, `LongPressGesture`, and `DragGesture` with `onChanged`, `onEnded`, and `updating` with `@GestureState`; `simultaneously`, `sequenced`, and `exclusively`; and the `onTapGesture`, `onLongPressGesture`, `gesture`, `simultaneousGesture`, and `highPriorityGesture` modifiers. A drag follows the pointer one to one, a long press fires after its minimum duration on the host's clock, and buttons, gestures, and scroll views resolve conflicts as SwiftUI does (see ADR 0015). The `long_press` MCP tool holds a press at a point; `drag` already took a duration.
 

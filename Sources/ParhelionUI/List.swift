@@ -64,6 +64,8 @@ extension List where SelectionValue == Never {
 extension List: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         let ownPath = path.appending("List")
+        // A long list creates only the rows near the screen.
+        if let lazy = makeLazyNodes(in: evaluator, at: ownPath) { return lazy }
         // Rows outside a section form sections of their own, one for each run
         // of consecutive rows.
         var sections: [ViewNode] = []
@@ -96,16 +98,7 @@ extension List: PrimitiveView {
                 guard child.kind != "SectionHeader", child.kind != "SectionFooter" else {
                     return child
                 }
-                var row = child
-                var insets = child.controlRowInsets(LayoutDefaults.listRowInsets)
-                if row.kind == "NavigationLink" {
-                    // Leave room for the disclosure indicator.
-                    insets.trailing +=
-                        LayoutDefaults.disclosureIndicatorSize.width
-                        + LayoutDefaults.disclosureIndicatorSpacing
-                }
-                row.modifiers.append(.listRow(insets))
-                return row
+                return child.asListRow()
             }
         }
         return [
@@ -113,6 +106,24 @@ extension List: PrimitiveView {
                 id: ownPath.id, kind: "List", attributes: evaluator.environment.scrollAttributes,
                 children: sections)
         ]
+    }
+}
+
+extension ViewNode {
+    /// A row of a list: the node with the list's row insets, recorded as its
+    /// outermost layout modifier so that layout and drawing can find its
+    /// cell.
+    func asListRow() -> ViewNode {
+        var row = self
+        var insets = controlRowInsets(LayoutDefaults.listRowInsets)
+        if row.kind == "NavigationLink" {
+            // Leave room for the disclosure indicator.
+            insets.trailing +=
+                LayoutDefaults.disclosureIndicatorSize.width
+                + LayoutDefaults.disclosureIndicatorSpacing
+        }
+        row.modifiers.append(.listRow(insets))
+        return row
     }
 }
 

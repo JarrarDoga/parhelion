@@ -398,6 +398,7 @@ struct LayoutEngine {
         case "ZStack":
             return overlaySize(node.children, proposal)
         case "Section":
+            if let size = lazySectionSize(node, proposal) { return size }
             return stackLayout(node, proposal, axis: .vertical, spacing: 0).size
         case "NavigationStack":
             // A navigation stack takes the space it is offered.
@@ -718,8 +719,9 @@ struct LayoutEngine {
         case "ScrollView", "List":
             placeScrollView(&node, in: rect)
         case "Section":
-            node.children = placeStack(
-                node, in: rect, axis: .vertical, spacing: 0, alignment: "leading")
+            node.children =
+                lazySectionPlace(node, in: rect)
+                ?? placeStack(node, in: rect, axis: .vertical, spacing: 0, alignment: "leading")
         case "SectionHeader", "SectionFooter":
             let content = rect.inset(by: Self.sectionLabelInsets(node))
             node.children = node.children.map { child in
@@ -1083,6 +1085,10 @@ struct LayoutEngine {
             topInset: topInset,
             bottomInset: bottomInset
         )
+        // Lazy stacks inside measure what is on screen against this.
+        scrolling.lazy.viewports.append(
+            LazyViewport(id: node.id, rect: rect, topInset: topInset, bottomInset: bottomInset))
+        defer { scrolling.lazy.viewports.removeLast() }
         node.attributes["contentSize"] =
             "\(formatPoints(contentSize.width)) × \(formatPoints(contentSize.height))"
         node.attributes["contentOffset"] = "\(formatPoints(offset.x)), \(formatPoints(offset.y))"
@@ -1220,4 +1226,7 @@ final class ScrollLayout {
     /// The bottom of a bar that floats over the top of the scroll view
     /// being placed, such as the navigation bar, in screen points.
     var obscuredTop: CGFloat?
+    /// What lazy stacks keep between evaluating and laying out. See
+    /// LayoutEngine+Lazy.swift.
+    let lazy = LazyLayoutState()
 }

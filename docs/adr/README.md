@@ -21,6 +21,7 @@ marked *Superseded* and links to the record that replaces it.
 | [0013](0013-recorded-flows.md) | Recorded flows are JSON that the app records and replays | Accepted |
 | [0014](0014-mediaplayer-and-avfaudio-shims.md) | Provide `MediaPlayer` and `AVFAudio` modules on Linux | Accepted |
 | [0015](0015-gesture-arbitration.md) | Gestures are recognized by the host from the pointer, and arbitrated in one place | Accepted |
+| [0016](0016-lazy-windows.md) | Lazy stacks and lists evaluate a window of rows that layout asks for | Accepted |
 
 To add a record, copy the structure of an existing one, use the next number, and add it to this
 table in the same pull request as the change it describes.
