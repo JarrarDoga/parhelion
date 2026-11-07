@@ -67,6 +67,7 @@ struct LayoutEngine {
             placed.append(placePresentation(presentation, over: placed))
         }
         root.children = placed
+        updateTabBarMinimization(in: root)
         return root
     }
 
@@ -1229,4 +1230,6 @@ final class ScrollLayout {
     /// What lazy stacks keep between evaluating and laying out. See
     /// LayoutEngine+Lazy.swift.
     let lazy = LazyLayoutState()
+    /// Which tab bars are minimized.
+    var tabBars = TabBarScrollState()
 }

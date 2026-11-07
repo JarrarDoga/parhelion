@@ -45,7 +45,7 @@ public enum InteractionError: Error, Equatable, Sendable {
 public final class ViewHost {
     private let rootView: any View
     private let layoutEngine: LayoutEngine
-    private let scrolling: ScrollLayout
+    let scrolling: ScrollLayout
     /// What lazy stacks and lists keep between evaluating and laying out.
     var lazy: LazyLayoutState { scrolling.lazy }
     private var isEvaluating = false
@@ -1116,6 +1116,16 @@ public final class ViewHost {
         // Scrolling can move the screen past the views a lazy stack made.
         // Evaluating resolves the stacks' new windows and lays out again.
         if lazy.needsWindowChange {
+            needsUpdate = true
+            if !isEvaluating { update() }
+        }
+        // A tab bar minimized or returned: evaluate again for the
+        // accessory's new placement, animated.
+        if scrolling.tabBars.changed {
+            scrolling.tabBars.changed = false
+            if pendingAnimation == nil {
+                pendingAnimation = .some(LayoutDefaults.tabBarMinimizeAnimation)
+            }
             needsUpdate = true
             if !isEvaluating { update() }
         }
