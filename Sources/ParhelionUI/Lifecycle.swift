@@ -310,6 +310,17 @@ final class ViewLifecycle {
         unfinishedRuns[run] = handle
     }
 
+    /// Counts work that the host started itself, such as a refresh action,
+    /// as a pending task, so that ``ViewHost/waitForTasks()`` waits for it.
+    func track(name: String, _ work: @escaping @MainActor () async -> Void) {
+        runs += 1
+        let run = runs
+        unfinishedRuns[run] = Task(name: name) { @MainActor [weak self] in
+            await work()
+            self?.unfinishedRuns[run] = nil
+        }
+    }
+
     /// Cancels the current run of a task modifier. The run stays pending
     /// until it returns.
     private func cancelTask(_ key: LifecycleKey) {

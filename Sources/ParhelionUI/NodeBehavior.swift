@@ -246,6 +246,9 @@ struct NodeInputHandlers {
     /// Runs when a drag that starts on the node ends, from
     /// ``ViewHost/drag(from:to:duration:)``.
     var drag: (@MainActor (_ start: CGPoint, _ end: CGPoint, _ duration: TimeInterval) -> Void)?
+    /// Runs when a pull past the top of the scroll view is released far
+    /// enough, from ``View/refreshable(action:)``.
+    var refresh: (@Sendable () async -> Void)?
 }
 
 extension View {

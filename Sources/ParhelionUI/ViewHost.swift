@@ -60,7 +60,7 @@ public final class ViewHost {
     var textFields: [NodeID: Binding<String>] = [:]
     /// The selection and the pasteboard; see ``TextEditingState``.
     var editing = TextEditingState()
-    private var inputHandlers: [NodeID: NodeInputHandlers] = [:]
+    private(set) var inputHandlers: [NodeID: NodeInputHandlers] = [:]
     /// The entries each navigation stack keeps above its root view, by the
     /// stack's identifier.
     var navigationState: [NodeID: [NavigationEntry]] = [:]
@@ -503,6 +503,7 @@ public final class ViewHost {
             return nil
         }
         if let scrollView = press.scrollView {
+            if endRefreshPull(scrollView) { return nil }
             let samples = press.samples + [(time, point)]
             if !settleScroll(scrollView, from: press.scrollStartOffset, samples: samples) {
                 startMomentum(scrollView, samples: samples)
@@ -622,7 +623,7 @@ public final class ViewHost {
     /// ``advanceTime(by:)`` and drawing frames.
     public var isAnimating: Bool {
         !momentum.isEmpty || animations.isActive(at: time) || timelines.followsFrames
-            || gestures.wantsTicks
+            || gestures.wantsTicks || isRefreshAnimating
     }
 
     /// How far a scroll view's content is scrolled, or `nil` if the node is
@@ -668,6 +669,7 @@ public final class ViewHost {
         let wasAnimating = animations.isActive(at: time)
         time += interval
         tickGesturePress()
+        advanceRefresh()
         if wasAnimating {
             animations.removeFinished(at: time)
             presentedCache = nil
@@ -708,6 +710,8 @@ public final class ViewHost {
 
     private func applyScroll(_ id: NodeID, by delta: CGSize) {
         guard let metrics = scrolling.metrics[id], let node = root.node(withID: id) else { return }
+        // Dragging down from the top pulls to refresh instead of scrolling.
+        guard let delta = pullToRefresh(id, by: delta) else { return }
         let axes = LayoutEngine.scrollAxes(of: node)
         let current = scrolling.offsets[id] ?? metrics.offset
         scrolling.offsets[id] = CGPoint(
@@ -1087,6 +1091,7 @@ public final class ViewHost {
             scrolling.offsets = scrolling.metrics.mapValues(\.offset)
         }
         momentum = momentum.filter { scrolling.metrics[$0.key] != nil }
+        scrolling.refresh.prune(keeping: scrolling.metrics.keys)
         revision += 1
         // Scrolling can move the screen past the views a lazy stack made.
         // Evaluating resolves the stacks' new windows and lays out again.

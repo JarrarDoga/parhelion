@@ -857,6 +857,15 @@ renderer call for the kinds they do not handle themselves.
   All of these register through `NodeExtensions` in `Rendering+Menu.swift`. A tap on an item runs
   its action, then closes the menu; a tap outside closes it. Menus fade in like sheets, so a test
   that renders one calls `advanceTime(by:)` first.
+- **Pull to refresh.** `refreshable(action:)` sets the `refresh` environment value and marks each
+  vertical `List` and `ScrollView` in its content `refreshable=true`, with the action in the
+  node's input handlers; a nearer modifier wins. Dragging such a scroll view down from its top
+  keeps the finger's travel in `ScrollLayout.refresh`, and the content follows at half the
+  distance: layout adds that distance to the scroll view's top inset, and the renderer draws the
+  spinner in the gap. Releasing at 60 points or more starts the action with `ViewLifecycle.track`,
+  so `waitForTasks()` and `pendingTaskCount` include it, and holds a 52-point gap, with the node
+  attribute `refreshing=true`, until the action returns. The spinner's head turns with the host's
+  clock.
 - **Tags.** `tag(_:includeOptional:)` records a value that `Evaluator.evaluateTagged` returns to
   the container evaluating the content, such as a picker. Inside such a container, `ForEach`
   tags its elements' views with their identifiers.
