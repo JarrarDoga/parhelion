@@ -82,6 +82,8 @@ public final class ViewHost {
     private let observation = ObservationScope()
     /// Lifecycle actions and `task` work. See HostTasks.swift.
     let lifecycle = ViewLifecycle()
+    /// What each `TimelineView` shows and when it updates. See TimelineView.swift.
+    var timelines = TimelineHostState()
 
     /// Whether a state change is waiting for the next ``update()``.
     public private(set) var needsUpdate = false
@@ -159,10 +161,14 @@ public final class ViewHost {
     ///   - snapshot: State saved by ``stateSnapshot()``, for example by an
     ///     earlier run of the same app. Each `@State` whose structural
     ///     position and type still match starts from its saved value.
+    ///   - referenceDate: The date at ``time`` 0, which `TimelineView` shows.
+    ///     By default the real date when a view first asks for it.
     public init(
         _ rootView: some View, device: Device = .iPhone16, colorScheme: ColorScheme = .light,
-        dynamicTypeSize: DynamicTypeSize = .large, restoring snapshot: Data? = nil
+        dynamicTypeSize: DynamicTypeSize = .large, restoring snapshot: Data? = nil,
+        referenceDate: Date? = nil
     ) {
+        timelines.referenceDate = referenceDate
         self.rootView = rootView
         self.device = device
         self.colorScheme = colorScheme
@@ -178,8 +184,9 @@ public final class ViewHost {
     init(
         anyRootView rootView: any View, device: Device = .iPhone16,
         colorScheme: ColorScheme = .light, dynamicTypeSize: DynamicTypeSize = .large,
-        restoring snapshot: Data? = nil
+        restoring snapshot: Data? = nil, referenceDate: Date? = nil
     ) {
+        timelines.referenceDate = referenceDate
         self.rootView = rootView
         self.device = device
         self.colorScheme = colorScheme
@@ -599,7 +606,9 @@ public final class ViewHost {
 
     /// Whether anything is still moving, so that a client should keep calling
     /// ``advanceTime(by:)`` and drawing frames.
-    public var isAnimating: Bool { !momentum.isEmpty || animations.isActive(at: time) }
+    public var isAnimating: Bool {
+        !momentum.isEmpty || animations.isActive(at: time) || timelines.followsFrames
+    }
 
     /// How far a scroll view's content is scrolled, or `nil` if the node is
     /// not a scroll view.
@@ -634,9 +643,13 @@ public final class ViewHost {
     }
 
     /// Advances the host's clock, moving animations and scroll momentum
-    /// forward.
+    /// forward, and updating the `TimelineView`s whose next date it reaches.
+    /// A timeline view shows the latest date that passed, however far the
+    /// clock moves; ``advanceClock(by:)`` stops at each date instead.
     public func advanceTime(by interval: TimeInterval) {
         guard interval > 0 else { return }
+        // A timeline view whose next date has come builds its content again.
+        defer { updateTimelines() }
         let wasAnimating = animations.isActive(at: time)
         time += interval
         if wasAnimating {
@@ -914,6 +927,7 @@ public final class ViewHost {
         visitedKeys = []
         visitedNavigationStacks = []
         visitedAnimationKeys = []
+        timelines.beginEvaluation()
         let evaluator = Evaluator(host: self)
         // Each presentation starts in the color scheme it preferred in the
         // last evaluation, and the window in the device's otherwise.
@@ -972,6 +986,7 @@ public final class ViewHost {
         previousTransitions = transitions
         transitions = evaluator.transitions
         animationValues = animationValues.filter { visitedAnimationKeys.contains($0.key) }
+        timelines.finishEvaluation()
         let dismissed = presentations.filter { presented[$0.key] == nil }.values
         presentations = presented
         scrolling.presentationOffsets = scrolling.presentationOffsets.filter {

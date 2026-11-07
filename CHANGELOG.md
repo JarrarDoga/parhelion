@@ -420,7 +420,7 @@ may contain breaking changes.
 
 - Placeholder for #79 (the `AVFAudio` shim and interruptions): the change for that issue replaces this line.
 
-- Placeholder for #72 (`TimelineView`): the change for that issue replaces this line.
+- `TimelineView` with the `periodic(from:by:)`, `everyMinute`, `animation`, and `explicit(_:)` schedules, on the host's clock: it updates once per period as `advanceTime` or the manual clock moves, not with the real time. `ViewHost.date`, `referenceDate`, and `secondsUntilNextTimelineUpdate` report the host's date (#72).
 
 - Placeholder for #73 (recorded tests): the change for that issue replaces this line.
 
