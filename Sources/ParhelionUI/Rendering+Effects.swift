@@ -25,7 +25,7 @@ extension TreeRenderer {
     }
 
     /// Draws a node with only its first `count` modifiers.
-    private func drawChain(
+    func drawChain(
         _ node: ViewNode, count: Int, inherited: Inherited, into canvas: inout Canvas
     ) {
         guard let effect = node.modifiers[..<count].lastIndex(where: \.isDrawingEffect) else {
@@ -94,7 +94,12 @@ extension TreeRenderer {
                 palette: ColorPalette.appearance(scheme, elevated: inherited.elevated),
                 container: .standard)
             let behavior = modifier.behavior
-            if let drawEffect = behavior?.drawEffect {
+            if drawTransformEffect(
+                modifier, of: node, at: effect, bounds: bounds, inherited: inherited,
+                into: &canvas)
+            {
+                // Drawn on layers, in Rendering+Transform.swift.
+            } else if let drawEffect = behavior?.drawEffect {
                 drawEffect(
                     self, modifier.parameters, drawing,
                     { canvas in
@@ -123,7 +128,7 @@ extension TreeRenderer {
 
     /// The node with only its first `count` modifiers, and only the
     /// overlays among them.
-    private static func truncated(_ node: ViewNode, to count: Int) -> ViewNode {
+    static func truncated(_ node: ViewNode, to count: Int) -> ViewNode {
         guard count < node.modifiers.count else { return node }
         var node = node
         let kept = node.modifiers[..<count].count(where: \.isOverlay)
@@ -260,7 +265,7 @@ extension TreeRenderer {
     }
 
     /// A transparent canvas of a size in pixels.
-    private func layerCanvas(width: Int, height: Int, scale: Double) -> Canvas {
+    func layerCanvas(width: Int, height: Int, scale: Double) -> Canvas {
         Canvas(
             width: Double(max(width, 0)) / scale, height: Double(max(height, 0)) / scale,
             scale: scale, background: .clear)
