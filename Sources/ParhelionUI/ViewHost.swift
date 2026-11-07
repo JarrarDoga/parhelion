@@ -71,7 +71,7 @@ public final class ViewHost {
     private let animations = AnimationEngine()
     /// The animation for the next layout change, from `withAnimation` or a
     /// navigation push or pop.
-    private var pendingAnimation: Animation??
+    var pendingAnimation: Animation??
     /// The last value of each `animation(_:value:)` modifier.
     var animationValues: [String: Any] = [:]
     var visitedAnimationKeys: Set<String> = []
@@ -89,6 +89,8 @@ public final class ViewHost {
     var timelines = TimelineHostState()
     /// The gestures views attached and the press being recognized. See ViewHost+Gestures.swift.
     var gestures = GestureHostState()
+    /// How far each list row with swipe actions is swiped. See SwipeActions.swift.
+    var swipe = SwipeHostState()
 
     /// Whether a state change is waiting for the next ``update()``.
     public private(set) var needsUpdate = false
@@ -326,6 +328,8 @@ public final class ViewHost {
         var sheet: NodeID?
         /// Recent pointer positions, for the release velocity.
         var samples: [(time: TimeInterval, point: CGPoint)]
+        /// A swipe of a list row with actions, or an open row to close.
+        var swipe = SwipePress()
     }
     var press: Press?
 
@@ -336,8 +340,11 @@ public final class ViewHost {
         momentum.removeAll()
         // A press on a slider takes its knob, before it can become a scroll.
         let slider = beginSliderDrag(at: point)
-        let button = slider ?? frontmostTappableNode(at: point, in: interactiveRoot)?.id
-        if slider == nil {
+        var button = slider ?? frontmostTappableNode(at: point, in: interactiveRoot)?.id
+        // A press on the rest of an open swiped row only closes the row, so
+        // it reaches no control or gesture.
+        let swipePress = swipePressBegan(at: point, button: &button)
+        if slider == nil, swipePress.closeOnRelease == nil {
             beginGesturePress(at: point, control: button)
         } else {
             gestures.session = nil
@@ -348,7 +355,8 @@ public final class ViewHost {
             button: button,
             scrollView: nil,
             sheet: nil,
-            samples: [(time, point)]
+            samples: [(time, point)],
+            swipe: swipePress
         )
         // Text fields take focus on release but do not dim while pressed.
         pressedNodeID = button.flatMap { textFields[$0] == nil ? $0 : nil }
@@ -371,13 +379,20 @@ public final class ViewHost {
         let moved = CGSize(width: point.x - press.start.x, height: point.y - press.start.y)
         // Gestures see the pointer first. A scroll view or sheet that the press
         // could still turn into holds back the gestures outside it.
-        let scrolls = press.scrollView == nil && press.sheet == nil
+        let scrolls = press.scrollView == nil && press.sheet == nil && press.swipe.row == nil
         moveGesturePress(
             to: point,
             scrollView: scrolls
                 ? innermostScrollView(at: press.start, along: moved, requireRoom: false) : nil)
         press.button = self.press?.button
-        if scrolls, hypot(moved.width, moved.height) > LayoutDefaults.dragThreshold {
+        // A sideways press on a row with swipe actions swipes it, unless a
+        // gesture in the row has the press.
+        if scrolls, hypot(moved.width, moved.height) > LayoutDefaults.dragThreshold,
+            swipeBegan(&press.swipe, from: press.start, moved: moved)
+        {
+            press.button = nil
+            pressedNodeID = nil
+        } else if scrolls, hypot(moved.width, moved.height) > LayoutDefaults.dragThreshold {
             let scrollView = innermostScrollView(at: press.start, along: moved, requireRoom: false)
             let sheet = sheetToDrag(from: press.start, along: moved, over: scrollView)
             if sheet != nil || scrollView != nil, handOverPress(to: sheet ?? scrollView) {
@@ -390,7 +405,9 @@ public final class ViewHost {
                 pressedNodeID = nil
             }
         }
-        if let sheet = press.sheet {
+        if press.swipe.row != nil {
+            swipeMoved(&press.swipe, from: press.start, to: point)
+        } else if let sheet = press.sheet {
             scrolling.presentationOffsets[sheet] = max(moved.height, 0)
             relayout()
         } else if let scrollView = press.scrollView {
@@ -422,6 +439,10 @@ public final class ViewHost {
         if let button = press.button, endSliderDrag(button, at: point) { return button }
         let released = releaseGesturePress(at: point)
 
+        if press.swipe.row != nil {
+            swipeEnded(press.swipe, at: point)
+            return nil
+        }
         if let sheet = press.sheet {
             let distance = scrolling.presentationOffsets[sheet] ?? 0
             scrolling.presentationOffsets[sheet] = nil
@@ -439,6 +460,11 @@ public final class ViewHost {
         }
         if let scrollView = press.scrollView {
             startMomentum(scrollView, samples: press.samples + [(time, point)])
+            return nil
+        }
+        if let open = press.swipe.closeOnRelease {
+            // A press on the rest of an open row closes it, and does nothing else.
+            closeSwipe(open)
             return nil
         }
         if released.handled { return released.tapped }
@@ -934,7 +960,7 @@ public final class ViewHost {
     /// The frontmost node at a point that `matches`, found the way a tap
     /// finds its target. A kind that registered a hit test decides for
     /// itself whether a point is on it.
-    private func frontmostNode(
+    func frontmostNode(
         at point: CGPoint, in node: ViewNode, where matches: (ViewNode) -> Bool
     ) -> ViewNode? {
         let isInside =
@@ -1077,11 +1103,12 @@ public final class ViewHost {
     }
 
     /// Lays out the evaluated tree again, for example after scrolling.
-    private func relayout() {
+    func relayout() {
         let previous = presentedRoot
         scrolling.metrics = [:]
         lazy.beginLayout()
         root = layoutEngine.layout(resolvedRoot)
+        SwipeLayout.apply(to: &root, state: &swipe)
         if hasLaidOut {
             animations.update(
                 from: previous,

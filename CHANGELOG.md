@@ -410,7 +410,11 @@ may contain breaking changes.
 
 - `tabViewBottomAccessory` draws its content in a glass capsule above the tab bar, `tabViewBottomAccessoryPlacement` is `.expanded` there and `.inline` beside a minimized bar, and `tabBarMinimizeBehavior(.onScrollDown)` or `.onScrollUp` shrinks the bar to a small capsule while the content scrolls, with an animation. A tap on the small capsule brings the bar back.
 
-- Placeholder for #57 (`swipeActions`): the change for that issue replaces this line.
+- `swipeActions(edge:allowsFullSwipe:content:)` on `List` rows, on both edges, drawn after iOS 26:
+  dragging a row sideways with the pointer, or `ViewHost.drag`, moves it inside its cell and
+  reveals tinted action buttons, which a tap runs. Letting go past half the actions, or flinging,
+  leaves the row open; a full swipe runs the first action. Tapping elsewhere closes an open row.
+  Rows record `swipeActions` and, while moved, `swipeOffset`. See the architecture document.
 
 - Placeholder for #75 (`onMove`, `onDelete`, `EditMode`): the change for that issue replaces this line.
 
