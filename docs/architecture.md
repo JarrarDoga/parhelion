@@ -1034,6 +1034,20 @@ Swift Testing, and `expectSnapshot` turns the outcome into an issue.
   write). A write fails the test, so recording is never mistaken for passing. A value that is not
   a mode is an error, not a default.
 
+### Gestures
+
+`TapGesture`, `LongPressGesture`, `DragGesture`, and their combinations are recognized from the
+host's pointer events and clock; [ADR 0015](adr/0015-gesture-arbitration.md) has the model. A
+gesture modifier leaves a marker modifier named `gesture` on its nodes (the outline shows it, for
+example `onTapGesture` or `gesture(drag)`) and registers a recognizer factory with the host. On
+pointer down the host collects the gestures under the press and orders them: priority gestures,
+then the deepest view first, with a button or text field after the gestures on its own view. A
+recognizer that could still win holds back the callbacks of the ones below it, the first to be
+recognized cancels the others, and a press turns into a scroll only when no gesture inside the
+scroll view has it. `advanceTime(by:)` ticks the session, which is how a long press fires on the
+manual clock. `ViewHost.longPress(at:duration:)` and the `long_press` MCP tool hold a press for a
+duration; `ViewHost.drag(from:to:duration:)` and `drag` move it.
+
 ## Planned layers
 
 - **Fidelity checks.** A macOS CI job that renders the same views with Apple's SwiftUI and
