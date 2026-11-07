@@ -258,6 +258,28 @@ struct ScrollEdgeTests {
         #expect(kept.attributes["ignoresSafeArea"] == nil)
     }
 
+    @Test("The safe area and scroll edge modifiers show in the outline")
+    func modifiersOutline() {
+        let host = ViewHost(
+            VStack {
+                ScrollView { Text("a") }
+                    .contentMargins(.horizontal, 10)
+                    .scrollEdgeEffectStyle(.hard, for: .top)
+                    .scrollEdgeEffectHidden(true, for: .bottom)
+                Color.red.ignoresSafeArea(edges: .top)
+            },
+            device: .iPhone16)
+        #expect(
+            host.root.outline() == """
+                Root
+                └─ VStack
+                   ├─ ScrollView axes=vertical contentMargins=0, 10, 0, 10 contentOffset=0, 0 \
+                contentSize=29.55 × 22 scrollEdgeEffectBottom=hidden scrollEdgeEffectTop=hard
+                   │  └─ Text "a"
+                   └─ Color color=red ignoresSafeArea=top
+                """)
+    }
+
     @Test("A root scroll view takes the whole screen and starts its content at the safe area")
     func rootScrollView() throws {
         let device = Device.iPhone16
