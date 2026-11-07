@@ -16,7 +16,9 @@ import Foundation
 /// `PARHELION_DEVICE` to a preset's name, such as "iPhone 17 Pro", to
 /// simulate that device, `PARHELION_COLOR_SCHEME` to `dark` for the dark
 /// appearance, and `PARHELION_DYNAMIC_TYPE_SIZE` to a size such as
-/// `accessibility2` for larger text. Without a window, the app first lets `task` work
+/// `accessibility2` for larger text. Set `PARHELION_MANUAL_CLOCK` to `1` to
+/// run on a manual clock: `Task.sleep` waits for the host to advance the app's
+/// time instead of for real time. Without a window, the app first lets `task` work
 /// finish, for up to five seconds, so that the output shows what it loaded.
 ///
 /// The app's own `@State` belongs to the host, as a view's does: it is
@@ -35,6 +37,10 @@ public protocol App {
 
 extension App {
     public static func main() {
+        // Before anything is enqueued: Swift takes new executors only then.
+        #if canImport(Glibc)
+        ManualClock.install()
+        #endif
         let app = Self()
         guard windowContent(of: app.body) != nil else {
             FileHandle.standardError.write(Data("parhelion: the app declares no window.\n".utf8))

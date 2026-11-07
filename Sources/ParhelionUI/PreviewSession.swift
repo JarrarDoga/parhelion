@@ -79,6 +79,13 @@ final class PreviewSession {
     private var sharedFramesFailed = false
     private var slots = SlotPool(count: 0)
 
+    /// Whether the app's time is the host's to move: the app runs on a manual
+    /// clock and the host welcomed it. The session then never moves time to
+    /// the real clock, and draws only for input and commands.
+    private var hasManualClock: Bool {
+        welcomed?.contains(PreviewCapability.manualClock) == true
+    }
+
     /// Whether the host is ticking: it welcomed the host clock, the last
     /// frame said something moves, and a tick arrived recently.
     private func hostIsTicking(at now: UInt64) -> Bool {
@@ -98,6 +105,7 @@ final class PreviewSession {
                     displayCornerRadius: Double(host.device.displayCornerRadius),
                     maximumFramesPerSecond: host.device.maximumFramesPerSecond,
                     capabilities: PreviewCapability.all
+                        + (ManualClock.isInstalled ? [PreviewCapability.manualClock] : [])
                 )
             )
         )
@@ -117,7 +125,7 @@ final class PreviewSession {
                 // The session's own schedule: the host does not tick, or its
                 // ticks stopped arriving.
                 scheduleOwnFrame(after: now)
-                host.advanceTime(by: timeline.advance(to: now))
+                if !hasManualClock { host.advanceTime(by: timeline.advance(to: now)) }
                 if host.revision != sentRevision || sentAnimating != host.isAnimating {
                     try sendFrame(target: 0)
                 }
@@ -129,14 +137,20 @@ final class PreviewSession {
                 // like a change from input.
                 message = nil
             }
-            if let message, case .tick = message {
-                guard try handle(message) else { return }
-                continue
+            // A welcome may make the clock manual, so time must not move first.
+            if let message {
+                switch message {
+                case .tick, .welcome:
+                    guard try handle(message) else { return }
+                    continue
+                default:
+                    break
+                }
             }
             // A change starts at the time it happens, unless the host is
             // ticking, in which case the clock already shows the next frame.
             let ticking = hostIsTicking(at: now)
-            if !ticking { host.advanceTime(by: timeline.advance(to: now)) }
+            if !ticking, !hasManualClock { host.advanceTime(by: timeline.advance(to: now)) }
             if let message {
                 guard try handle(message) else { return }
             } else {
@@ -182,6 +196,8 @@ final class PreviewSession {
     /// own schedule while something moves, and otherwise indefinitely.
     private func waitTimeout() -> Double? {
         let now = PreviewClock.now()
+        // A manual clock moves only when the host says so.
+        if hasManualClock { return nil }
         if hostIsTicking(at: now) {
             return PreviewClock.seconds(lastTickArrival + Self.tickTimeout - now)
         }

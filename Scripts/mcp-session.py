@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FIXTURE = ROOT / "Tools/parhelion-cli/Fixtures/LibraryApp"
@@ -136,6 +137,28 @@ def main():
         _, text = session.call("get_view_tree")
         check('Text "Count: 2"' in text, "@State survives a rebuild")
         check("Root colorScheme=dark dynamicTypeSize=accessibility2" in text, "the appearance survives a rebuild")
+
+        # Without a window, `wait` moves the app's clock instead of sleeping.
+        source.write_text(
+            working.replace("@State private var count = 0", "@State private var count = 0\n    @State private var loaded = false")
+            .replace(
+                "Text(\"Count: \\(count)\")",
+                "Text(\"Count: \\(count)\")\n            Text(loaded ? \"Loaded\" : \"Loading\")",
+            )
+            .replace(
+                ".padding()",
+                ".padding()\n        .task {\n            try? await Task.sleep(for: .seconds(5))\n            loaded = true\n        }",
+            )
+        )
+        session.call("rebuild")
+        _, text = session.call("get_view_tree")
+        check('Text "Loading"' in text, "the task is sleeping after a rebuild")
+        started = time.monotonic()
+        _, text = session.call("wait", {"seconds": 10})
+        elapsed = time.monotonic() - started
+        check(elapsed < 1, f"a 10-second wait returns in under a second (took {elapsed:.2f} s)")
+        _, text = session.call("get_view_tree")
+        check('Text "Loaded"' in text, "the task that slept 5 seconds has finished")
         session.close()
 
 

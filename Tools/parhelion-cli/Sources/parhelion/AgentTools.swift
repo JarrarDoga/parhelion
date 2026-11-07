@@ -143,10 +143,14 @@ enum AgentTools {
             name: "wait",
             title: "Wait",
             description: """
-                Waits until scrolling, animations, and the views' .task work finish, for at most \
-                `seconds` (up to 10), then reports the state. If none of them is in progress, it \
-                waits the whole time, which gives other work, such as a Task that a button \
-                starts, time to run.
+                Lets `seconds` (up to 10) pass, then reports the state. Without a window or a \
+                page, the app runs on a manual clock: wait moves the app's time on by `seconds` \
+                in an instant, so animations, scrolling, Task.sleep, and the views' .task work \
+                reach the state they would after that long, and the reply says when the next \
+                timer fires. With a window or a page, the app keeps real time: wait returns \
+                when scrolling, animations, and .task work finish, or after `seconds`; if none \
+                is in progress, it waits the whole time, which gives other work, such as a Task \
+                that a button starts, time to run.
                 """,
             inputSchema: #"""
                 {"type": "object", "properties": {
