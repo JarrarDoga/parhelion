@@ -1331,6 +1331,16 @@ nearest one it did: `play` and `pause` to `togglePlayPause`, and a relative seek
 commands. Headless hosts (`parhelion test`, and `parhelion mcp` without frames) do not offer the
 capability, so they never touch the bus.
 
+### Audio session events
+
+The `AVFAudio` module (Linux only) holds an `AVAudioSession` that does nothing except keep its
+state and post notifications. `ViewHost.postAudioInterruptionBegan(reason:)`,
+`postAudioInterruptionEnded(shouldResume:)`, and `postAudioRouteChange(reason:device:)`, which the
+`audio_interruption` and `audio_route_change` MCP tools call through two `PreviewCommand` cases,
+make the app's `AVAudioSession.interruptionNotification` and `routeChangeNotification` handlers
+run, with Apple's user-info keys and types. [ADR 0018](adr/0018-audio-session-events.md) says how
+the two modules meet without depending on each other.
+
 ## Planned layers
 
 - **Fidelity checks.** A macOS CI job that renders the same views with Apple's SwiftUI and

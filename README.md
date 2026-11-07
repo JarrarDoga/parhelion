@@ -333,6 +333,7 @@ The agent gets these tools:
 | `tap`, `type_text`, `press_key` | Tap by identifier, label, or position; type into text fields; Tab, Return, Backspace, and the caret keys, with Up and Down in vertical text fields |
 | `long_press` | Hold a press at a point for a duration, so a view's long press gesture fires |
 | `scroll`, `scroll_to`, `drag`, `wait` | Scroll like a mouse wheel, to an offset, or by dragging with momentum, and wait for it to settle |
+| `audio_interruption`, `audio_route_change` | Post `AVAudioSession`'s interruption (began, ended, with the resume option) and route change (headphones unplugged) notifications, so an app's audio handlers run |
 | `set_appearance` | Switch the simulated iPhone between light and dark, and set its Dynamic Type size; the setting stays for later rebuilds |
 | `set_scene_phase` | Move the app between `active`, `inactive`, and `background`, so `onChange(of: scenePhase)` actions run; the window does the same when it loses focus or is minimized |
 | `compare_image` | Render the screen at a design board PNG's scale and return the share of pixels that differ, within a tolerance, with a diff PNG that marks them in red |

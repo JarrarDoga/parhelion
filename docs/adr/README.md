@@ -23,6 +23,7 @@ marked *Superseded* and links to the record that replaces it.
 | [0015](0015-gesture-arbitration.md) | Gestures are recognized by the host from the pointer, and arbitrated in one place | Accepted |
 | [0016](0016-lazy-windows.md) | Lazy stacks and lists evaluate a window of rows that layout asks for | Accepted |
 | [0017](0017-mediaplayer-mpris.md) | `MediaPlayer` reaches the desktop through MPRIS, which the window host owns, over the preview socket | Accepted |
+| [0018](0018-audio-session-events.md) | Audio interruptions and route changes reach the app as a private notification that `AVFAudio` turns into Apple's | Accepted |
 
 To add a record, copy the structure of an existing one, use the next number, and add it to this
 table in the same pull request as the change it describes.

@@ -37,6 +37,8 @@ enum AgentTools {
         registry.register(LongPressTool())
         registry.register(SensoryFeedbackTool())
         registry.register(ScenePhaseTool())
+        registry.register(AudioInterruptionTool())
+        registry.register(AudioRouteChangeTool())
         return registry
     }()
 

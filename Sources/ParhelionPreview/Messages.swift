@@ -334,6 +334,16 @@ public enum PreviewCommand: Codable, Equatable, Sendable {
     /// failing. Only an app that lists ``PreviewCapability/flowReplay``
     /// understands it.
     case replay(Flow, updatingCheckpoints: Bool)
+    /// Makes an audio interruption begin (`began`) or end, as a call or Siri
+    /// does: the app's `AVAudioSession.interruptionNotification` handlers run.
+    /// `shouldResume` is the option of an ended interruption, and `reason`
+    /// (an `InterruptionReason` case name) goes with a beginning one.
+    case audioInterruption(began: Bool, shouldResume: Bool, reason: String?)
+    /// Changes the audio route, as unplugging headphones does: the app's
+    /// `AVAudioSession.routeChangeNotification` handlers run. `reason` is a
+    /// `RouteChangeReason` case name, and `device` is the device that goes or
+    /// comes, such as "headphones".
+    case audioRouteChange(reason: String, device: String)
 }
 
 /// The app's answer to a ``PreviewCommand``.
