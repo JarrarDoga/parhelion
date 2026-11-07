@@ -118,10 +118,10 @@ struct SwipeActionsTests {
         let host = ViewHost(songList(Log()), device: screen)
         swipe(host, row: firstRow, by: -100)
         let row = try #require(host.root.allNodes.first { $0.text == "One" })
-        // Delete is 84.29 wide, Flag 74, with 8 points between and around.
+        // Delete is 82.99 wide, Flag 74, with 8 points between and around.
         let open = try #require(Double(row.attributes["swipeOffset"] ?? ""))
-        #expect(abs(open + 174.29) < 0.01)
-        #expect(abs((row.frame?.minX ?? 0) - (32 - 174.29)) < 0.01)
+        #expect(abs(open + 172.99) < 0.01)
+        #expect(abs((row.frame?.minX ?? 0) - (32 - 172.99)) < 0.01)
         let delete = try #require(host.root.allNodes.first { $0.text == "Delete" })
         let buttons = host.root.allNodes.filter { $0.kind == "Button" }
         let deleteButton = try #require(buttons.first { $0.label == "Delete" })
@@ -244,7 +244,7 @@ struct SwipeActionsTests {
         #expect(log.events.isEmpty)
         let row = try #require(host.root.allNodes.first { $0.text == "One" })
         let open = try #require(Double(row.attributes["swipeOffset"] ?? ""))
-        #expect(abs(open + 174.29) < 0.01)
+        #expect(abs(open + 172.99) < 0.01)
     }
 
     @Test("A press on an open row closes it and does nothing else")

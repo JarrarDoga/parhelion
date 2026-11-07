@@ -44,6 +44,8 @@ struct LayoutEngine {
     let measurer: any TextMeasurer
     /// Scroll offsets to apply, and the scroll views found while laying out.
     let scrolling: ScrollLayout
+    /// The sizes chosen in this and earlier layouts; see ``SizeCache``.
+    let sizes = SizeCache()
 
     init(
         device: Device,
@@ -257,6 +259,19 @@ struct LayoutEngine {
     /// applied. Modifiers are stored innermost first, so the outermost
     /// applied modifier is at `modifierCount - 1`.
     private func sizeThatFits(
+        _ node: ViewNode,
+        _ proposal: ProposedSize,
+        modifierCount: Int,
+        parentAxis: LayoutAxis?
+    ) -> CGSize {
+        sizes.size(
+            of: node, modifierCount: modifierCount, proposal: proposal, parentAxis: parentAxis
+        ) {
+            measuredSize(node, proposal, modifierCount: modifierCount, parentAxis: parentAxis)
+        }
+    }
+
+    private func measuredSize(
         _ node: ViewNode,
         _ proposal: ProposedSize,
         modifierCount: Int,

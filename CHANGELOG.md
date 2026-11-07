@@ -494,7 +494,12 @@ may contain breaking changes.
 
 - Placeholder for #66 (comparison with Apple's SwiftUI on Rustle's screens): the change for that issue replaces this line.
 
-- Placeholder for #67 (performance on Rustle's screens): the change for that issue replaces this line.
+- Faster layout and drawing on long lists and animated screens: layout keeps the sizes it chose
+  for nodes between frames, text keeps its wrapped lines, and the font keeps glyph outlines and
+  the coverage of each glyph, so a scrolled list or an animation frame measures and draws only
+  what changed. Text also has letter spacing from Inter's dynamic metrics, which narrows it by
+  about 1 to 2 percent at body size toward San Francisco's widths, so every text width and the
+  README images changed. See ADR 0019.
 
 - The scroll edge effect. A `ScrollView` or `List` as the screen of a navigation stack, or the
   content of a tab view, takes the whole screen and starts its content below the navigation bar,

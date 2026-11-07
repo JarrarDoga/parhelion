@@ -23,9 +23,9 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [x] Stack layout, spacing, alignment, `Spacer`, `padding`, and `frame`
 - [x] Frames in the `ViewNode` tree and in the JSON output
 - [x] Hit testing: tap by screen position
-- [ ] Cache `sizeThatFits` results by node, modifier depth, and proposal, so that layout on every
+- [x] Cache `sizeThatFits` results by node, modifier depth, and proposal, so that layout on every
       state change stays fast
-- [ ] Cache glyph outlines between frames
+- [x] Cache glyph outlines between frames
 - [x] A renderer: pure-Swift rasterization and PNG output (see [ADR 0004](adr/0004-pure-swift-renderer.md))
 - [x] `background` with a shape style
 - [x] A phone-sized window on Linux: `parhelion preview`
@@ -118,7 +118,7 @@ Tracked in [#31](https://github.com/JarrarDoga/parhelion/issues/31).
 - [x] Animation paced to the simulated iPhone's refresh rate, and iPhone 18 Pro presets
 - [x] Faster Liquid Glass, by caching glass between frames, so alerts and sheets hold 120 Hz
 - [x] The scroll edge effect, with content laid out under the navigation bar
-- [ ] Letter spacing, to bring Inter's widths closer to San Francisco's
+- [x] Letter spacing, to bring Inter's widths closer to San Francisco's
 - [ ] CI on macOS and on Linux arm64
 - [ ] Verify each constant in `LayoutDefaults.swift` against Apple's SwiftUI
 - [x] Symbol images: substitute an open-source icon set for SF Symbols

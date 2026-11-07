@@ -208,6 +208,8 @@ extension LayoutEngine {
     ) -> LazyArrangement {
         let axis: LayoutAxis = vertical ? .vertical : .horizontal
         let across = across.flatMap { $0.isFinite ? $0 : nil }
+        // The lengths the stack has measured are not in its node.
+        sizes.noteStateRead()
         var stack = scrolling.lazy.stacks[node.id]
         var resolved: [Int]
         var counts: [Int]

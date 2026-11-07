@@ -15,8 +15,9 @@ import Foundation
 /// those are copy slips, and the annotations are used instead.
 ///
 /// A style's weight is the same at every size: `headline` is semibold and
-/// every other style regular. The kit's text styles set no tracking, and
-/// Parhelion draws Inter without any.
+/// every other style regular. The kit's text styles set no tracking; San
+/// Francisco has its own, and Parhelion gives Inter a tracking that depends
+/// on the size instead (`TrueTypeFont.tracking(size:)`).
 enum DynamicTypeTable {
     /// A size and the distance between baselines, in points.
     struct Entry: Equatable {

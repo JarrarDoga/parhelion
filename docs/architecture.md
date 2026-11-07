@@ -147,7 +147,14 @@ the child. A `nil` dimension in a proposal asks for the child's ideal size.
 - **Text** is measured with the advance widths of the bundled Inter typeface and wraps at spaces.
   The four weights in `Fonts/` (Regular, Medium, SemiBold, and Bold) are generated into source,
   because Parhelion cannot ship SwiftPM resources ([ADR 0003](adr/0003-no-swiftpm-resources.md)).
-  There is no kerning, shaping, or tracking yet.
+  There is no kerning or shaping. Every character is followed by a letter spacing that depends on
+  the size, from Inter's dynamic metrics, which brings Inter's widths toward San Francisco's
+  ([ADR 0017](adr/0019-layout-and-glyph-caches-and-letter-spacing.md)).
+  Layout keeps the sizes it chose and the lines text wrapped into between frames, and a font keeps
+  its glyph outlines and each glyph's coverage by size and quarter pixel, so a scrolled list or an
+  animation frame measures and draws only what changed. A cached size is used only for a node
+  equal to the one it was measured for, and a size that read a lazy stack's measured lengths is
+  not kept.
 - **Fonts** flow down through the environment: `font(_:)`, `fontWeight(_:)`, and `bold(_:)` set
   them for their content, and `Text.font(_:)` overrides them. Each `Text` resolves its font when
   it is evaluated and records it as an attribute, such as `font=headline` or

@@ -276,3 +276,83 @@ final class RenderCache {
         (entry.before.count + entry.after.count) * 4
     }
 }
+
+/// The sizes `LayoutEngine` chose for nodes, kept from one layout to the
+/// next, so that laying out a tree again after a scroll or an animation
+/// frame measures only what changed.
+///
+/// An entry is the node as it was measured, the number of its modifiers
+/// that were applied, and the proposal, which together decide the size. A
+/// lookup uses an entry only when the node it is given is equal to the node
+/// it was measured for. Equal nodes share storage when the host lays out
+/// the same evaluated tree again, so the comparison is quick then, and a
+/// node that evaluation made again still gets the size it had when nothing
+/// in it changed.
+///
+/// A size that read layout state other than the node, such as the lengths
+/// a lazy stack has measured, is not kept: whatever read that state calls
+/// ``noteStateRead()``, and every size computed meanwhile, including the
+/// sizes of the nodes around it, is dropped. A cached size is the same, bit
+/// for bit, as measuring again.
+final class SizeCache {
+    struct Key: Hashable {
+        var id: NodeID
+        var modifierCount: Int
+        var width: CGFloat?
+        var height: CGFloat?
+        /// 0 for no axis, 1 for horizontal, 2 for vertical.
+        var axis: UInt8
+    }
+
+    private struct Entry {
+        var node: ViewNode
+        var size: CGSize
+    }
+
+    /// The most entries kept. A cache that fills starts over.
+    static let limit = 50_000
+
+    private var entries: [Key: Entry] = [:]
+    private var stateReads = 0
+    /// How many sizes were found and how many were measured, for tests and
+    /// benchmarks.
+    private(set) var hits = 0
+    private(set) var misses = 0
+
+    var count: Int { entries.count }
+
+    /// Records that a size being computed read state that is not in its
+    /// node, so that no size computed since it started is kept.
+    func noteStateRead() {
+        stateReads += 1
+    }
+
+    func size(
+        of node: ViewNode, modifierCount: Int, proposal: ProposedSize, parentAxis: LayoutAxis?,
+        measure: () -> CGSize
+    ) -> CGSize {
+        let key = Key(
+            id: node.id, modifierCount: modifierCount, width: proposal.width,
+            height: proposal.height,
+            axis: parentAxis.map { $0 == .horizontal ? 1 : 2 } ?? 0)
+        if let entry = entries[key], entry.node == node {
+            hits += 1
+            return entry.size
+        }
+        misses += 1
+        let before = stateReads
+        let size = measure()
+        // A node that layout has placed carries frames, which differ from
+        // one layout to the next; measuring it is rare.
+        if stateReads == before, node.frame == nil {
+            if entries.count >= Self.limit { entries.removeAll(keepingCapacity: true) }
+            entries[key] = Entry(node: node, size: size)
+        }
+        return size
+    }
+
+    /// Forgets every size.
+    func removeAll() {
+        entries.removeAll()
+    }
+}

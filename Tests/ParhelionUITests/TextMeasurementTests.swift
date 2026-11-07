@@ -15,8 +15,12 @@ struct TextMeasurementTests {
         let wide = measurer.size(of: "MMMM", font: body, width: nil)
         #expect(narrow.width < wide.width)
 
-        let large = measurer.size(of: "MMMM", font: Font.system(size: 34).resolved(), width: nil)
-        #expect(abs(large.width - wide.width * 2) < 0.001)
+        // The advances double with the size, and the tracking after each
+        // character, which depends on the size, changes the rest.
+        let font = Font.system(size: 34).resolved()
+        let large = measurer.size(of: "MMMM", font: font, width: nil)
+        #expect(large.width > wide.width * 1.9)
+        #expect(abs(large.width - CGFloat(font.typeface.width(of: "MMMM", size: 34))) < 0.001)
     }
 
     @Test("Text is measured with the Inter weight nearest to its font's weight")

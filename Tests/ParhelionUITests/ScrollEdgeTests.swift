@@ -274,7 +274,7 @@ struct ScrollEdgeTests {
                 Root
                 └─ VStack
                    ├─ ScrollView axes=vertical contentMargins=0, 10, 0, 10 contentOffset=0, 0 \
-                contentSize=29.55 × 22 scrollEdgeEffectBottom=hidden scrollEdgeEffectTop=hard
+                contentSize=29.33 × 22 scrollEdgeEffectBottom=hidden scrollEdgeEffectTop=hard
                    │  └─ Text "a"
                    └─ Color color=red ignoresSafeArea=top
                 """)
