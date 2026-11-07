@@ -28,6 +28,13 @@ can wrap in the preview.
   position within a pixel, to a quarter of a pixel. `Canvas.drawText` composites those instead of
   rasterizing a line's outline in every frame. A glyph sits at the nearest quarter pixel, so a line
   differs from one rasterized whole by less than an eighth of a pixel at every glyph.
+- **Drawing paths.** Shadows, gradients, and layers have fast paths for the pixels that need no
+  mixing. A shadow blends four pixels at a time with integer vectors over opaque pixels, and
+  skips the faint tail of its blur. A rounded rectangle filled with a gradient rasterizes only its
+  corners and stores a whole run of fully covered pixels, from a table with a step for each half
+  pixel along the gradient. A layer is copied four opaque pixels at a time, and text blends with
+  the integer path that shadows use. These round a level differently from `blend` in some pixels,
+  never by more than one level in a channel.
 - **Letter spacing.** Every character is followed by `-0.0223 + 0.185 * exp(-0.1745 * size)` em,
   the tracking in Inter's own dynamic metrics. Measuring and drawing both use it.
 
@@ -43,5 +50,9 @@ can wrap in the preview.
   to measure against, so the curve brings widths toward SF's without having been fitted to them.
   Replace `TrueTypeFont.tracking(size:)` when measured widths exist; nothing else depends on the
   curve.
-- Glyph coverage at quarter pixels changes edge pixels slightly compared with rasterizing a whole
-  line, which is why the images were recorded again together.
+- Glyph coverage at quarter pixels, and the integer blends, change edge pixels slightly compared
+  with rasterizing a whole line and blending in floating point, which is why the images were
+  recorded again together.
+- What these changes do not reach: scrolling the Collection fixture still redraws every row, the
+  scroll edge effect, and the title bar in each frame. Drawing only the strip a scroll exposes
+  needs the canvas to keep the previous frame, and that is left for a later record.

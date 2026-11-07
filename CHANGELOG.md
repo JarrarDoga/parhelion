@@ -499,7 +499,9 @@ may contain breaking changes.
   the coverage of each glyph, so a scrolled list or an animation frame measures and draws only
   what changed. Text also has letter spacing from Inter's dynamic metrics, which narrows it by
   about 1 to 2 percent at body size toward San Francisco's widths, so every text width and the
-  README images changed. See ADR 0019.
+  README images changed. Shadows, gradients, layers, and text also draw faster over opaque
+  pixels, and `RustleCollection` and `RustleNowPlaying` in `Examples` are the screens this was
+  measured on. See ADR 0019.
 
 - The scroll edge effect. A `ScrollView` or `List` as the screen of a navigation stack, or the
   content of a tab view, takes the whole screen and starts its content below the navigation bar,

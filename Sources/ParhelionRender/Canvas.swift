@@ -403,7 +403,7 @@ public struct Canvas: Sendable {
                         if isOpaque, amount >= 1 {
                             words[rowStart + column] = word
                         } else {
-                            Self.blend(
+                            Self.blendQuickly(
                                 color, amount, mode, into: bytes, at: (rowStart + column) * 4)
                         }
                     }

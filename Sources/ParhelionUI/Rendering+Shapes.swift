@@ -76,7 +76,7 @@ extension TreeRenderer {
 
     /// Fills a shape in a rectangle with a paint. Rectangles, rounded
     /// rectangles, capsules, and circles skip the general rasterizer for a
-    /// color.
+    /// color or a gradient.
     func fill(
         _ shape: ShapeGeometry, in rect: CGRect, with paint: Paint, evenOdd: Bool = false,
         into canvas: inout Canvas
@@ -90,7 +90,13 @@ extension TreeRenderer {
                 canvas.fill(shape.path(in: rect), color: color, evenOdd: evenOdd)
             }
         case .gradient(let gradient):
-            canvas.fill(shape.path(in: rect), gradient: gradient, evenOdd: evenOdd)
+            if let rounded = shape.roundedRect(in: rect) {
+                canvas.fill(
+                    rounded.rect, cornerRadius: rounded.radius, style: rounded.style,
+                    gradient: gradient)
+            } else {
+                canvas.fill(shape.path(in: rect), gradient: gradient, evenOdd: evenOdd)
+            }
         }
     }
 
