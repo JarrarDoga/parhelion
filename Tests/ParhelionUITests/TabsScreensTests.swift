@@ -1,4 +1,5 @@
 import Foundation
+import ParhelionTesting
 import Testing
 
 @testable import ParhelionUI
@@ -179,17 +180,12 @@ enum TabsScreens {
         return host
     }
 
-    /// A screen as the README shows it: at 2× with the status bar and the
-    /// home indicator, as `--png` draws.
-    static func readmeImage(_ screen: Screen) throws -> Data {
-        try host(showing: screen).render(scale: 2, chrome: .systemBars).pngData()
-    }
-
     static let repository = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
-    static func readmeImageURL(_ screen: Screen, in directory: URL? = nil) -> URL {
-        (directory ?? repository.appendingPathComponent("docs/images"))
+    /// Where the README's image of a screen is.
+    static func readmeImageURL(_ screen: Screen) -> URL {
+        repository.appendingPathComponent("docs/images")
             .appendingPathComponent("tabs-\(screen.rawValue).png")
     }
 }
@@ -230,27 +226,15 @@ struct TabsScreensTests {
     }
 
     /// Rendering is deterministic, so the README's images must match a fresh
-    /// render. After an intended rendering change, regenerate them with
-    /// `PARHELION_README_IMAGES=docs/images swift test --filter writeTabsReadmeImages`.
+    /// render, drawn at 2× with the status bar and the home indicator, as
+    /// `--png` draws. After an intended rendering change, regenerate them with
+    /// `PARHELION_RECORD_SNAPSHOTS=all swift test --filter readmeImages`; recording
+    /// fails the test once, and the next run passes.
     @Test("The README's Tabs images match a fresh render", arguments: TabsScreens.Screen.allCases)
     func readmeImages(_ screen: TabsScreens.Screen) throws {
-        let committed = try Data(contentsOf: TabsScreens.readmeImageURL(screen))
-        #expect(try TabsScreens.readmeImage(screen) == committed)
-    }
-
-    @Test(
-        "Write the README's Tabs images",
-        .enabled(if: ProcessInfo.processInfo.environment["PARHELION_README_IMAGES"] != nil)
-    )
-    func writeTabsReadmeImages() throws {
-        let path = ProcessInfo.processInfo.environment["PARHELION_README_IMAGES"] ?? ""
-        let directory = URL(
-            fileURLWithPath: path,
-            relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath))
-        for screen in TabsScreens.Screen.allCases {
-            try TabsScreens.readmeImage(screen).write(
-                to: TabsScreens.readmeImageURL(screen, in: directory))
-        }
+        try TabsScreens.host(showing: screen).expectSnapshot(
+            named: screen.rawValue, scale: 2, chrome: .systemBars,
+            reference: TabsScreens.readmeImageURL(screen))
     }
 
     /// Writes the screens at 3× on an iPhone 16 Pro, the size of Apple's iOS

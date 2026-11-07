@@ -32,8 +32,7 @@ var targets: [Target] = [
         dependencies: ["ParhelionRender", "ParhelionPreview"],
         swiftSettings: frameworkSettings
     ),
-    // Empty until issue #71 adds snapshot testing. It is declared here so that
-    // only issue #49 changes this manifest.
+    // Snapshot testing for Swift Testing; only test targets and apps' tests link it.
     .target(
         name: "ParhelionTesting",
         dependencies: ["ParhelionUI", "ParhelionRender", "ParhelionPreview"],
@@ -43,7 +42,7 @@ var targets: [Target] = [
     .testTarget(name: "ParhelionPreviewTests", dependencies: ["ParhelionPreview"]),
     .testTarget(
         name: "ParhelionUITests",
-        dependencies: ["ParhelionUI", "ParhelionRender", "ParhelionPreview"]
+        dependencies: ["ParhelionUI", "ParhelionRender", "ParhelionPreview", "ParhelionTesting"]
     ),
 ]
 

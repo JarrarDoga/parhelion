@@ -83,6 +83,10 @@ jobs:
       - name: Build
         run: swift build --build-tests -Xswiftc -warnings-as-errors
       - name: Test
+        # `never` makes a missing snapshot reference fail instead of being
+        # written, so a retry cannot pass by recording what it just saw.
+        env:
+          PARHELION_RECORD_SNAPSHOTS: never
         run: swift test --skip-build
       - name: Run example
         run: swift run HelloParhelion
@@ -91,7 +95,9 @@ jobs:
         # fresh render. After an intended rendering change, regenerate it with
         # `swift run Counter --png docs/images/counter.png`. `swift test` checks the
         # Tasks, Tabs, dark, and Dynamic Type images in the README the same way;
-        # regenerate them with
+        # regenerate the Tasks and Tabs images with
+        # `PARHELION_RECORD_SNAPSHOTS=all swift test --filter readmeImages`, and the
+        # others with
         # `PARHELION_README_IMAGES=docs/images swift test --filter 'write.*ReadmeImages'`.
         run: |
           swift run Counter --png "$RUNNER_TEMP/counter.png"
