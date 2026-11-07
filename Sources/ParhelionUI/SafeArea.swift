@@ -212,6 +212,9 @@ extension EnvironmentValues {
         if let margins = self[ContentMarginsKey.self].recorded {
             attributes["contentMargins"] = margins
         }
+        if let behavior = self[ScrollTargetBehaviorKey.self] {
+            attributes["scrollTargetBehavior"] = behavior
+        }
         return attributes
     }
 }

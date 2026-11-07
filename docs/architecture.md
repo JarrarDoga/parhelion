@@ -344,6 +344,45 @@ moves (see *The preview window*). On a manual clock, `advanceTime` moves it inst
 with every `Task.sleep`. `ViewHost.revision` increases whenever the screen changes, and
 the session sends a frame only then.
 
+### Scroll targets, positions, and geometry
+
+A view's identifier names a scroll target. `id(_:)` records it as `viewID=Type:value` and, as in
+SwiftUI, makes it part of the view's identity; a `ForEach` element's identifier names its views
+unless they have an `id(_:)`. The evaluator keeps the identifiers by node (`ScrollEvaluation`) and
+the host adopts them with each evaluation (`ScrollHostState`), so the tree stays plain data.
+
+- **Requests.** `ScrollViewProxy.scrollTo` and a changed `scrollPosition` binding queue a
+  `ScrollRequest` and mark the host for an update. After the update's layout, `relayout()` applies
+  the requests: it finds the first node with the identifier, takes the innermost scroll view above
+  it, sets that scroll view's offset so the node's frame sits at the anchor in the visible region
+  (the scroll view's bounds less its insets), and lays out again. A request therefore sees the
+  views its own action changed, and `withAnimation` animates it as a layout change.
+  Without an anchor, `scrollTo` scrolls by the least that shows the view, and a bound position
+  puts the view at the start. A list row scrolls by its cell.
+- **Lazy rows.** A row of a lazy stack or list that does not exist yet is found by its `ForEach`
+  identifier among the stack's slots. The request scrolls to where the slot would be, from the
+  measured lengths and the mean for the rest; that makes the host create the rows there, and the
+  request runs again, up to three times, until the row exists and sits at the anchor. A row known
+  only by an `id(_:)` inside it cannot be found before it exists.
+- **Bindings.** After each layout, a scroll view with a bound position that moved since the host
+  last honored or wrote the binding writes the identifier of its first target whose end is past
+  the start of the visible region. The host remembers the value it wrote, so a binding it wrote is
+  not scrolled to again. The first offset the host sees is the starting point: the binding stays as
+  the app set it until the user scrolls. `ScrollPosition` also receives the offset as `point`.
+- **Targets.** The children of views marked with `scrollTargetLayout()` are the targets, or, with
+  none marked, the outermost views with an identifier.
+- **Settling.** `scrollTargetBehavior` flows down the environment and is recorded on scroll views
+  as `scrollTargetBehavior=paging` or `viewAligned`. When a drag ends, `ViewHost.pointerUp` asks
+  `settleScroll` first and starts momentum only if the scroll view has no behavior. Paging
+  moves at most one page from where the drag began: past half a page, or faster than 300 points
+  per second. View alignment moves to the start of the target nearest where the content would
+  coast, at most one target away on a horizontal scroll view, as `limitBehavior` says. The wheel,
+  `scroll(by:at:)`, and `scroll(_:to:)` do not settle.
+- **Geometry.** `onScrollGeometryChange` runs after each layout with the scroll view's
+  `ScrollGeometry` and calls its action when the transformed value changes, and once at first.
+  The content offset is relative to the content's origin, so it is negative while the content sits
+  below an inset, as on iOS.
+
 ### Scrolling under bars
 
 A scroll view that scrolls vertically and reaches the top or bottom of the safe area takes the
@@ -472,7 +511,9 @@ The tree shows only the rows that exist. A container that holds some of its rows
 separators are as before. `pinnedViews` keeps a section's header or footer at the edge of the scroll
 view, in front of its rows, until its section ends. A lazy stack outside a scroll view uses the
 screen as its viewport. `scroll_to` sets an offset, so it reaches a row that does not exist yet:
-the next update creates it.
+the next update creates it. `ScrollViewProxy.scrollTo` and `scrollPosition(id:)` reach such a row
+by its identifier (see "Scroll targets, positions, and geometry").
+
 ### Swipe actions
 
 `swipeActions(edge:allowsFullSwipe:content:)` on a list row appends an `Overlay` child to the row,

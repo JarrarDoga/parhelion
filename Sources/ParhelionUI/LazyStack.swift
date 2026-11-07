@@ -194,6 +194,10 @@ final class LazyLayoutState {
         var spacing: CGFloat = 0
         /// The scroll view the stack was inside in the last layout.
         var scrollView: LazyViewport?
+        /// Where each slot starts along the stack, from `origin`, and
+        /// whether the stack is vertical, in the last layout.
+        var offsets: [CGFloat] = []
+        var vertical = true
         var visited = false
         /// The identities as text, for finding the state of a row that was
         /// released.
@@ -255,6 +259,18 @@ final class LazyLayoutState {
                 guard let next = key.dropFirst(path.count).first else { return true }
                 return next == "/" || next == "#" || next == "."
             }
+        }
+
+        /// Where the slot with `identity` is along the stack on screen in the
+        /// last layout: exact if it was measured, from the mean length if
+        /// not. `nil` if no slot has the identity or the stack was not laid
+        /// out.
+        func span(of identity: AnyHashable) -> (start: CGFloat, length: CGFloat)? {
+            guard let slot = identities.firstIndex(of: identity), slot < offsets.count else {
+                return nil
+            }
+            let length = slot < lengths.count ? lengths[slot] : .nan
+            return (origin + offsets[slot], length.isNaN || length < 0 ? estimate : length)
         }
 
         /// Chooses the slots to create.

@@ -59,6 +59,9 @@ final class Evaluator {
     private(set) var inputHandlers: [NodeID: NodeInputHandlers] = [:]
     /// The lifecycle modifiers evaluated, for the host to act on.
     let lifecycle = LifecycleRecord()
+    /// The view identifiers, scroll positions, and geometry observers
+    /// evaluated, for the host to act on.
+    let scrollRecord = ScrollEvaluation()
 
     init(host: ViewHost) {
         self.host = host
