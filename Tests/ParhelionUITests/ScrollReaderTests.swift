@@ -184,6 +184,39 @@ struct ScrollViewReaderTests {
         #expect(near(host.scrollOffset(of: id)?.y, 1_241 * 20 - height))
     }
 
+    @Test("A position made with idType: scrolls a lazy stack to an id, and to a point")
+    func idTypePosition() throws {
+        struct Rows: View {
+            @State var position = ScrollPosition(idType: Int.self)
+            var body: some View {
+                VStack(spacing: 0) {
+                    HStack {
+                        Button("Row") { position.scrollTo(id: 1_240) }
+                        Button("Point") { position.scrollTo(x: 0, y: 400) }
+                    }
+                    .frame(height: 44)
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(0..<1_535, id: \.self) { _ in Color.red.frame(height: 20) }
+                        }
+                    }
+                    .scrollPosition($position)
+                }
+            }
+        }
+        _ = ScrollPosition(idType: Int.self, edge: .top)
+        _ = ScrollPosition(idType: Int.self, point: .zero)
+        _ = ScrollPosition(idType: Int.self, x: 0, y: 0)
+        _ = ScrollPosition(idType: Int.self, y: 0)
+        _ = ScrollPosition(x: 0)
+        let host = ViewHost(Rows(), device: square)
+        let id = try scrollViewID(host)
+        try host.tapButton(labeled: "Row")
+        #expect(near(host.scrollOffset(of: id)?.y, 1_240 * 20))
+        try host.tapButton(labeled: "Point")
+        #expect(near(host.scrollOffset(of: id)?.y, 400))
+    }
+
     @Test("A lazy list scrolls to a row whose height was estimated wrong")
     func lazyListEstimate() throws {
         struct Rows: View {

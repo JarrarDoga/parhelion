@@ -57,6 +57,40 @@ public struct ScrollPosition: Equatable {
         self.y = y
     }
 
+    public init(x: CGFloat) {
+        self.x = x
+    }
+
+    public init(y: CGFloat) {
+        self.y = y
+    }
+
+    // The type of the identifiers a position holds is checked only when it
+    // is read back, so the `idType:` forms differ only in the destination.
+
+    public init(idType: (some Hashable).Type = Never.self) {}
+
+    public init(idType: (some Hashable).Type = Never.self, edge: Edge) {
+        self.edge = edge
+    }
+
+    public init(idType: (some Hashable).Type = Never.self, point: CGPoint) {
+        self.point = point
+    }
+
+    public init(idType: (some Hashable).Type = Never.self, x: CGFloat, y: CGFloat) {
+        self.x = x
+        self.y = y
+    }
+
+    public init(idType: (some Hashable).Type = Never.self, x: CGFloat) {
+        self.x = x
+    }
+
+    public init(idType: (some Hashable).Type = Never.self, y: CGFloat) {
+        self.y = y
+    }
+
     public var viewID: (any Hashable)? { id?.base as? any Hashable }
 
     public func viewID<ID: Hashable>(type: ID.Type) -> ID? { id?.base as? ID }
@@ -74,6 +108,12 @@ public struct ScrollPosition: Equatable {
 
     public mutating func scrollTo(y: CGFloat) {
         clearDestination()
+        self.y = y
+    }
+
+    public mutating func scrollTo(x: CGFloat, y: CGFloat) {
+        clearDestination()
+        self.x = x
         self.y = y
     }
 

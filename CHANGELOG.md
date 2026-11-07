@@ -400,7 +400,7 @@ may contain breaking changes.
 
 - `Menu` opens a glass menu of buttons, sections, dividers, destructive items, and a `ControlGroup` row of icon-over-title buttons, from a tap or, with a `primaryAction`, a long press. `contextMenu(menuItems:)` and `contextMenu(menuItems:preview:)` open the same menu on a long press (`ViewHost.longPress(at:duration:)` or the `long_press` MCP tool): the screen behind blurs and the view lifts to 1.03.
 
-- `ScrollViewReader` and `ScrollViewProxy.scrollTo(_:anchor:)`, `id(_:)` with identity, `scrollPosition(id:anchor:)` and `scrollPosition(_:anchor:)` in both directions, `scrollTargetLayout()`, `scrollTargetBehavior(.paging)` and `.viewAligned`, and `onScrollGeometryChange(for:of:action:)`, which scroll, settle, and report the geometry of `ScrollView` and `List`; `ViewHost.scroll(toViewID:anchor:)` and `scrollPositionID(of:anchor:)` for tests and tools. They reach rows of lazy stacks and lists that do not exist yet.
+- `ScrollViewReader` and `ScrollViewProxy.scrollTo(_:anchor:)`, `id(_:)` with identity, `scrollPosition(id:anchor:)` and `scrollPosition(_:anchor:)` in both directions with `ScrollPosition` (including its `idType:` initializers), `scrollTargetLayout()`, `scrollTargetBehavior(.paging)` and `.viewAligned`, and `onScrollGeometryChange(for:of:action:)`, which scroll, settle, and report the geometry of `ScrollView` and `List`; `ViewHost.scroll(toViewID:anchor:)` and `scrollPositionID(of:anchor:)` for tests and tools. They reach rows of lazy stacks and lists that do not exist yet.
 
 - Placeholder for #64 (the `MediaPlayer` shim with MPRIS): the change for that issue replaces this line.
 
