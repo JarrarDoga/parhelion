@@ -383,7 +383,7 @@ may contain breaking changes.
 
 - Placeholder for #32 (build, install and run on the iPhone): the change for that issue replaces this line.
 
-- Placeholder for #34 (your own SF Symbols in front of Phosphor): the change for that issue replaces this line.
+- Your own SF Symbols in front of Phosphor: `parhelion symbols import` copies SVG exports from the SF Symbols app into `~/.local/share/parhelion/symbols`, or `PARHELION_SF_SYMBOLS` names a folder of exports. `Image(systemName:)` draws them at the font's weight, and the tree records `symbolSource=sfSymbols`. Parhelion still ships none, and `Scripts/check-no-sf-symbols.sh` fails CI if Apple's symbol data is committed.
 
 - `LazyVStack` and `LazyHStack` with `pinnedViews`, and lazy rows in `List`: inside a scroll view they
   evaluate only the rows on screen and a margin, keep the `@State` of rows that scrolled out by

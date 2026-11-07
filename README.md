@@ -315,6 +315,30 @@ so you can edit one by hand or have an agent write it:
 From a Swift Testing test, `ViewHost.replay(_:)` plays a `Flow` against a `ViewHost`; there a
 `Task.sleep` in the app still takes real time.
 
+## Your own SF Symbols
+
+Parhelion draws `Image(systemName:)` with Phosphor Icons, because Apple's license does not let
+Parhelion ship SF Symbols. If you have the SF Symbols app, Parhelion can draw your copy instead,
+in the font's weight. It contains none, and downloads none.
+
+In the SF Symbols app, select the symbols you use (or all of them), choose File > Export Symbol,
+save them as SVG into a folder, and import the folder:
+
+```sh
+parhelion symbols import ~/Documents/symbols
+parhelion symbols status
+```
+
+That copies only the outlines Parhelion draws, to `~/.local/share/parhelion/symbols`, never into a
+repository or a build. Instead of importing, set `PARHELION_SF_SYMBOLS` to the folder of exports.
+A name your copy lacks falls back to Phosphor, then to a ring. In the view tree and in
+`parhelion mcp`, a symbol drawn from your copy has `symbolSource=sfSymbols`.
+
+**The license is yours to check.** Apple allows SF Symbols only for designing and developing apps
+for Apple platforms, and forbids redistributing them. Whether using your copy on Linux to preview
+an iOS app is within that license is your responsibility; Parhelion does not claim it is
+permitted. Never commit exports: CI fails if SF Symbols data appears in the repository.
+
 ## Agents
 
 `parhelion mcp` serves your app to a coding agent over the Model Context Protocol. Register it

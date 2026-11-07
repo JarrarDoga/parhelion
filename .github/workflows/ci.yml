@@ -55,6 +55,8 @@ jobs:
           Scripts/embed-font.sh Fonts/Inter-Medium.ttf | diff -q - Sources/ParhelionRender/InterMediumFontData.swift
           Scripts/embed-font.sh Fonts/Inter-SemiBold.ttf | diff -q - Sources/ParhelionRender/InterSemiBoldFontData.swift
           Scripts/embed-font.sh Fonts/Inter-Bold.ttf | diff -q - Sources/ParhelionRender/InterBoldFontData.swift
+      - name: Check that no SF Symbols data is committed
+        run: Scripts/check-no-sf-symbols.sh
       - name: Check that no target declares resources
         # See docs/adr/0003-no-swiftpm-resources.md.
         run: "! grep -nE '^[[:space:]]*resources:' Package.swift"

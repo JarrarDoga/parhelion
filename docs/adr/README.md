@@ -26,6 +26,7 @@ marked *Superseded* and links to the record that replaces it.
 | [0018](0018-audio-session-events.md) | Audio interruptions and route changes reach the app as a private notification that `AVFAudio` turns into Apple's | Accepted |
 | [0019](0019-layout-and-glyph-caches-and-letter-spacing.md) | Layout sizes, glyph outlines, and text lines are kept between frames, and text has letter spacing | Accepted |
 | [0020](0020-overlapped-frames.md) | The window host overlaps the app's drawing of a frame with showing the one before | Accepted |
+| [0021](0021-user-sf-symbols.md) | Draw the user's own SF Symbols, exported as SVG, in front of Phosphor | Accepted |
 
 To add a record, copy the structure of an existing one, use the next number, and add it to this
 table in the same pull request as the change it describes.

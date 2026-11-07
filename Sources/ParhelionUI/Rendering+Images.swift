@@ -175,7 +175,8 @@ extension TreeRenderer {
             guard let name = node.attributes["systemName"] else { return }
             let side = min(frame.width, frame.height)
             let symbol = SymbolLibrary.resolve(
-                name, fill: node.attributes["symbolVariant"] == "fill")
+                name, weight: ResolvedFont(node: node).weight,
+                fill: node.attributes["symbolVariant"] == "fill")
             canvas.fill(
                 symbol.path.applying(
                     scaleX: Double(side), scaleY: Double(side),
