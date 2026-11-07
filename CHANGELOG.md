@@ -446,7 +446,7 @@ may contain breaking changes.
   starts a new line. `ViewHost.Key` has `up` and `down`, which move the caret between lines, and the preview window, the web
   preview, and `press_key` send them.
 
-- Placeholder for #76 (the list section index): the change for that issue replaces this line.
+- `listSectionIndexVisibility(_:)` and `sectionIndexLabel(_:)`: a list with labeled sections shows an A to Z index at its trailing edge, and tapping a letter or dragging over the letters scrolls the section with that label to the top.
 
 - Placeholder for #62 (`sensoryFeedback` and Reduce Motion): the change for that issue replaces this line.
 
