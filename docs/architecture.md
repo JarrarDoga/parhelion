@@ -149,7 +149,7 @@ the child. A `nil` dimension in a proposal asks for the child's ideal size.
   because Parhelion cannot ship SwiftPM resources ([ADR 0003](adr/0003-no-swiftpm-resources.md)).
   There is no kerning or shaping. Every character is followed by a letter spacing that depends on
   the size, from Inter's dynamic metrics, which brings Inter's widths toward San Francisco's
-  ([ADR 0017](adr/0019-layout-and-glyph-caches-and-letter-spacing.md)).
+  ([ADR 0019](adr/0019-layout-and-glyph-caches-and-letter-spacing.md)).
   Layout keeps the sizes it chose and the lines text wrapped into between frames, and a font keeps
   its glyph outlines and each glyph's coverage by size and quarter pixel, so a scrolled list or an
   animation frame measures and draws only what changed. A cached size is used only for a node
