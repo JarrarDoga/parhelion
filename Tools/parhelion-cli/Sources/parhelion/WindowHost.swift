@@ -148,6 +148,7 @@ final class WindowHost: PreviewSurface {
     /// The hooks that ship with the window, registered once.
     private static let builtInHooks: Void = {
         WindowHookRegistry.shared.register(ReduceMotionWindowHook())
+        WindowHookRegistry.shared.register(ScenePhaseWindowHook())
     }()
 
     /// The appearance change a key press with modifiers asks for, or `nil`.
@@ -317,6 +318,10 @@ final class WindowHost: PreviewSurface {
             return WindowEvent(.focusGained)
         case SDL_EVENT_WINDOW_FOCUS_LOST.rawValue:
             return WindowEvent(.focusLost)
+        case SDL_EVENT_WINDOW_MINIMIZED.rawValue:
+            return WindowEvent(.minimized)
+        case SDL_EVENT_WINDOW_RESTORED.rawValue:
+            return WindowEvent(.restored)
         default:
             return WindowEvent(.other(rawType: event.type))
         }

@@ -1303,6 +1303,18 @@ setting like the color scheme, so a rebuilt app starts with it. A separate comma
 `setAppearance` as it was; an app lists the `accessibilitySettings` capability when it takes the
 new commands, and the tool says so when an older app cannot.
 
+### Scene phase
+
+`ViewHost.scenePhase` is `active` by default and flows into the environment as
+`EnvironmentValues.scenePhase`, for views and for an `App`'s own `@Environment`. Setting it updates
+the tree, so each `onChange(of: scenePhase)` action runs once per change; the root records
+`scenePhase=inactive` or `scenePhase=background` while the phase is not `active`. The phase moves
+straight to the one set, where a phone passes through `inactive` on the way to `background`: set
+`inactive` first to see that step. `Scene.onChange` puts its observer on the window's content, so
+it does not change node identifiers. `PreviewCommand.setScenePhase` carries a phase to an app; the
+`set_scene_phase` MCP tool sends it, and `ScenePhaseWindowHook` sends it when the window loses
+focus (`inactive`), is minimized (`background`), or comes back (`active`).
+
 ## Planned layers
 
 - **Fidelity checks.** A macOS CI job that renders the same views with Apple's SwiftUI and

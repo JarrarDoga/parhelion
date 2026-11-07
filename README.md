@@ -334,6 +334,7 @@ The agent gets these tools:
 | `long_press` | Hold a press at a point for a duration, so a view's long press gesture fires |
 | `scroll`, `scroll_to`, `drag`, `wait` | Scroll like a mouse wheel, to an offset, or by dragging with momentum, and wait for it to settle |
 | `set_appearance` | Switch the simulated iPhone between light and dark, and set its Dynamic Type size; the setting stays for later rebuilds |
+| `set_scene_phase` | Move the app between `active`, `inactive`, and `background`, so `onChange(of: scenePhase)` actions run; the window does the same when it loses focus or is minimized |
 | `compare_image` | Render the screen at a design board PNG's scale and return the share of pixels that differ, within a tolerance, with a diff PNG that marks them in red |
 | `rebuild`, `app_output` | Rebuild after editing the code, keeping `@State`, with compiler errors on failure; read what the app printed |
 
