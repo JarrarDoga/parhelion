@@ -56,6 +56,9 @@ struct MCP: ParsableCommand {
         help: "Draw the phone around the screen in the preview window or web page.")
     var bezel = true
 
+    @Flag(help: "Start with Reduce Motion on. The set_appearance tool switches it.")
+    var reduceMotion = false
+
     @OptionGroup var web: WebOptions
 
     func run() throws {
@@ -68,7 +71,7 @@ struct MCP: ParsableCommand {
             config: try build.config(packagePath: packagePath))
         let webHost = web.isEnabled ? try WebHost(options: web, bezel: bezel) : nil
         let showsFrames = window || webHost != nil
-        let appearance = AppearanceState()
+        let appearance = AppearanceState(reduceMotion: reduceMotion)
         let controller = try AgentController(
             plan: plan,
             builder: AppBuilder(
@@ -333,7 +336,8 @@ final class AgentController: @unchecked Sendable {
     private func setAppearance(_ arguments: MCPArguments) -> MCPToolResult {
         let colorScheme = arguments.string("color_scheme")
         let dynamicTypeSize = arguments.string("dynamic_type_size")
-        guard colorScheme != nil || dynamicTypeSize != nil else {
+        let reduceMotion = arguments.bool("reduce_motion")
+        guard colorScheme != nil || dynamicTypeSize != nil || reduceMotion != nil else {
             return .text(AgentTools.usage(of: "set_appearance"), isError: true)
         }
         guard let app = currentApp, !app.isDisconnected else { return notRunning() }
@@ -343,14 +347,27 @@ final class AgentController: @unchecked Sendable {
                     + "appearance or text size. Update its Parhelion dependency and rebuild.",
                 isError: true)
         }
+        if reduceMotion != nil, !PreviewAppearance.supportsAccessibilitySettings(app.hello) {
+            return .text(
+                "\(app.hello.appName) was built with an older Parhelion, which cannot switch "
+                    + "Reduce Motion. Update its Parhelion dependency and rebuild.",
+                isError: true)
+        }
         guard
-            let changed = appearance.apply(
+            var changed = appearance.apply(
                 .set(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize))
         else {
             return .text(AgentTools.usage(of: "set_appearance"), isError: true)
         }
+        if let reduceMotion {
+            changed = appearance.apply(.setReduceMotion(reduceMotion)) ?? changed
+        }
         waker.wake()
-        return run(changed.command, summaryOnly: false)
+        var result = run(changed.command, summaryOnly: false)
+        if reduceMotion != nil, !result.isError {
+            result = run(changed.reduceMotionCommand, summaryOnly: false)
+        }
+        return result
     }
 
     private func run(_ command: PreviewCommand, summaryOnly: Bool) -> MCPToolResult {

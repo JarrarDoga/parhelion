@@ -54,8 +54,9 @@ final class AppearanceState: @unchecked Sendable {
 
     /// Starts with the setting that `PARHELION_COLOR_SCHEME` and
     /// `PARHELION_DYNAMIC_TYPE_SIZE` name in the tool's own environment, or
-    /// light at the Large size.
-    init() {
+    /// light at the Large size. Reduce Motion starts on when `reduceMotion` is
+    /// set, as `--reduce-motion` does, or `PARHELION_REDUCE_MOTION` is `1`.
+    init(reduceMotion: Bool = false) {
         let environment = ProcessInfo.processInfo.environment
         let change = PreviewAppearance.Change.set(
             colorScheme: environment[previewColorSchemeEnvironmentKey],
@@ -70,6 +71,8 @@ final class AppearanceState: @unchecked Sendable {
                     + " and a size from "
                     + PreviewAppearance.dynamicTypeSizes.joined(separator: ", ") + ".")
         }
+        let variable = environment[previewReduceMotionEnvironmentKey]?.lowercased()
+        appearance.reduceMotion = reduceMotion || variable == "1" || variable == "true"
     }
 
     /// The current setting, and a number that increases with each change.
@@ -110,6 +113,9 @@ final class AppearanceState: @unchecked Sendable {
             return
         }
         app.post(current.appearance.command)
+        if PreviewAppearance.supportsAccessibilitySettings(app.hello) {
+            app.post(current.appearance.reduceMotionCommand)
+        }
     }
 
     /// Writes a warning to standard error, because standard output carries

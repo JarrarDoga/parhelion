@@ -1280,6 +1280,29 @@ scroll view has it. `advanceTime(by:)` ticks the session, which is how a long pr
 manual clock. `ViewHost.longPress(at:duration:)` and the `long_press` MCP tool hold a press for a
 duration; `ViewHost.drag(from:to:duration:)` and `drag` move it.
 
+### Sensory feedback and Reduce Motion
+
+Linux has no haptics, so `sensoryFeedback` records instead of playing. The modifier watches its
+trigger the way `onChange(of:)` does (the first value is not a change) and, when the feedback
+applies, appends a `SensoryFeedbackEvent` to the host's log: a sequence number, the feedback's
+name (`selection`, `success`, `impact.medium`, `impact.heavy x0.5`), the node of the view, and the
+host's time. The log keeps the last 50. The modifier marks its nodes with `sensoryFeedback=<name>`
+(`dynamic` for the closure form, whose result depends on the values), and the root lists the
+newest ten in its own `sensoryFeedback` attribute, so an outline shows what played. Recording marks
+the host for one more update, which writes that attribute. `ViewHost.sensoryFeedbackEvents`,
+`clearSensoryFeedback()`, the `sensoryFeedback(clear:)` preview command, and the
+`get_sensory_feedback` MCP tool read it; `PARHELION_DEBUG=1` logs each event.
+
+`ViewHost.reduceMotion` is the simulated device's Reduce Motion setting, like `colorScheme`. It
+sets `accessibilityReduceMotion` for every view, presentations included, and the root records
+`reduceMotion=true` while it is on. Parhelion does not change any animation by itself: as in
+SwiftUI, a view reads the value and chooses. Four things set it: `PARHELION_REDUCE_MOTION=1` or
+`--reduce-motion` at start, Control-Shift-M in the window (a `WindowHook`), `set_appearance` with
+`reduce_motion` in `parhelion mcp`, and the `setReduceMotion` preview command. The tool keeps the
+setting like the color scheme, so a rebuilt app starts with it. A separate command keeps
+`setAppearance` as it was; an app lists the `accessibilitySettings` capability when it takes the
+new commands, and the tool says so when an older app cannot.
+
 ## Planned layers
 
 - **Fidelity checks.** A macOS CI job that renders the same views with Apple's SwiftUI and

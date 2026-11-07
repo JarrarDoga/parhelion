@@ -35,6 +35,7 @@ enum AgentTools {
     static let registry: AgentToolRegistry = {
         let registry = AgentToolRegistry.shared
         registry.register(LongPressTool())
+        registry.register(SensoryFeedbackTool())
         return registry
     }()
 
@@ -181,8 +182,10 @@ enum AgentTools {
             name: "set_appearance",
             title: "Set the appearance and text size",
             description: """
-                Sets the simulated device's appearance, light or dark, and its Dynamic Type \
-                size, as in the device's Settings; give either or both. The app's \
+                Sets the simulated device's appearance, light or dark, its Dynamic Type \
+                size, and Reduce Motion (reduce_motion), as in the device's Settings; give any \
+                of them. Views read Reduce Motion as accessibilityReduceMotion, and the tree's \
+                Root shows reduceMotion=true while it is on. The app's \
                 preferredColorScheme still wins for its own windows and sheets. The setting \
                 stays for later rebuilds, and the view tree's Root shows it as colorScheme and \
                 dynamicTypeSize when they are not light and large.
@@ -190,7 +193,8 @@ enum AgentTools {
             inputSchema: #"""
                 {"type": "object", "properties": {
                   "color_scheme": {"type": "string", "enum": ["light", "dark"]},
-                  "dynamic_type_size": {"type": "string", "enum": ["xSmall", "small", "medium", "large", "xLarge", "xxLarge", "xxxLarge", "accessibility1", "accessibility2", "accessibility3", "accessibility4", "accessibility5"]}}}
+                  "dynamic_type_size": {"type": "string", "enum": ["xSmall", "small", "medium", "large", "xLarge", "xxLarge", "xxxLarge", "accessibility1", "accessibility2", "accessibility3", "accessibility4", "accessibility5"]},
+                  "reduce_motion": {"type": "boolean"}}}
                 """#
         ),
         MCPTool(
@@ -282,8 +286,8 @@ enum AgentTools {
         case "scroll_to": "scroll_to needs id or accessibility_identifier."
         case "drag": "drag needs from_x, from_y, to_x, and to_y."
         case "set_appearance":
-            "set_appearance needs color_scheme (\(PreviewAppearance.colorSchemes.joined(separator: " or "))) "
-                + "or dynamic_type_size (one of \(PreviewAppearance.dynamicTypeSizes.joined(separator: ", ")))."
+            "set_appearance needs color_scheme (\(PreviewAppearance.colorSchemes.joined(separator: " or "))), "
+                + "reduce_motion (true or false), or dynamic_type_size (one of \(PreviewAppearance.dynamicTypeSizes.joined(separator: ", ")))."
         default: "\(name) received arguments it does not understand."
         }
     }

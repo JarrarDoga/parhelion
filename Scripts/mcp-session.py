@@ -173,10 +173,17 @@ def main():
         _, text = session.call("set_appearance", {"color_scheme": "sepia"}, expect_error=True)
         check("color_scheme" in text, "an unknown color scheme is a tool error")
 
+        _, text = session.call("set_appearance", {"reduce_motion": True})
+        check("Reduce Motion on" in text, "set_appearance switches Reduce Motion")
+        _, text = session.call("get_view_tree")
+        check("Root colorScheme=dark dynamicTypeSize=accessibility2 reduceMotion=true" in text, "the view tree's root shows Reduce Motion")
+        _, text = session.call("get_sensory_feedback")
+        check("No sensory feedback has played." in text, "get_sensory_feedback answers when no view played any")
+
         session.call("rebuild")
         _, text = session.call("get_view_tree")
         check('Text "Count: 2"' in text, "@State survives a rebuild")
-        check("Root colorScheme=dark dynamicTypeSize=accessibility2" in text, "the appearance survives a rebuild")
+        check("Root colorScheme=dark dynamicTypeSize=accessibility2 reduceMotion=true" in text, "the appearance and Reduce Motion survive a rebuild")
 
         # Without a window, `wait` moves the app's clock instead of sleeping.
         source.write_text(

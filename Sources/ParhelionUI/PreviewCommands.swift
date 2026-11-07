@@ -135,6 +135,15 @@ extension ViewHost {
                 }
                 return reply(true, appearanceDescription)
 
+            case .setReduceMotion(let on):
+                reduceMotion = on
+                return reply(true, "Reduce Motion is \(on ? "on" : "off").")
+
+            case .sensoryFeedback(let clear):
+                let description = sensoryFeedbackDescription
+                if clear { clearSensoryFeedback() }
+                return reply(true, description)
+
             case .advanceTime(let seconds):
                 guard hasManualClock else {
                     let key = previewManualClockEnvironmentKey
@@ -171,7 +180,8 @@ extension ViewHost {
 
     /// The simulated device's settings, as a reply states them.
     var appearanceDescription: String {
-        "The device is set to \(colorScheme.name) at Dynamic Type size \(dynamicTypeSize.name)."
+        "The device is set to \(colorScheme.name) at Dynamic Type size \(dynamicTypeSize.name)"
+            + (reduceMotion ? " with Reduce Motion on." : ".")
     }
 
     private func formatSeconds(_ seconds: TimeInterval) -> String {

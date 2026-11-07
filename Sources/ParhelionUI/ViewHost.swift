@@ -145,6 +145,22 @@ public final class ViewHost {
         }
     }
 
+    /// Whether the simulated device is set to Reduce Motion, as in its
+    /// Accessibility settings: `false` by default. Views read it as
+    /// `accessibilityReduceMotion`, and the root records `reduceMotion=true`
+    /// while it is on. Parhelion does not change any animation by itself;
+    /// as in SwiftUI, the views choose.
+    public var reduceMotion: Bool {
+        didSet {
+            guard reduceMotion != oldValue else { return }
+            setNeedsUpdate()
+            update()
+        }
+    }
+
+    /// The feedback views asked for. See SensoryFeedback.swift.
+    var sensoryFeedbackLog = SensoryFeedbackLog()
+
     /// A number that increases whenever anything on screen changes: the
     /// tree, the layout, a scroll position, or the pressed button. Clients
     /// compare it to decide whether to draw a new frame.
@@ -169,6 +185,7 @@ public final class ViewHost {
     /// - Parameters:
     ///   - colorScheme: The appearance the simulated device is set to.
     ///   - dynamicTypeSize: The text size the simulated device is set to.
+    ///   - reduceMotion: Whether the simulated device is set to Reduce Motion.
     ///   - snapshot: State saved by ``stateSnapshot()``, for example by an
     ///     earlier run of the same app. Each `@State` whose structural
     ///     position and type still match starts from its saved value.
@@ -176,14 +193,15 @@ public final class ViewHost {
     ///     By default the real date when a view first asks for it.
     public init(
         _ rootView: some View, device: Device = .iPhone16, colorScheme: ColorScheme = .light,
-        dynamicTypeSize: DynamicTypeSize = .large, restoring snapshot: Data? = nil,
-        referenceDate: Date? = nil
+        dynamicTypeSize: DynamicTypeSize = .large, reduceMotion: Bool = false,
+        restoring snapshot: Data? = nil, referenceDate: Date? = nil
     ) {
         timelines.referenceDate = referenceDate
         self.rootView = rootView
         self.device = device
         self.colorScheme = colorScheme
         self.dynamicTypeSize = dynamicTypeSize
+        self.reduceMotion = reduceMotion
         let scrolling = ScrollLayout()
         self.scrolling = scrolling
         self.layoutEngine = LayoutEngine(device: device, scrolling: scrolling)
@@ -195,13 +213,14 @@ public final class ViewHost {
     init(
         anyRootView rootView: any View, device: Device = .iPhone16,
         colorScheme: ColorScheme = .light, dynamicTypeSize: DynamicTypeSize = .large,
-        restoring snapshot: Data? = nil, referenceDate: Date? = nil
+        reduceMotion: Bool = false, restoring snapshot: Data? = nil, referenceDate: Date? = nil
     ) {
         timelines.referenceDate = referenceDate
         self.rootView = rootView
         self.device = device
         self.colorScheme = colorScheme
         self.dynamicTypeSize = dynamicTypeSize
+        self.reduceMotion = reduceMotion
         let scrolling = ScrollLayout()
         self.scrolling = scrolling
         self.layoutEngine = LayoutEngine(device: device, scrolling: scrolling)
@@ -970,6 +989,7 @@ public final class ViewHost {
         let windowScheme = preferredColorSchemes[NodeID("")] ?? colorScheme
         evaluator.environment.colorScheme = windowScheme
         evaluator.environment.dynamicTypeSize = dynamicTypeSize
+        evaluator.environment.accessibilityReduceMotion = reduceMotion
         var preferences: [NodeID: ColorScheme] = [:]
         var presented: [NodeID: Presentation] = [:]
         // A change to an observable property that a view reads marks the
@@ -1005,6 +1025,10 @@ public final class ViewHost {
         var rootAttributes: [String: String] = [:]
         if windowScheme != .light { rootAttributes["colorScheme"] = windowScheme.name }
         if dynamicTypeSize != .large { rootAttributes["dynamicTypeSize"] = dynamicTypeSize.name }
+        if reduceMotion { rootAttributes["reduceMotion"] = "true" }
+        if let feedback = sensoryFeedbackLog.rootValue {
+            rootAttributes[SensoryFeedbackKey.attribute] = feedback
+        }
         resolvedRoot = ViewNode(
             id: "", kind: "Root", attributes: rootAttributes, children: children)
         // A preference that changed applies to its whole presentation,

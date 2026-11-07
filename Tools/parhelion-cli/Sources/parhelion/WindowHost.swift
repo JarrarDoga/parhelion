@@ -51,6 +51,7 @@ final class WindowHost: PreviewSurface {
         title: String, screenWidth: Double, screenHeight: Double, zoom: Double,
         bezel: DeviceBezel?, scale: Double
     ) throws {
+        _ = Self.builtInHooks
         let width = Int(((bezel?.width ?? screenWidth) * zoom).rounded())
         let height = Int(((bezel?.height ?? screenHeight) * zoom).rounded())
         // Deliver the click that focuses the window, so the first click on
@@ -140,8 +141,14 @@ final class WindowHost: PreviewSurface {
     /// Simulator's Toggle Appearance and Increase and Decrease Preferred
     /// Text Size, with Control in place of Command.
     static let appearanceShortcuts =
-        "Press Control-Shift-A to switch between light and dark, and Control-Alt-Plus or "
-        + "Control-Alt-Minus to make text larger or smaller."
+        "Press Control-Shift-A to switch between light and dark, Control-Alt-Plus or "
+        + "Control-Alt-Minus to make text larger or smaller, and Control-Shift-M to switch "
+        + "Reduce Motion."
+
+    /// The hooks that ship with the window, registered once.
+    private static let builtInHooks: Void = {
+        WindowHookRegistry.shared.register(ReduceMotionWindowHook())
+    }()
 
     /// The appearance change a key press with modifiers asks for, or `nil`.
     static func appearanceChange(

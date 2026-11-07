@@ -60,6 +60,7 @@ final class FlowRecorder {
                         colorScheme: host.colorScheme.name,
                         dynamicTypeSize: host.dynamicTypeSize.name)))
         }
+        if host.reduceMotion { append(.command(.setReduceMotion(true))) }
         checkpoint()
     }
 
@@ -152,8 +153,10 @@ final class FlowRecorder {
 
     /// Records a change of appearance that worked.
     func appearance(_ command: PreviewCommand) {
-        guard case .setAppearance = command else { return }
-        append(.command(command))
+        switch command {
+        case .setAppearance, .setReduceMotion: append(.command(command))
+        default: return
+        }
     }
 
     // MARK: - Checkpoints

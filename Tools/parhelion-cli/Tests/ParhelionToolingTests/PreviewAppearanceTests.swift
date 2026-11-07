@@ -42,6 +42,7 @@ struct PreviewAppearanceTests {
             appearance.environment == [
                 previewColorSchemeEnvironmentKey: "dark",
                 previewDynamicTypeSizeEnvironmentKey: "xxxLarge",
+                previewReduceMotionEnvironmentKey: "0",
             ])
         #expect(
             appearance.command == .setAppearance(colorScheme: "dark", dynamicTypeSize: "xxxLarge"))

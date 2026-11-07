@@ -16,7 +16,8 @@ import Foundation
 /// `PARHELION_DEVICE` to a preset's name, such as "iPhone 17 Pro", to
 /// simulate that device, `PARHELION_COLOR_SCHEME` to `dark` for the dark
 /// appearance, and `PARHELION_DYNAMIC_TYPE_SIZE` to a size such as
-/// `accessibility2` for larger text. Set `PARHELION_MANUAL_CLOCK` to `1` to
+/// `accessibility2` for larger text. Pass `--reduce-motion`, or set
+/// `PARHELION_REDUCE_MOTION` to `1`, to turn Reduce Motion on. Set `PARHELION_MANUAL_CLOCK` to `1` to
 /// run on a manual clock: `Task.sleep` waits for the host to advance the app's
 /// time instead of for real time. Without a window, the app first lets `task` work
 /// finish, for up to five seconds, so that the output shows what it loaded.
@@ -54,7 +55,9 @@ extension App {
         let appearance = simulatedAppearance()
         let host = ViewHost(
             anyRootView: content, device: simulatedDevice(), colorScheme: appearance.colorScheme,
-            dynamicTypeSize: appearance.dynamicTypeSize)
+            dynamicTypeSize: appearance.dynamicTypeSize,
+            reduceMotion: simulatedReduceMotion()
+                || CommandLine.arguments.contains("--reduce-motion"))
         host.runTasks(until: Date(timeIntervalSinceNow: 5))
         let arguments = CommandLine.arguments
         if let pngPath = value(after: "--png", in: arguments) {
@@ -120,6 +123,14 @@ func simulatedAppearance() -> (colorScheme: ColorScheme, dynamicTypeSize: Dynami
         dynamicTypeSize = size
     }
     return (colorScheme, dynamicTypeSize)
+}
+
+/// Whether `PARHELION_REDUCE_MOTION` is `1` or `true`, which starts the app
+/// with Reduce Motion on.
+func simulatedReduceMotion() -> Bool {
+    guard let value = ProcessInfo.processInfo.environment[previewReduceMotionEnvironmentKey]
+    else { return false }
+    return ["1", "true"].contains(value.lowercased())
 }
 
 /// The argument that follows `flag`, as in `--png out.png`.
