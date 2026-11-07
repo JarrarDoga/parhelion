@@ -160,3 +160,11 @@ jobs:
         env:
           SDL_VIDEODRIVER: offscreen
         run: Scripts/mcp-session.py Tools/parhelion-cli/.build/debug/parhelion
+      - name: Run an app that links a Rust library through UniFFI
+        env:
+          SDL_VIDEODRIVER: offscreen
+        run: |
+          export PATH="$HOME/.cargo/bin:$PATH"
+          Tools/parhelion-cli/.build/debug/parhelion run --exit-after-first-frame \
+            --package-path Tools/parhelion-cli/Fixtures/RustApp
+          Scripts/mcp-rust-session.py Tools/parhelion-cli/.build/debug/parhelion

@@ -70,6 +70,13 @@ public struct AppBuilder: Sendable {
             environment[Self.optimizeFrameworkVariable] = "0"
             if configuration == "debug" { arguments += ["-Xswiftc", "-O"] }
         }
+        // The linker finds prebuilt libraries here and the app finds a
+        // shared one here at launch.
+        for directory in plan.libraryPaths {
+            arguments += [
+                "-Xlinker", "-L" + directory, "-Xlinker", "-rpath", "-Xlinker", directory,
+            ]
+        }
         return Command(arguments: arguments, environment: environment)
     }
 
@@ -83,10 +90,60 @@ public struct AppBuilder: Sendable {
         command(["build", "--show-bin-path"])
     }
 
-    /// Builds the product. Blocks until the build finishes.
+    /// What the first line of ``Outcome/output`` starts with when the
+    /// pre-build command failed, so ``errorSummary(_:)`` can tell its output
+    /// from the compiler's.
+    static let preBuildFailureMarker = "The pre-build command failed"
+
+    /// The environment variable that holds the build configuration for the
+    /// pre-build command.
+    public static let configurationVariable = "PARHELION_CONFIGURATION"
+
+    /// Runs the pre-build command, if the plan has one. Returns the failure
+    /// to report, or `nil` when there is nothing to report.
+    func runPreBuild() throws -> String? {
+        guard let preBuild = plan.preBuild else { return nil }
+        let before = Self.staticLibraries(in: plan.libraryPaths)
+        let result = try Shell.run(
+            "sh", ["-c", preBuild], captureOutput: true, currentDirectory: plan.packageRoot,
+            environment: [Self.configurationVariable: configuration])
+        guard result.status == 0 else {
+            return "\(Self.preBuildFailureMarker) (exit status \(result.status)): \(preBuild)\n"
+                + result.output
+        }
+        // SwiftPM links a product again only when an object file changed,
+        // not when a static library it links did. Without its product,
+        // it links.
+        if Self.staticLibraries(in: plan.libraryPaths) != before {
+            try? FileManager.default.removeItem(atPath: executablePath())
+        }
+        return nil
+    }
+
+    /// The modification time of every static library in `directories`.
+    static func staticLibraries(in directories: [String]) -> [String: Date] {
+        var result: [String: Date] = [:]
+        for directory in directories {
+            let names = (try? FileManager.default.contentsOfDirectory(atPath: directory)) ?? []
+            for name in names where name.hasSuffix(".a") {
+                let path = directory + "/" + name
+                let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+                result[path] = attributes?[.modificationDate] as? Date
+            }
+        }
+        return result
+    }
+
+    /// Runs the pre-build command and then builds the product. Blocks until
+    /// the build finishes.
     public func build() -> Outcome {
         let start = Date()
         do {
+            if let failure = try runPreBuild() {
+                return Outcome(
+                    succeeded: false, output: failure,
+                    duration: Date().timeIntervalSince(start))
+            }
             try plan.prepare()
             let command = buildCommand()
             let result = try Shell.run(
@@ -146,6 +203,10 @@ public struct AppBuilder: Sendable {
         // The compiler colors its diagnostics even into a pipe. The summary
         // goes to agents and logs, so it is plain text.
         var output = output.replacing(/\x1B\[[0-9;]*[A-Za-z]/, with: "")
+        // A failed pre-build command is not the compiler: its messages, such
+        // as Cargo's "error[E0308]:", do not follow the compiler's format, so
+        // all of its output is the summary.
+        if output.hasPrefix(Self.preBuildFailureMarker) { return output }
         if let runner = plan.runner {
             // Longest links first, so that no link is a prefix of a later one.
             for (link, destination) in runner.links.sorted(by: { $0.key.count > $1.key.count }) {
