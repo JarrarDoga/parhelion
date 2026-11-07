@@ -61,10 +61,16 @@ public enum PreviewCapability {
     /// with `PARHELION_RECORD_FLOW`, ``HostMessage/checkpoint``. A host only
     /// needs to see it in the hello.
     public static let flowReplay = "flowReplay"
+    /// The app shares its pasteboard with the host's clipboard: it sends
+    /// ``AppMessage/pasteboard(_:)`` when text is copied, and takes
+    /// ``HostMessage/pasteboard(_:)`` and ``HostMessage/paste(_:)`` from a host
+    /// that welcomes it. ``PreviewCommand/setPasteboard(_:)`` needs no
+    /// welcome; a host only needs to see it in the hello.
+    public static let pasteboard = "pasteboard"
     /// Every capability a window host can use. ``manualClock`` is not one:
     /// it replaces the host's clock instead of adding to it.
     public static let all = [
-        hostClock, sharedFrames, appearance, accessibilityIdentifiers, flowReplay,
+        hostClock, sharedFrames, appearance, accessibilityIdentifiers, flowReplay, pasteboard,
     ]
 }
 
@@ -237,6 +243,9 @@ public enum AppMessage: Equatable, Sendable {
     case sharedMemory(PreviewSharedMemory)
     /// A frame for a host that sent ``HostMessage/welcome(_:)``.
     case frameUpdate(PreviewFrameUpdate)
+    /// Text the app copied, for the host to put on the system clipboard. Only
+    /// sent to a host that welcomed ``PreviewCapability/pasteboard``.
+    case pasteboard(String)
 }
 
 /// A request from a tool, such as an agent server, that the app answers
@@ -264,6 +273,10 @@ public enum PreviewCommand: Codable, Equatable, Sendable {
     case typeText(String)
     /// Presses an editing or focus key, by its `ViewHost.Key` name.
     case pressKey(String)
+    /// Puts text on the app's pasteboard, which `PasteButton` and paste read.
+    /// An app that shares its pasteboard with the host passes it on to the
+    /// system clipboard.
+    case setPasteboard(String)
     /// Scrolls the scroll view at a point by `dx`, `dy` points.
     case scroll(dx: Double, dy: Double, x: Double, y: Double)
     /// Scrolls a scroll view to an offset.
@@ -363,6 +376,15 @@ public enum HostMessage: Codable, Equatable, Sendable {
     /// again. Only apps welcomed with ``PreviewCapability/sharedFrames``
     /// receive it.
     case releaseSlot(Int)
+    /// The text on the system clipboard, which the app keeps as its
+    /// pasteboard, as when the window gains focus. Only apps welcomed with
+    /// ``PreviewCapability/pasteboard`` receive it.
+    case pasteboard(String)
+    /// The person asked to paste, with this text on the system clipboard:
+    /// the app makes it its pasteboard and pastes it into the focused text
+    /// field. Only apps welcomed with ``PreviewCapability/pasteboard``
+    /// receive it.
+    case paste(String)
 }
 
 /// The wire format: each message is a 4-byte big-endian length, a 1-byte
@@ -386,6 +408,8 @@ enum WireKind: UInt8 {
     case tick = 7
     /// The slot index as a 4-byte integer.
     case releaseSlot = 8
+    /// The copied text, as UTF-8.
+    case pasteboard = 9
 }
 
 /// A message ready to write: the bytes up to the pixels, the pixels, which
@@ -435,6 +459,8 @@ enum MessageCoding {
                 EncodedSharedMemory(slotCount: memory.slotCount, slotSize: memory.slotSize))
             return EncodedMessage(
                 head: envelope(.sharedMemory, payload), descriptor: memory.descriptor)
+        case .pasteboard(let text):
+            return EncodedMessage(head: envelope(.pasteboard, Array(text.utf8)))
         case .frameUpdate(let update):
             var prefix: [UInt8] = []
             prefix.reserveCapacity(FrameUpdateHeader.size)
@@ -520,6 +546,8 @@ enum MessageCoding {
                 PreviewSharedMemory(
                     descriptor: received, slotCount: decoded.slotCount,
                     slotSize: decoded.slotSize))
+        case .pasteboard:
+            return .pasteboard(String(decoding: body, as: UTF8.self))
         case .frameUpdate:
             guard prefix.count == FrameUpdateHeader.size else {
                 throw PreviewChannel.ChannelError.malformedMessage

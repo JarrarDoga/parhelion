@@ -58,6 +58,8 @@ public final class ViewHost {
     private var visitedKeys: Set<String> = []
     private var actions: [NodeID: @MainActor () -> Void] = [:]
     var textFields: [NodeID: Binding<String>] = [:]
+    /// The selection and the pasteboard; see ``TextEditingState``.
+    var editing = TextEditingState()
     private var inputHandlers: [NodeID: NodeInputHandlers] = [:]
     /// The entries each navigation stack keeps above its root view, by the
     /// stack's identifier.
@@ -146,7 +148,7 @@ public final class ViewHost {
     /// A number that increases whenever anything on screen changes: the
     /// tree, the layout, a scroll position, or the pressed button. Clients
     /// compare it to decide whether to draw a new frame.
-    public private(set) var revision = 0
+    public internal(set) var revision = 0
 
     /// The host's clock, in seconds. It advances only through
     /// ``advanceTime(by:)``, so animations are deterministic: the same input
@@ -331,6 +333,11 @@ public final class ViewHost {
         /// The sheet being dragged down, once the press turns into a drag
         /// that dismisses it.
         var sheet: NodeID?
+        /// Whether the press is selecting text in the field it started on.
+        var selectsText = false
+        /// Where a selection by dragging began, in characters, fixed at the
+        /// first move so that scrolling the field's text does not move it.
+        var selectionAnchor: Int?
         /// Recent pointer positions, for the release velocity.
         var samples: [(time: TimeInterval, point: CGPoint)]
         /// A swipe of a list row with actions, or an open row to close.
@@ -391,6 +398,16 @@ public final class ViewHost {
             scrollView: scrolls
                 ? innermostScrollView(at: press.start, along: moved, requireRoom: false) : nil)
         press.button = self.press?.button
+        // A drag along a text field selects its text, as a mouse does.
+        if let field = press.button, textFields[field] != nil,
+            press.selectsText
+                || (hypot(moved.width, moved.height) > LayoutDefaults.dragThreshold
+                    && abs(moved.width) >= abs(moved.height))
+        {
+            press.selectsText = true
+            selectText(in: field, from: press.start, to: point, anchor: &press.selectionAnchor)
+            return
+        }
         // A sideways press on a row with swipe actions swipes it, unless a
         // gesture in the row has the press.
         if scrolls, hypot(moved.width, moved.height) > LayoutDefaults.dragThreshold,
@@ -482,7 +499,7 @@ public final class ViewHost {
             frontmostTappableNode(at: point, in: interactiveRoot)?.id == button
         else { return nil }
         if textFields[button] != nil {
-            focusTextField(button, caretAt: point)
+            if !press.selectsText { focusTextField(button, caretAt: point) }
             return button
         }
         try? tap(button)
@@ -554,21 +571,8 @@ public final class ViewHost {
 
     // MARK: - Text input
 
-    /// A key that edits text or moves keyboard focus.
-    public enum Key: String, Codable, Sendable, CaseIterable {
-        case backspace, delete, left, right, home, end
-        /// Moves the caret to the previous or next line of a vertical text field.
-        case up, down
-        /// Moves focus to the next text field.
-        case tab
-        /// Moves focus to the previous text field.
-        case backTab
-        /// Ends editing.
-        case `return`, escape
-    }
-
     /// The text field that receives typing, if any.
-    public private(set) var focusedNodeID: NodeID? {
+    public internal(set) var focusedNodeID: NodeID? {
         didSet {
             if focusedNodeID != oldValue {
                 revision += 1
@@ -586,102 +590,6 @@ public final class ViewHost {
         didSet {
             if caretOffset != oldValue { revision += 1 }
         }
-    }
-
-    /// Focuses a text field and puts the caret at the end of its text, or
-    /// ends editing when `id` is `nil`.
-    public func focus(_ id: NodeID?) throws(InteractionError) {
-        update()
-        guard let id else {
-            focusedNodeID = nil
-            return
-        }
-        guard let field = textFields[id] else {
-            throw root.node(withID: id) == nil ? .nodeNotFound(id) : .notEditable(id)
-        }
-        focusedNodeID = id
-        caretOffset = field.wrappedValue.count
-    }
-
-    /// Inserts text at the caret of the focused field, then updates the
-    /// tree. Does nothing if no field is focused.
-    public func typeText(_ text: String) {
-        update()
-        guard let id = focusedNodeID, let field = textFields[id] else { return }
-        var value = field.wrappedValue
-        let index = value.index(value.startIndex, offsetBy: min(caretOffset, value.count))
-        value.insert(contentsOf: text, at: index)
-        field.wrappedValue = value
-        caretOffset = min(caretOffset, value.count) + text.count
-        update()
-    }
-
-    /// Applies an editing or focus key.
-    public func press(_ key: Key) {
-        update()
-        if pressInVerticalField(key) { return }
-        switch key {
-        case .tab, .backTab:
-            moveFocus(forward: key == .tab)
-            return
-        case .return, .escape:
-            focusedNodeID = nil
-            return
-        default:
-            break
-        }
-        guard let id = focusedNodeID, let field = textFields[id] else { return }
-        var value = field.wrappedValue
-        let caret = min(caretOffset, value.count)
-        switch key {
-        case .backspace where caret > 0:
-            value.remove(at: value.index(value.startIndex, offsetBy: caret - 1))
-            field.wrappedValue = value
-            caretOffset = caret - 1
-        case .delete where caret < value.count:
-            value.remove(at: value.index(value.startIndex, offsetBy: caret))
-            field.wrappedValue = value
-        case .left:
-            caretOffset = max(caret - 1, 0)
-        case .right:
-            caretOffset = min(caret + 1, value.count)
-        case .home:
-            caretOffset = 0
-        case .end:
-            caretOffset = value.count
-        default:
-            break
-        }
-        update()
-    }
-
-    /// Moves focus to the next or previous text field in reading order,
-    /// wrapping around.
-    private func moveFocus(forward: Bool) {
-        let fields = interactiveRoot.allNodes.filter { textFields[$0.id] != nil }.map(\.id)
-        guard !fields.isEmpty else { return }
-        let next: NodeID
-        if let current = focusedNodeID, let index = fields.firstIndex(of: current) {
-            next = fields[(index + (forward ? 1 : fields.count - 1)) % fields.count]
-        } else {
-            next = forward ? fields[0] : fields[fields.count - 1]
-        }
-        try? focus(next)
-    }
-
-    func focusTextField(_ id: NodeID, caretAt point: CGPoint) {
-        guard let field = textFields[id], let node = root.node(withID: id), let frame = node.frame
-        else { return }
-        let text = field.wrappedValue
-        let geometry = TextFieldGeometry(node: node)
-        let shift =
-            focusedNodeID == id
-            ? geometry.horizontalShift(text: text, caret: caretOffset, width: frame.width) : 0
-        let offset =
-            verticalCaretOffset(for: node, at: point)
-            ?? geometry.caretOffset(in: text, atX: point.x - frame.minX, shift: shift)
-        focusedNodeID = id
-        caretOffset = offset
     }
 
     // MARK: - Scrolling
@@ -1102,10 +1010,15 @@ public final class ViewHost {
         // A focused field that left the tree loses focus.
         if let focused = focusedNodeID {
             if let field = textFields[focused] {
-                caretOffset = min(caretOffset, field.wrappedValue.count)
+                let count = field.wrappedValue.count
+                setSelection(
+                    anchor: editing.anchor.map { min($0, count) }, caret: min(caretOffset, count))
             } else {
                 focusedNodeID = nil
+                setSelection(anchor: nil, caret: caretOffset)
             }
+        } else if editing.anchor != nil {
+            editing.anchor = nil
         }
         relayout()
         // State belongs to a structural position. When a view leaves the

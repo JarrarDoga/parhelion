@@ -364,6 +364,14 @@ final class AgentController: @unchecked Sendable {
                     + "rebuild, or tap by id or label.",
                 isError: true)
         }
+        if case .setPasteboard = command,
+            app.hello.capabilities?.contains(PreviewCapability.pasteboard) != true
+        {
+            return .text(
+                "\(app.hello.appName) was built with an older Parhelion, which has no "
+                    + "pasteboard. Update its Parhelion dependency and rebuild.",
+                isError: true)
+        }
         guard let reply = app.request(command) else {
             return .text(
                 "The app did not answer. It may have crashed; see app_output, then rebuild.",

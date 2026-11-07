@@ -40,6 +40,7 @@ extension ViewHost {
             pressedNodeID: pressedNodeID,
             focusedNodeID: focusedNodeID,
             caretOffset: caretOffset,
+            selectionAnchor: selectedRange == nil ? nil : editing.anchor,
             cache: renderCache
         )
         var overlay: CanvasOverlay?
@@ -72,6 +73,8 @@ struct TreeRenderer {
     /// The text field being edited, which draws a caret.
     var focusedNodeID: NodeID?
     var caretOffset = 0
+    /// The other end of the selected text of the focused field, or `nil`.
+    var selectionAnchor: Int?
     /// Drawing kept from earlier frames, or `nil` to draw everything.
     var cache: RenderCache?
 
@@ -138,7 +141,9 @@ struct TreeRenderer {
         let key = RenderCache.BackdropKey(
             scale: scale, device: device, colorScheme: inherited.scheme, nodes: Array(nodes),
             pressedNodeID: contains(pressedNodeID) ? pressedNodeID : nil,
-            focusedNodeID: isFocused ? focusedNodeID : nil, caretOffset: isFocused ? caretOffset : 0
+            focusedNodeID: isFocused ? focusedNodeID : nil,
+            caretOffset: isFocused ? caretOffset : 0,
+            selectionAnchor: isFocused ? selectionAnchor : nil
         )
         if let kept = cache.backdrop, kept.key == key {
             return (kept.canvas, kept.generation)
@@ -173,7 +178,8 @@ struct TreeRenderer {
             RenderCache.LayerKey(
                 backdropGeneration: $0, colorScheme: inherited.scheme, node: opaque,
                 pressedNodeID: pressedNodeID,
-                focusedNodeID: focusedNodeID, caretOffset: caretOffset)
+                focusedNodeID: focusedNodeID, caretOffset: caretOffset,
+                selectionAnchor: selectionAnchor)
         }
         guard opacity < 1 else {
             if let cache, let key, let kept = cache.layer(for: key) {
@@ -649,6 +655,18 @@ struct TreeRenderer {
         let outerClip = canvas.clipRect
         canvas.clipRect = outerClip.map { $0.intersection(frame) } ?? frame
         defer { canvas.clipRect = outerClip }
+
+        // Assumed: the selection is the tint color at 25% behind the text,
+        // as the highlight is on iOS.
+        if isFocused, let anchor = selectionAnchor, anchor != caret, anchor <= value.count {
+            let start = frame.minX - shift + geometry.caretX(in: value, at: min(anchor, caret))
+            let end = frame.minX - shift + geometry.caretX(in: value, at: max(anchor, caret))
+            var highlight = paint("tint")
+            highlight.alpha = UInt8((Double(highlight.alpha) * 0.25).rounded())
+            canvas.fill(
+                CGRect(x: start, y: frame.minY, width: end - start, height: frame.height),
+                color: highlight)
+        }
 
         let shown = value.isEmpty ? node.attributes["placeholder"] ?? "" : value
         // Assumed: placeholders use the tertiary label color, as on iOS.

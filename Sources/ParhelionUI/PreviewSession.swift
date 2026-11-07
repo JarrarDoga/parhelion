@@ -113,6 +113,13 @@ final class PreviewSession {
                 )
             )
         )
+        // Copied text goes to the host's clipboard, if it shares one.
+        host.onCopy { [weak self] text in
+            guard let self, self.welcomed?.contains(PreviewCapability.pasteboard) == true else {
+                return
+            }
+            try? self.channel.send(AppMessage.pasteboard(text))
+        }
         let inbox = HostMessageInbox(channel: channel, wakesMainRunLoop: runsMainActorWork)
         recorder?.start()
         try sendFrame(target: 0)
@@ -269,6 +276,13 @@ final class PreviewSession {
             let reply = host.execute(command)
             if reply.ok { recorder?.appearance(command) }
             try channel.send(.reply(id: id, reply))
+        case .pasteboard(let text):
+            recorder?.pasteboard(text)
+            host.pasteboardText = text
+        case .paste(let text):
+            recorder?.pasteboard(text)
+            recorder?.key(ViewHost.Key.paste.rawValue)
+            host.paste(text)
         case .welcome(let welcome):
             welcomed = Set(welcome.capabilities)
         case .close:

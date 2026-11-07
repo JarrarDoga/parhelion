@@ -26,8 +26,8 @@ enum AgentTools {
 
     static let keys = [
         "backspace", "delete", "left", "right", "up", "down", "home", "end", "tab", "backTab",
-        "return",
-        "escape",
+        "return", "escape", "selectLeft", "selectRight", "selectHome", "selectEnd", "selectAll",
+        "copy", "cut", "paste",
     ]
 
     /// The tools that plug in from files of their own; see
@@ -105,11 +105,14 @@ enum AgentTools {
             title: "Press a key",
             description: """
                 Presses an editing or focus key. tab and backTab move between text fields; \
-                return and escape end editing.
+                return and escape end editing. selectLeft, selectRight, selectHome, and \
+                selectEnd extend the selection from the caret, selectAll selects the field's \
+                text, copy and cut put the selection on the clipboard, and paste inserts the \
+                clipboard's text in place of the selection; set_clipboard fills the clipboard.
                 """,
             inputSchema: #"""
                 {"type": "object", "properties": {
-                  "key": {"type": "string", "enum": ["backspace", "delete", "left", "right", "up", "down", "home", "end", "tab", "backTab", "return", "escape"]}},
+                  "key": {"type": "string", "enum": ["backspace", "delete", "left", "right", "up", "down", "home", "end", "tab", "backTab", "return", "escape", "selectLeft", "selectRight", "selectHome", "selectEnd", "selectAll", "copy", "cut", "paste"]}},
                  "required": ["key"]}
                 """#
         ),

@@ -43,7 +43,7 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [x] A deterministic clock for momentum
 - [x] `TextField` with keyboard input, focus, and a caret
 - [x] Keyboard navigation between text fields with Tab and Shift-Tab
-- [ ] Text selection, copy, and paste
+- [x] Text selection, copy, and paste
 
 ## 0.5: Agent server
 

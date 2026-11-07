@@ -404,7 +404,16 @@ may contain breaking changes.
 
 - Placeholder for #64 (the `MediaPlayer` shim with MPRIS): the change for that issue replaces this line.
 
-- Placeholder for #65 (paste, copy, text selection, `PasteButton`): the change for that issue replaces this line.
+- Text selection, copy, cut, and paste in `TextField`, and `PasteButton(payloadType:onPaste:)`.
+  Drag over a field, or use Shift with the arrow keys, Home, and End, to select; Control-A selects
+  all, Control-C and Control-X copy and cut, and Control-V pastes, through the window's clipboard.
+  Typing, Backspace, and Delete replace the selection, which draws as a tint highlight.
+  `ViewHost.selectedRange`, `selectedText`, `select(_:)`, `pasteboardText`, and the keys
+  `selectLeft`, `selectRight`, `selectHome`, `selectEnd`, `selectAll`, `copy`, `cut`, and `paste`
+  (also for `press_key`). `PasteButton` pastes the pasteboard as a `String`, a `URL`, or `Data`,
+  and is disabled while the pasteboard has nothing of its type. The `set_clipboard` MCP tool and
+  `PreviewCommand.setPasteboard` fill the pasteboard for agents; the `pasteboard` capability keeps
+  the app's pasteboard in step with the window's system clipboard.
 
 - `matchedGeometryEffect(id:in:properties:anchor:isSource:)` makes a view that arrives in an animation start at the frame
   of the view with the same ID and namespace, and the view it replaces moves to the new frame as it fades out.
