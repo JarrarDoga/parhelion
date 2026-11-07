@@ -648,7 +648,7 @@ hosts from before a capability keep working with newer ones
 
 - **`manualClock`: the host moves time.** An app started with `PARHELION_MANUAL_CLOCK=1` lists
   it, and a host that shows no frames (`parhelion mcp` without `--window` or `--web`) welcomes it
-  ([ADR 0011](adr/0011-manual-clock.md)). The app then never reads the real clock and never
+  ([ADR 0012](adr/0012-manual-clock.md)). The app then never reads the real clock and never
   draws on its own schedule. `advanceTime(seconds:)` moves `ViewHost.time` and the executors'
   clock together, waking each `Task.sleep` in deadline order and settling the app after each. At
   start, `App.main()` replaces Swift's main and default executors (`HostClockExecutor`, Swift 6.3

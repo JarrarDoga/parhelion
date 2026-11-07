@@ -48,7 +48,7 @@ public enum PreviewCapability {
     /// ``PreviewCommand/advanceTime(seconds:)``. An app lists it in its hello
     /// only when the host started it with `PARHELION_MANUAL_CLOCK=1`, and
     /// only a host that shows no frames welcomes it; see
-    /// `docs/adr/0011-manual-clock.md`.
+    /// `docs/adr/0012-manual-clock.md`.
     public static let manualClock = "manualClock"
     /// Every capability a window host can use. ``manualClock`` is not one:
     /// it replaces the host's clock instead of adding to it.

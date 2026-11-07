@@ -13,7 +13,7 @@ import ParhelionPreview
 ///
 /// A process started with `PARHELION_MANUAL_CLOCK=1` replaces Swift's main and
 /// default executors before anything runs (see
-/// `docs/adr/0011-manual-clock.md`). The replacements hold every
+/// `docs/adr/0012-manual-clock.md`). The replacements hold every
 /// `Task.sleep` wake-up at "virtual now plus the delay" and run all other work
 /// serially on the main thread. ``advance(by:moving:settled:)`` then releases
 /// the wake-ups in deadline order, settling the app after each one, with no

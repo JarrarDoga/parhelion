@@ -361,7 +361,7 @@ may contain breaking changes.
   actions, `Task`s, and detached tasks reach the state they would after that long, in milliseconds.
   The app starts with `PARHELION_MANUAL_CLOCK=1`, lists the `manualClock` capability, and takes
   the `advanceTime(seconds:)` command; its replies carry `nextWake`. It needs Swift 6.3 or later;
-  with a window or a page, `wait` keeps real time. See ADR 0011.
+  with a window or a page, `wait` keeps real time. See ADR 0012.
 
 - Placeholder for #71 (snapshot tests): the change for that issue replaces this line.
 

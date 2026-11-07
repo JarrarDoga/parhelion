@@ -1,4 +1,4 @@
-# 0011: A manual clock for agents: `wait` advances the app's time, and replaced executors hold `Task.sleep`
+# 0012: A manual clock for agents: `wait` advances the app's time, and replaced executors hold `Task.sleep`
 
 - **Status:** Accepted
 - **Date:** 2026-11-06
