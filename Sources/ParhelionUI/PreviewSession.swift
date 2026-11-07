@@ -42,8 +42,10 @@ final class PreviewSession {
     /// Writes the flow the window host's input makes, when the app was
     /// started with `PARHELION_RECORD_FLOW`.
     private let recorder: FlowRecorder?
-    /// Where the `MediaPlayer` shim reports what the app plays. Tests give a
-    /// session a bridge of its own.
+    /// Where the `MediaPlayer` shim reports what the app plays. The app's
+    /// session uses ``MediaSessionBridge/shared``; any other session, such as
+    /// a test's, has a bridge of its own unless it is given one, so that state
+    /// another test published never reaches it.
     private let mediaBridge: MediaSessionBridge
 
     /// How many frames the shared memory holds: one the host is copying, one
@@ -59,7 +61,7 @@ final class PreviewSession {
     init(
         host: ViewHost, channel: PreviewChannel, scale: Double, appName: String,
         runsMainActorWork: Bool = false, recordingFlowTo recordingPath: String? = nil,
-        mediaBridge: MediaSessionBridge = .shared
+        mediaBridge: MediaSessionBridge = MediaSessionBridge()
     ) {
         self.mediaBridge = mediaBridge
         self.host = host
@@ -518,7 +520,8 @@ extension PreviewSession {
                 scale: scale,
                 appName: appName,
                 runsMainActorWork: true,
-                recordingFlowTo: recordingPath
+                recordingFlowTo: recordingPath,
+                mediaBridge: .shared
             )
             try session.run()
             MediaSessionBridge.shared.connect(send: nil)
