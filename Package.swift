@@ -58,7 +58,8 @@ products.append(.library(name: "MediaPlayer", targets: ["MediaPlayer"]))
 products.append(.library(name: "AVFAudio", targets: ["AVFAudio"]))
 targets += [
     .target(name: "SwiftUI", dependencies: ["ParhelionUI"], swiftSettings: frameworkSettings),
-    .target(name: "MediaPlayer", swiftSettings: frameworkSettings),
+    .target(
+        name: "MediaPlayer", dependencies: ["ParhelionPreview"], swiftSettings: frameworkSettings),
     .target(name: "AVFAudio", swiftSettings: frameworkSettings),
     .testTarget(
         name: "SourceCompatibilityTests", dependencies: ["SwiftUI", "MediaPlayer", "AVFAudio"]),

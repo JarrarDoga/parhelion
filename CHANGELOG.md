@@ -402,7 +402,15 @@ may contain breaking changes.
 
 - `ScrollViewReader` and `ScrollViewProxy.scrollTo(_:anchor:)`, `id(_:)` with identity, `scrollPosition(id:anchor:)` and `scrollPosition(_:anchor:)` in both directions with `ScrollPosition` (including its `idType:` initializers), `scrollTargetLayout()`, `scrollTargetBehavior(.paging)` and `.viewAligned`, and `onScrollGeometryChange(for:of:action:)`, which scroll, settle, and report the geometry of `ScrollView` and `List`; `ViewHost.scroll(toViewID:anchor:)` and `scrollPositionID(of:anchor:)` for tests and tools. They reach rows of lazy stacks and lists that do not exist yet.
 
-- Placeholder for #64 (the `MediaPlayer` shim with MPRIS): the change for that issue replaces this line.
+- `MPNowPlayingInfoCenter` and `MPRemoteCommandCenter` work in a preview: the app's now-playing
+  info (title, artist, album, duration, elapsed time, playback state) and its enabled commands
+  go to the window host, which publishes an MPRIS player on the session bus, so the KDE media
+  widget and `playerctl` show the title and position. `playerctl` play, pause, play-pause, stop,
+  next, previous, seek, and position reach the targets the app added. The host speaks D-Bus
+  itself, in pure Swift, so apps and the tool link no D-Bus library; without a session bus, the
+  preview works as before. The protocol gains `PreviewCapability.mediaSession`,
+  `AppMessage.nowPlaying`, and `HostMessage.remoteCommand`, and `PreviewChannel` locks its
+  sends so that any thread can send. See ADR 0017.
 
 - Text selection, copy, cut, and paste in `TextField`, and `PasteButton(payloadType:onPaste:)`.
   Drag over a field, or use Shift with the arrow keys, Home, and End, to select; Control-A selects
