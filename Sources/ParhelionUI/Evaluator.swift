@@ -56,6 +56,7 @@ final class Evaluator {
     var presentationEnvironment: EnvironmentValues?
     private(set) var actions: [NodeID: @MainActor () -> Void] = [:]
     private(set) var textFields: [NodeID: Binding<String>] = [:]
+    private(set) var inputHandlers: [NodeID: NodeInputHandlers] = [:]
     /// The lifecycle modifiers evaluated, for the host to act on.
     let lifecycle = LifecycleRecord()
 
@@ -74,6 +75,12 @@ final class Evaluator {
 
     func registerAction(_ action: @escaping @MainActor () -> Void, for id: NodeID) {
         actions[id] = action
+    }
+
+    /// Registers what a node does with a long press or a drag; see
+    /// ``NodeInputHandlers``.
+    func registerInputHandlers(_ handlers: NodeInputHandlers, for id: NodeID) {
+        inputHandlers[id] = handlers
     }
 
     func registerTextField(_ text: Binding<String>, for id: NodeID) {

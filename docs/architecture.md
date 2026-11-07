@@ -817,6 +817,31 @@ frames and mouse input flow as in `parhelion run`. A person and an agent then us
 The screenshot tool is the off-screen rendering path: any process that speaks the socket
 protocol can request frames and send input without a window.
 
+### Extension points
+
+A new view kind, layout modifier, MCP tool, or window hook plugs in from its own file
+([ADR 0011](adr/0011-extension-seam.md)):
+
+| What | How it registers | Where it is consulted |
+| --- | --- | --- |
+| A view kind | `NodeExtensions.registerOnce(kind:)`, called when its primitive view makes its nodes | Before the `switch node.kind` blocks of `LayoutEngine` (size, children, presentations) and `TreeRenderer.draw`, and in hit testing |
+| A layout modifier | `customModifier(_:_:behavior:)` on `View`, which adds `LayoutModifier.custom` | The modifier switches of the layout engine, and `drawChain` for backgrounds, foregrounds, and wrapping effects |
+| A long press or drag handler | `Evaluator.registerInputHandlers(_:for:)` | `ViewHost.longPress(at:duration:)` and `ViewHost.drag(from:to:duration:)` |
+| An MCP tool | `AgentToolRegistry.shared.register(_:)` | `AgentTools.definitions` and `AgentController.handle` |
+| A window hook | `WindowHookRegistry.shared.register(_:)` | `WindowHost.translate`, before the window's own meaning for an event |
+
+A `NodeBehavior` has optional parts: `size`, `place`, `draw`, `hitTest`, and, for a presentation,
+`isPresentation` and `placePresentation`. A part that is missing falls back to the default for
+an unknown kind: a container that centers its children, drawing nothing. A `ModifierBehavior` can
+change the size, change the rectangle of what it wraps, draw behind or in front, and draw what it
+wraps through a function (`drawEffect`), which is how a modifier draws a layer of its own. The
+modifier appears in the tree as a name and string parameters, so it stays data. A registered
+kind or modifier is used wherever the built-in ones are: in the outline, in JSON, and in
+snapshots.
+
+A view and a modifier register themselves, because evaluating them runs the registration. An MCP
+tool and a window hook are not evaluated, so something registers them once when the tool starts.
+
 ### Apps
 
 `App`, `Scene`, and `WindowGroup` mirror SwiftUI so an app's `@main` type compiles. Under

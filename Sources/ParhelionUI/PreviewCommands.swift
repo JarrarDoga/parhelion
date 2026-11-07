@@ -127,21 +127,6 @@ extension ViewHost {
         }
     }
 
-    /// Moves a press from one point to another in 60 steps per second of
-    /// `duration`, advancing the clock as it goes, then releases it.
-    func drag(from start: CGPoint, to end: CGPoint, duration: Double) {
-        let duration = min(max(duration, 0.02), 5)
-        let steps = max(Int(duration * 60), 2)
-        pointerDown(at: start)
-        for step in 1...steps {
-            advanceTime(by: duration / Double(steps))
-            let t = CGFloat(step) / CGFloat(steps)
-            pointerMoved(
-                to: CGPoint(x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t))
-        }
-        pointerUp(at: end)
-    }
-
     /// The simulated device's settings, as a reply states them.
     var appearanceDescription: String {
         "The device is set to \(colorScheme.name) at Dynamic Type size \(dynamicTypeSize.name)."

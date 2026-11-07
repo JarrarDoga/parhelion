@@ -207,6 +207,15 @@ final class WindowHost: PreviewSurface {
         func point(_ x: Float, _ y: Float) -> (x: Double, y: Double) {
             screenPoint(windowX: Double(x), windowY: Double(y), zoom: zoom, bezel: bezel)
         }
+        // Hooks that plug in from files of their own see the event first.
+        if let result = WindowHookRegistry.shared.dispatch(hookEvent(event, point: point)) {
+            switch result {
+            case .input(let message): return .input(message)
+            case .appearance(let change): return .appearance(change)
+            case .redraw: return .redraw
+            case .consumed: return nil
+            }
+        }
         switch event.type {
         case SDL_EVENT_QUIT.rawValue, SDL_EVENT_WINDOW_CLOSE_REQUESTED.rawValue:
             return .close
@@ -258,6 +267,44 @@ final class WindowHost: PreviewSurface {
             )
         default:
             return nil
+        }
+    }
+
+    /// An SDL event in the terms hooks see.
+    private func hookEvent(
+        _ event: SDL_Event, point: (Float, Float) -> (x: Double, y: Double)
+    ) -> WindowEvent {
+        func modifiers(of mod: SDL_Keymod) -> WindowEvent.Modifiers {
+            var result: WindowEvent.Modifiers = []
+            if mod & parhelion_keymod_shift != 0 { result.insert(.shift) }
+            if mod & parhelion_keymod_ctrl != 0 { result.insert(.control) }
+            if mod & parhelion_keymod_alt != 0 { result.insert(.alt) }
+            return result
+        }
+        switch event.type {
+        case SDL_EVENT_MOUSE_BUTTON_DOWN.rawValue:
+            return WindowEvent(
+                .pointerDown, position: point(event.button.x, event.button.y))
+        case SDL_EVENT_MOUSE_BUTTON_UP.rawValue:
+            return WindowEvent(.pointerUp, position: point(event.button.x, event.button.y))
+        case SDL_EVENT_MOUSE_MOTION.rawValue:
+            return WindowEvent(.pointerMoved, position: point(event.motion.x, event.motion.y))
+        case SDL_EVENT_MOUSE_WHEEL.rawValue:
+            return WindowEvent(
+                .wheel(dx: Double(event.wheel.x), dy: Double(event.wheel.y)),
+                position: point(event.wheel.mouse_x, event.wheel.mouse_y))
+        case SDL_EVENT_TEXT_INPUT.rawValue:
+            return WindowEvent(.text(event.text.text.map { String(cString: $0) } ?? ""))
+        case SDL_EVENT_KEY_DOWN.rawValue:
+            let held = modifiers(of: event.key.mod)
+            let name = Self.keyName(event.key.key, shift: held.contains(.shift))
+            return WindowEvent(.key(name: name, code: event.key.key), modifiers: held)
+        case SDL_EVENT_WINDOW_FOCUS_GAINED.rawValue:
+            return WindowEvent(.focusGained)
+        case SDL_EVENT_WINDOW_FOCUS_LOST.rawValue:
+            return WindowEvent(.focusLost)
+        default:
+            return WindowEvent(.other(rawType: event.type))
         }
     }
 

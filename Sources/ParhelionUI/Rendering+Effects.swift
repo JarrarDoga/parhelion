@@ -87,6 +87,24 @@ extension TreeRenderer {
                     x: bounds.minX + anchor.x * bounds.width,
                     y: bounds.minY + anchor.y * bounds.height),
                 inherited: inherited, into: &canvas)
+        case .custom(let modifier):
+            let drawing = NodeDrawing(
+                frame: bounds, foreground: foreground, tint: tint, opacity: opacity,
+                scheme: scheme,
+                palette: ColorPalette.appearance(scheme, elevated: inherited.elevated),
+                container: .standard)
+            let behavior = modifier.behavior
+            if let drawEffect = behavior?.drawEffect {
+                drawEffect(
+                    self, modifier.parameters, drawing,
+                    { canvas in
+                        drawChain(node, count: effect, inherited: inherited, into: &canvas)
+                    }, &canvas)
+            } else {
+                behavior?.drawBehind?(self, modifier.parameters, drawing, &canvas)
+                drawChain(node, count: effect, inherited: inherited, into: &canvas)
+                behavior?.drawInFront?(self, modifier.parameters, drawing, &canvas)
+            }
         default:
             break
         }

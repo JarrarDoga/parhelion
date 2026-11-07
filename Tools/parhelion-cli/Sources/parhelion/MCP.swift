@@ -280,6 +280,13 @@ final class AgentController: @unchecked Sendable {
             return waitUntilSettled(seconds: min(max(arguments.double("seconds") ?? 0.5, 0), 10))
         case "set_appearance":
             return setAppearance(arguments)
+        case _ where AgentTools.registry.has(name):
+            // A tool from a file of its own answers itself or names a command.
+            switch AgentTools.registry.call(name, arguments) {
+            case .command(let command): return run(command, summaryOnly: false)
+            case .result(let result): return result
+            case nil: return .text(AgentTools.usage(of: name), isError: true)
+            }
         default:
             guard let command = AgentTools.command(for: name, arguments) else {
                 return .text(AgentTools.usage(of: name), isError: true)

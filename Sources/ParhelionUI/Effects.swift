@@ -168,6 +168,10 @@ extension LayoutModifier {
     var isDrawingEffect: Bool {
         switch self {
         case .overlayStyle, .clipShape, .cornerRadius, .shadow, .scaleEffect: true
+        case .custom(let modifier):
+            modifier.behavior.map {
+                $0.drawEffect != nil || $0.drawBehind != nil || $0.drawInFront != nil
+            } ?? false
         default: false
         }
     }

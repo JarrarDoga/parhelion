@@ -89,6 +89,9 @@ public enum LayoutModifier: Hashable, Sendable, Codable {
     /// fits the proposal, or with `fill`, the smallest that covers it. A
     /// `nil` ratio is the view's ideal size's.
     case aspectRatio(CGFloat?, fill: Bool)
+    /// A modifier that a file of its own defines and registers by name; see
+    /// ``CustomModifier``.
+    case custom(CustomModifier)
 
     var outlineDescription: String {
         switch self {
@@ -119,6 +122,8 @@ public enum LayoutModifier: Hashable, Sendable, Codable {
         case .aspectRatio(let ratio, let fill):
             let mode = "contentMode: \(fill ? "fill" : "fit")"
             return "aspectRatio(" + (ratio.map { "\(formatUnit($0)), " } ?? "") + mode + ")"
+        case .custom(let modifier):
+            return modifier.outlineDescription
         case .scaleEffect(let x, let y, let anchor):
             var parts =
                 x == y ? [formatPoints(x)] : ["x: \(formatPoints(x))", "y: \(formatPoints(y))"]

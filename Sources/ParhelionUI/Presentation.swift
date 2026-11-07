@@ -23,6 +23,7 @@ extension ViewNode {
     /// picker's menu at the root of the tree.
     var isPresentation: Bool {
         kind == "Sheet" || kind == "FullScreenCover" || kind == "Alert" || kind == "Menu"
+            || NodeExtensions.isPresentation(kind)
     }
 }
 

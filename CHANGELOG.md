@@ -334,6 +334,80 @@ may contain breaking changes.
 - `PreviewCommand.setAppearance(colorScheme:dynamicTypeSize:)` and the `appearance` capability in
   the preview protocol.
 - README images of the dark appearance and of large text sizes.
+- Extension points: a view kind, a layout modifier, a render effect, an MCP tool, or a window
+  hook now plugs in from its own file, so later changes do not edit the layout engine, the
+  renderer, `AgentTools.swift`, or `WindowHost.swift`. See ADR 0011.
+- `ViewHost.longPress(at:duration:)` and `ViewHost.drag(from:to:duration:)`, which reach views by
+  hit testing. `drag` is now public and sends a drag to the view under its start, or moves the
+  pointer there as before.
+
+- Placeholder for #49 (compile-only stubs for every missing API): the change for that issue replaces this line.
+
+- Placeholder for #50 (apps that link a Rust library through UniFFI): the change for that issue replaces this line.
+
+- Placeholder for #51 (many `parhelion mcp` sessions on one PC): the change for that issue replaces this line.
+
+- Placeholder for #52 (compare the preview with a design board PNG): the change for that issue replaces this line.
+
+- Placeholder for #69 (accessibility identifiers and labels): the change for that issue replaces this line.
+
+- Placeholder for #70 (the manual clock): the change for that issue replaces this line.
+
+- Placeholder for #71 (snapshot tests): the change for that issue replaces this line.
+
+- Placeholder for #30 (the scroll edge effect): the change for that issue replaces this line.
+
+- Placeholder for #32 (build, install and run on the iPhone): the change for that issue replaces this line.
+
+- Placeholder for #34 (your own SF Symbols in front of Phosphor): the change for that issue replaces this line.
+
+- Placeholder for #53 (`LazyVStack`, `LazyHStack`, and lazy `List` rows): the change for that issue replaces this line.
+
+- Placeholder for #56 (gestures: tap, long press, drag): the change for that issue replaces this line.
+
+- Placeholder for #54 (`glassEffect`, `GlassEffectContainer`, `glassEffectID`): the change for that issue replaces this line.
+
+- Placeholder for #58 (`Menu` and `contextMenu`): the change for that issue replaces this line.
+
+- Placeholder for #60 (`ScrollViewReader`, `scrollPosition`, paging, scroll geometry): the change for that issue replaces this line.
+
+- Placeholder for #64 (the `MediaPlayer` shim with MPRIS): the change for that issue replaces this line.
+
+- Placeholder for #65 (paste, copy, text selection, `PasteButton`): the change for that issue replaces this line.
+
+- Placeholder for #78 (`matchedGeometryEffect` and the zoom transition): the change for that issue replaces this line.
+
+- Placeholder for #55 (`tabViewBottomAccessory` and `tabBarMinimizeBehavior`): the change for that issue replaces this line.
+
+- Placeholder for #57 (`swipeActions`): the change for that issue replaces this line.
+
+- Placeholder for #75 (`onMove`, `onDelete`, `EditMode`): the change for that issue replaces this line.
+
+- Placeholder for #59 (`searchable`): the change for that issue replaces this line.
+
+- Placeholder for #61 (`rotationEffect`, `blur`, `mask`): the change for that issue replaces this line.
+
+- Placeholder for #80 (`lineLimit`, `truncationMode`, vertical text fields): the change for that issue replaces this line.
+
+- Placeholder for #76 (the list section index): the change for that issue replaces this line.
+
+- Placeholder for #62 (`sensoryFeedback` and Reduce Motion): the change for that issue replaces this line.
+
+- Placeholder for #74 (`refreshable`): the change for that issue replaces this line.
+
+- Placeholder for #77 (`ProgressView`): the change for that issue replaces this line.
+
+- Placeholder for #63 (`scenePhase`): the change for that issue replaces this line.
+
+- Placeholder for #79 (the `AVFAudio` shim and interruptions): the change for that issue replaces this line.
+
+- Placeholder for #72 (`TimelineView`): the change for that issue replaces this line.
+
+- Placeholder for #73 (recorded tests): the change for that issue replaces this line.
+
+- Placeholder for #66 (comparison with Apple's SwiftUI on Rustle's screens): the change for that issue replaces this line.
+
+- Placeholder for #67 (performance on Rustle's screens): the change for that issue replaces this line.
 
 ### Changed
 

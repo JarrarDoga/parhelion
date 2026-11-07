@@ -24,7 +24,14 @@ enum AgentTools {
         "backspace", "delete", "left", "right", "home", "end", "tab", "backTab", "return", "escape",
     ]
 
-    static let definitions: [MCPTool] = [
+    /// The tools that plug in from files of their own; see
+    /// ``AgentToolRegistry``.
+    static let registry = AgentToolRegistry.shared
+
+    /// The built-in tools, then the registered ones.
+    static var definitions: [MCPTool] { builtInDefinitions + registry.definitions }
+
+    private static let builtInDefinitions: [MCPTool] = [
         MCPTool(
             name: "get_view_tree",
             title: "Get the view tree",
