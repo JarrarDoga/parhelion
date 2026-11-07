@@ -156,6 +156,20 @@ jobs:
         run: >-
           Tools/parhelion-cli/.build/debug/parhelion run --exit-after-first-frame
           --package-path Tools/parhelion-cli/Fixtures/LibraryApp
+      - name: Replay a recorded flow without a display
+        # The fixture flow was written with `parhelion test --update`. A copy
+        # whose checkpoints expect another count must fail.
+        env:
+          SDL_VIDEODRIVER: offscreen
+        run: |
+          parhelion=Tools/parhelion-cli/.build/debug/parhelion
+          flow=Tools/parhelion-cli/Fixtures/Flows/counter.json
+          $parhelion test --product Counter "$flow"
+          sed 's/Count: 1/Count: 9/' "$flow" > "$RUNNER_TEMP/broken-flow.json"
+          if $parhelion test --product Counter "$RUNNER_TEMP/broken-flow.json"; then
+            echo "::error::A flow with a wrong checkpoint passed."
+            exit 1
+          fi
       - name: Drive an app as an agent over MCP
         env:
           SDL_VIDEODRIVER: offscreen

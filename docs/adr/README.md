@@ -18,6 +18,7 @@ marked *Superseded* and links to the record that replaces it.
 | [0010](0010-images-from-the-app-bundle.md) | Images come from the app's raw asset catalog, decoded in pure Swift, through a side table | Accepted |
 | [0011](0011-extension-seam.md) | New views, modifiers, MCP tools, and window hooks plug in from their own files | Accepted |
 | [0012](0012-manual-clock.md) | A manual clock for agents: `wait` advances the app's time, and replaced executors hold `Task.sleep` | Accepted |
+| [0013](0013-recorded-flows.md) | Recorded flows are JSON that the app records and replays | Accepted |
 
 To add a record, copy the structure of an existing one, use the next number, and add it to this
 table in the same pull request as the change it describes.

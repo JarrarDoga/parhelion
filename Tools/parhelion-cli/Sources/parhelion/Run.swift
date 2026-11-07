@@ -34,6 +34,13 @@ struct Run: ParsableCommand {
             directories with prebuilt .a and .so files for the linker. \
             The options --pre-build, --watch, and --library-path do the same.
 
+            --record FLOW.json records what you do in the window as a flow: taps, \
+            typing, scrolls, and the pauses between them, with a checkpoint of the \
+            screen at the start, at the end, and whenever you press F2. Taps name the \
+            control by its accessibility identifier, else its label, so the flow \
+            survives layout changes. Closing the window ends the recording, and so \
+            does a reload. Replay flows without a window with parhelion test.
+
             --overlay board.png draws a design board over the window, at \
             --overlay-opacity (0 to 1, default 0.5), to compare by eye. For a number \
             instead, use the compare_image tool of parhelion mcp.
@@ -47,6 +54,11 @@ struct Run: ParsableCommand {
     @OptionGroup var web: WebOptions
 
     @OptionGroup var overlay: OverlayOptions
+
+    @Option(
+        help: ArgumentHelp(
+            "Record what you do in the window to this flow file.", valueName: "file"))
+    var record: String?
 
     @Option(help: "The directory of the app's package.")
     var packagePath = "."
@@ -66,6 +78,12 @@ struct Run: ParsableCommand {
 
     enum BuildConfiguration: String, ExpressibleByArgument {
         case debug, release
+    }
+
+    func validate() throws {
+        if record != nil, web.isEnabled {
+            throw ValidationError("--record needs the window; the web page cannot record yet.")
+        }
     }
 
     func run() throws {
@@ -111,13 +129,18 @@ struct Run: ParsableCommand {
         if let webHost { wakeBox.set(webHost.waker) }
         var environment = window.environment(socketPath: socketPath)
         environment[previewStateEnvironmentKey] = stateFile
+        // Only the first launch records: a reload starts the app over, and
+        // the recording would not replay from there.
+        var recording = record
         // Each launch starts with the appearance the window or a page set.
         let appearance = AppearanceState()
         func launch() throws -> AppConnection {
-            try AppConnection(
+            var launchEnvironment = environment.merging(appearance.environment) { $1 }
+            launchEnvironment[previewRecordFlowEnvironmentKey] = recording
+            return try AppConnection(
                 executable: executable,
                 arguments: [],
-                environment: environment.merging(appearance.environment) { $1 },
+                environment: launchEnvironment,
                 listener: listener,
                 wake: { wakeBox.wake() }
             )
@@ -131,6 +154,12 @@ struct Run: ParsableCommand {
         } else {
             let host = try window.openWindow(for: app!.hello)
             try overlay.apply(to: host, hello: app!.hello)
+            if let record {
+                host.recordsFlow = true
+                print(
+                    "Recording to \(record). Press F2 for a checkpoint. Closing the window "
+                        + "ends the recording.")
+            }
             wakeBox.set(host.waker)
             surface = host
             print(
@@ -195,6 +224,11 @@ struct Run: ParsableCommand {
                 }
                 let restartedAt = PreviewClock.now()
                 app?.close()
+                if let path = recording {
+                    recording = nil
+                    (surface as? WindowHost)?.recordsFlow = false
+                    print("The recording in \(path) ended: a rebuild starts the app over.")
+                }
                 do {
                     app = try launch()
                     reportedExit = false
