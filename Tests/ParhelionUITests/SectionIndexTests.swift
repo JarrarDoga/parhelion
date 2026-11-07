@@ -218,4 +218,21 @@ struct SectionIndexTests {
         }
         #expect(tinted > 50)
     }
+
+    @Test("A long list scrolls to a section far below the screen")
+    func longList() throws {
+        let alphabet = (UInt8(ascii: "A")...UInt8(ascii: "Z")).map { String(UnicodeScalar($0)) }
+        let host = ViewHost(
+            List {
+                ForEach(alphabet, id: \.self) { letter in
+                    Section(letter) {
+                        ForEach(0..<20, id: \.self) { Text("\(letter)\($0)") }
+                    }
+                    .sectionIndexLabel(Text(letter))
+                }
+            },
+            device: screen)
+        try host.tapButton(labeled: "T")
+        #expect(top(of: "T", in: host) == 0)
+    }
 }
