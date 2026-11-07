@@ -429,7 +429,7 @@ may contain breaking changes.
   leaves the row open; a full swipe runs the first action. Tapping elsewhere closes an open row.
   Rows record `swipeActions` and, while moved, `swipeOffset`. See the architecture document.
 
-- Placeholder for #75 (`onMove`, `onDelete`, `EditMode`): the change for that issue replaces this line.
+- `onMove(perform:)` and `onDelete(perform:)` on `ForEach`, `EditButton`, `moveDisabled(_:)`, and `deleteDisabled(_:)` now work. In a `List` whose `editMode` environment value is active, each row shows a delete button for `onDelete` and a reorder handle for `onMove`; dragging a handle onto another row calls the move action. Tapping the delete button shows Delete, as on iOS. Parhelion does not supply an edit mode of its own: set one with `environment(\.editMode, $mode)`.
 
 - `searchable(text:placement:prompt:)` adds a search field and binds its text. In a tab with the search role it is a glass
   capsule at the bottom, above the tab bar; elsewhere, in a navigation stack or a sheet, it is a capsule under the
