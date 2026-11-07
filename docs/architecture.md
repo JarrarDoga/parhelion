@@ -213,6 +213,17 @@ device for the system interface it draws over the tree.
   buttons; large glass for alerts and partial-height sheets. Before blurring, it checks whether
   the pixels the blur would read are one flat color, every row at one pixel per point, and then
   skips the blur and fills the shape with the tint blended over that color once.
+- **`glassEffect`** plugs in through the extension seam (Rendering+GlassEffect.swift). The modifier
+  draws its glass behind its view in the shape, with the small glass of toolbar buttons, the large
+  glass of alerts for a shape 140 points across or more, a trace of frosting for `.clear`, and the
+  prominent glass for a tint. A shape on its own goes through `Canvas.drawGlass` and the cache like
+  a bar. A `GlassEffectContainer` is laid out as a `ZStack`, marks the glass inside it as its own,
+  and draws it before its children: shapes of the same glass closer than its spacing (or touching)
+  draw as one piece, with a neck between them that thins as they part. A merged piece draws the
+  shadow of the union, the glass inside the union (a clip), and each shape's edge cut away where
+  another shape covers it; the cache keeps it like any glass (`EntryKey.merged`). A shape with a
+  `glassEffectID` that fades in or out draws between the frame of the nearest settled glass in its
+  namespace and its own, so the presented tree's opacity drives the morph.
 - **Colors** come from `ColorPalette`, which maps SwiftUI's named colors and styles to iOS 27's
   system colors in the light or the dark appearance. The renderer reads the color scheme from
   the tree: the root records `colorScheme=dark` while the window is dark, and a node records its

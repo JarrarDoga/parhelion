@@ -383,7 +383,10 @@ may contain breaking changes.
 
 - Placeholder for #56 (gestures: tap, long press, drag): the change for that issue replaces this line.
 
-- Placeholder for #54 (`glassEffect`, `GlassEffectContainer`, `glassEffectID`): the change for that issue replaces this line.
+- `glassEffect(_:in:isEnabled:)` draws Liquid Glass, `.regular`, `.clear`, `.tint(_:)`, and `.interactive()`, in any shape.
+  `GlassEffectContainer(spacing:)` draws the glass of its views as one piece where shapes come closer than the spacing,
+  and `glassEffectID(_:in:)` makes glass that appears or disappears in an animation grow out of, or shrink into, the glass
+  beside it. `@Namespace` now keeps its ID across updates.
 
 - Placeholder for #58 (`Menu` and `contextMenu`): the change for that issue replaces this line.
 

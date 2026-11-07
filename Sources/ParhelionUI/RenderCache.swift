@@ -99,9 +99,12 @@ final class RenderCache {
         var clip: [Double]?
     }
 
-    /// A kept drawing: glass or a scroll edge effect.
+    /// A kept drawing: glass, merged glass, or a scroll edge effect.
     enum EntryKey: Hashable {
         case glass(GlassKey)
+        /// Glass shapes of a `GlassEffectContainer` drawn as one piece;
+        /// see Rendering+GlassEffect.swift.
+        case merged(MergedGlassKey)
         case edge(EdgeKey)
     }
 
@@ -226,7 +229,7 @@ final class RenderCache {
     /// Runs `draw` on the canvas, or copies what it drew in an earlier frame
     /// when the pixels of `region`, which `draw` reads and changes, are the
     /// same as then.
-    private func reuse(
+    func reuse(
         _ key: EntryKey, region: PixelBox, checksummed: Bool = false, into canvas: inout Canvas,
         draw: (inout Canvas) -> Void
     ) {
