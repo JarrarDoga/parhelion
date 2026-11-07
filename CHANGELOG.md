@@ -426,7 +426,14 @@ may contain breaking changes.
 
 - Placeholder for #74 (`refreshable`): the change for that issue replaces this line.
 
-- Placeholder for #77 (`ProgressView`): the change for that issue replaces this line.
+- `ProgressView` draws iOS 26's spinner (eight spokes, one turn a second) for an unknown amount, a
+  ring for a known amount in `.circular`, and a 4-point bar for `value:total:` (such as "640 of
+  1,535 songs"), with its label above the bar and its current value label below it.
+  `progressViewStyle(_:)` with `.automatic`, `.circular`, `.linear`, `CircularProgressViewStyle(tint:)`,
+  `LinearProgressViewStyle(tint:)`, and custom `ProgressViewStyle` types, which can wrap the
+  default look with `ProgressView(configuration)`. A spinner and an
+  indeterminate bar animate on the host's clock, so they follow `advanceTime(by:)` and a manual
+  clock (#77).
 
 - Placeholder for #63 (`scenePhase`): the change for that issue replaces this line.
 
