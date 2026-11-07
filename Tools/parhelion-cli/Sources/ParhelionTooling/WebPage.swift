@@ -404,7 +404,7 @@ enum WebPage {
         // Keyboard input goes through a hidden text area, so keyboard layouts, input
         // methods, and phone keyboards work. Editing keys are sent by name.
         const keyNames = { Backspace: "backspace", Delete: "delete", ArrowLeft: "left",
-          ArrowRight: "right", Home: "home", End: "end", Tab: "tab", Enter: "return",
+          ArrowRight: "right", ArrowUp: "up", ArrowDown: "down", Home: "home", End: "end", Tab: "tab", Enter: "return",
           Escape: "escape" };
         keys.addEventListener("keydown", (event) => {
           let name = keyNames[event.key];

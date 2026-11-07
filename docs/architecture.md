@@ -154,6 +154,13 @@ the child. A `nil` dimension in a proposal asks for the child's ideal size.
   `font=largeTitle.bold`, unless it is the body style. Layout and drawing read only that
   attribute: a text style's size, line height, and weight come from `LayoutDefaults`, and the
   weight picks the nearest bundled Inter.
+- **Line limits and truncation** (`TextLimits.swift`) are environment values, as in SwiftUI:
+  `lineLimit(_:)` and `truncationMode(_:)` reach every `Text` and `TextField` inside the view.
+  A `Text` records `lineLimit`, `reservesSpace`, and `truncationMode` (only when set). Layout
+  and drawing wrap the text, and when it needs more lines than the limit, the last line (tail),
+  the first (head), or the middle one stands for the lines that do not show and is cut to the
+  width with an ellipsis, `…`, at a character boundary. Layout and drawing call the same
+  function, so they agree. A range sets only the upper bound for a `Text`.
 - **Dynamic Type** scales text styles: each `Text` resolves its font at the environment's
   `dynamicTypeSize`, with the size and line height of the iOS 27 UI Kit's Dynamic Type table
   (`DynamicTypeTable`), and records the size in `fontSize` when it differs from the size at
@@ -785,6 +792,13 @@ A `TextField` registers its binding with the evaluator, the way a `Button` regis
   changes and the tree updates.
 - `press(_:)` applies `ViewHost.Key` editing keys: Backspace, Delete, Left, Right, Home, End, and
   Return or Escape to end editing.
+
+`TextField(_:text:axis: .vertical)` wraps its text at the field's width and is as tall as its
+lines, between one line (or the range's lower bound) and the `lineLimit`. Past the limit, the
+lines scroll so that the caret's line is the last one shown. `VerticalFieldGeometry` breaks the
+value into lines that remember where they start, and layout, drawing, clicks, and the caret keys
+share it. In such a field, Return inserts a new line instead of ending editing, Up and Down move
+the caret between lines, and Home and End go to the start and end of the caret's line.
 
 The window host turns SDL3 text input events into `text` messages, after keyboard layouts and
 input methods, and key events into `key` messages. A field is one line tall and fills the width

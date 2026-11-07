@@ -32,6 +32,7 @@ extension Text: PrimitiveView {
         // show a font only where one was chosen, and a size only where
         // Dynamic Type changed it.
         resolvedFont(in: evaluator.environment).record(in: &attributes)
+        evaluator.environment.recordTextLimits(in: &attributes, isField: false)
         return [ViewNode(id: path.appending("Text").id, kind: "Text", attributes: attributes)]
     }
 }

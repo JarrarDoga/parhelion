@@ -16,6 +16,8 @@ public struct TextField: View {
 
     let placeholder: String
     let text: Binding<String>
+    /// The axis the field grows along; see ``init(_:text:axis:)``.
+    var axis = Axis.horizontal
 
     public init(_ title: some StringProtocol, text: Binding<String>) {
         placeholder = String(title)
@@ -34,6 +36,8 @@ extension TextField: PrimitiveView {
         // A field's text is body text, which scales with Dynamic Type.
         Font.body.resolved(dynamicTypeSize: evaluator.environment.dynamicTypeSize)
             .record(in: &attributes)
+        if axis == .vertical { attributes["axis"] = "vertical" }
+        evaluator.environment.recordTextLimits(in: &attributes, isField: true)
         if evaluator.environment.isEnabled {
             evaluator.registerTextField(text, for: ownPath.id)
         } else {

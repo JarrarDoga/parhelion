@@ -344,13 +344,10 @@ struct LayoutEngine {
         }
         switch node.kind {
         case "Text":
-            return measurer.size(
-                of: node.text ?? "",
-                font: ResolvedFont(node: node),
-                width: proposal.width
-            )
+            return measurer.textSize(of: node, width: proposal.width)
 
         case "TextField":
+            if node.isVerticalTextField { return verticalFieldSize(node, proposal) }
             // A text field fills the width it is offered and is one line tall.
             let font = TextFieldGeometry(node: node).resolvedFont
             let widest =

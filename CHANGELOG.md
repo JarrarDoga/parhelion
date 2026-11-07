@@ -431,7 +431,11 @@ may contain breaking changes.
   views, in place of the compile-only stubs. A mask uses the alpha of its views, so a gradient fades a view out. None of
   them changes layout.
 
-- Placeholder for #80 (`lineLimit`, `truncationMode`, vertical text fields): the change for that issue replaces this line.
+- `lineLimit(_:)` (a number, `nil`, a range, or `reservesSpace`) and `truncationMode(_:)` limit text to a number of lines
+  and cut it off with an ellipsis at its tail, head, or middle, so a long song title fits a row. `TextField(_:text:axis:)`
+  with `.vertical` wraps its text, grows from one line up to its line limit as text is typed, and scrolls past it; Return
+  starts a new line. `ViewHost.Key` has `up` and `down`, which move the caret between lines, and the preview window, the web
+  preview, and `press_key` send them.
 
 - Placeholder for #76 (the list section index): the change for that issue replaces this line.
 

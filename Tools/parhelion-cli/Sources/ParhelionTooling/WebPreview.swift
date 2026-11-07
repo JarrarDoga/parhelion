@@ -479,7 +479,9 @@ enum PageMessage: Equatable {
 
     /// Keys the page may press, as `ViewHost.Key` names them.
     static let keys: Set<String> = [
-        "backspace", "delete", "left", "right", "home", "end", "tab", "backTab", "return", "escape",
+        "backspace", "delete", "left", "right", "up", "down", "home", "end", "tab", "backTab",
+        "return",
+        "escape",
     ]
 
     /// The fields a message may have.
