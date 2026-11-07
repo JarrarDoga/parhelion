@@ -174,7 +174,7 @@ def main():
         check("color_scheme" in text, "an unknown color scheme is a tool error")
 
         _, text = session.call("set_appearance", {"reduce_motion": True})
-        check("Reduce Motion on" in text, "set_appearance switches Reduce Motion")
+        check("Reduce Motion is on" in text, "set_appearance switches Reduce Motion")
         _, text = session.call("get_view_tree")
         check("Root colorScheme=dark dynamicTypeSize=accessibility2 reduceMotion=true" in text, "the view tree's root shows Reduce Motion")
         _, text = session.call("get_sensory_feedback")
