@@ -25,6 +25,7 @@ to behave exactly enough to test against.
 | `ParhelionUI` | Linux (macOS planned) | The SwiftUI-compatible API, layout, and the runtime. |
 | `ParhelionRender` | Linux (macOS planned) | Font parsing, anti-aliased rasterization, and PNG encoding, in pure Swift. |
 | `ParhelionPreview` | Linux | The protocol and socket channel between an app and the window host. |
+| `ParhelionTesting` | Linux | Snapshot expectations for Swift Testing: `ViewHost.expectSnapshot`. Only tests link it. |
 | `parhelion` (in `Tools/parhelion-cli`) | Linux | The command-line tool, the SDL3 window host, and the web preview. A separate package, because it depends on SDL3. |
 | `SwiftUI` | Linux only | Re-exports `ParhelionUI` so that `import SwiftUI` compiles. See [ADR 0001](adr/0001-swiftui-module-shim.md). |
 
@@ -1003,6 +1004,35 @@ tool and a window hook are not evaluated, so something registers them once when 
 Parhelion, `App.main()` runs a preview session when a window host started the app. Otherwise it
 runs headlessly: it resolves the first window, lets `task` work finish for up to five seconds,
 and prints the tree, or writes it to a PNG file with `--png`.
+
+### Snapshot tests
+
+`ViewHost.expectSnapshot(named:)` in `ParhelionTesting` renders the screen and compares it with a
+PNG. It is the one place that imports `Testing`; `ParhelionUI` links into apps and does not.
+`Snapshots.check` does the work and returns a `SnapshotOutcome`, so it is testable without
+Swift Testing, and `expectSnapshot` turns the outcome into an issue.
+
+- **Where references live.** `Tests/__Snapshots__/<test file>/<test>.<name>.png`, found through
+  `#filePath`. The folder sits beside the test targets' folders, not in one: SwiftPM warns about
+  unhandled files inside a target, and declaring them as resources is ruled out by
+  [ADR 0003](adr/0003-no-swiftpm-resources.md). They are read at run time. A `reference:` URL
+  replaces the path, which the README image tests use for `docs/images`.
+- **The comparison.** Equal bytes pass without decoding. Otherwise both images are decoded with
+  `Bitmap(pngData:)`, so a reference recompressed by another tool still matches, and
+  `Bitmap.difference(from:channelTolerance:)` counts the pixels where any RGBA channel differs by
+  more than `channelTolerance` (0 to 255). The test passes when the sizes match and that share is
+  at most `pixelTolerance` (0 to 1). Both default to 0: renders were byte-identical across
+  machines and build modes on x86-64 Linux. That is observed, not guaranteed; libm results can
+  differ on other platforms, so set tolerances from measured diffs when another platform joins
+  CI. The metric is integer arithmetic on purpose, because a perceptual one needs color
+  conversion through libm, the source of the differences.
+- **Failures.** The message gives the count, the largest channel difference, and the bounding box.
+  The actual image and a diff image (differing pixels red over a faded copy) are attached; `swift
+  test --attachments-path DIR` writes them, and without it they are discarded.
+- **Record mode.** `PARHELION_RECORD_SNAPSHOTS` is `missing` (the default: write a reference that
+  does not exist), `failed` (also rewrite those that do not match), `all`, or `never` (CI: never
+  write). A write fails the test, so recording is never mistaken for passing. A value that is not
+  a mode is an error, not a default.
 
 ## Planned layers
 

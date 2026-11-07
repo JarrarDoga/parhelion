@@ -373,7 +373,13 @@ may contain breaking changes.
   the `advanceTime(seconds:)` command; its replies carry `nextWake`. It needs Swift 6.3 or later;
   with a window or a page, `wait` keeps real time. See ADR 0012.
 
-- Placeholder for #71 (snapshot tests): the change for that issue replaces this line.
+- Snapshot tests: `ViewHost.expectSnapshot(named:scale:chrome:channelTolerance:pixelTolerance:)`
+  in the new `ParhelionTesting` library compares a render with a PNG in `Tests/__Snapshots__/` and
+  records a Swift Testing issue with the actual and the difference image attached.
+  `PARHELION_RECORD_SNAPSHOTS` (`missing`, `failed`, `all`, `never`) chooses whether references are
+  written; CI uses `never`. `Bitmap.difference(from:channelTolerance:)` and `differenceImage(from:)`
+  in `ParhelionRender` give the pixel counts. The README image tests use them, in place of
+  `PARHELION_README_IMAGES`, for the Tasks and Tabs images.
 
 - Placeholder for #32 (build, install and run on the iPhone): the change for that issue replaces this line.
 

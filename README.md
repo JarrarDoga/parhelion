@@ -77,8 +77,8 @@ Parhelion draws the screen itself. This image of the `Counter` example came from
 
 The `Tasks` example shows the rest of the iOS 27 interface: a large title and a list, a pushed
 screen with a glass back button, an alert, and a sheet with glass toolbar buttons. Its images come
-from `PARHELION_README_IMAGES=docs/images swift test --filter writeReadmeImages`, which taps
-through the app with `ViewHost`:
+from `ViewHost`, which taps through the app, and `swift test` compares them with fresh renders
+(see [Snapshot tests](docs/architecture.md#snapshot-tests)):
 
 <p align="center">
   <img src="docs/images/tasks-list.png" alt="The Tasks list: a large Tasks title, an Add button on a glass capsule, and To do and Done sections." width="190">
@@ -89,8 +89,8 @@ through the app with `ViewHost`:
 
 The `Tabs` example shows iOS 27's floating glass tab bar, with three tabs and a search tab that
 each keep their own navigation stack, and symbol images drawn with
-[Phosphor Icons](https://phosphoricons.com). Its images come from
-`PARHELION_README_IMAGES=docs/images swift test --filter writeTabsReadmeImages`:
+[Phosphor Icons](https://phosphoricons.com). Its images are checked the same
+way:
 
 <p align="center">
   <img src="docs/images/tabs-places.png" alt="The Places tab: a list of places, each with a Phosphor symbol, scrolling under a glass tab bar with Places selected and a separate search circle." width="190">
