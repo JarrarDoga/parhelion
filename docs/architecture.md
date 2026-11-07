@@ -856,6 +856,14 @@ Only malformed requests are JSON-RPC errors. With `--window`, the same app also 
 preview window: the protocol moves to a background thread, SDL keeps the main thread, and
 frames and mouse input flow as in `parhelion run`. A person and an agent then use one app.
 
+`compare_image` takes a design board PNG, a screenshot of the whole screen at a whole scale such
+as 3×, finds the scale from its width, asks the app for a screenshot at that scale, and compares
+the two with `ImageDiff` in `ParhelionTooling`: a pixel differs when any of its red, green, blue,
+or alpha values is more than the tolerance (8 of 255 by default) from the board's. The result is
+the share of differing pixels and the area they lie in, with a diff PNG, the screenshot faded
+with the differing pixels in red. `parhelion run --overlay` draws the board over the window's
+screen, under the bezel, as a texture with an opacity.
+
 The screenshot tool is the off-screen rendering path: any process that speaks the socket
 protocol can request frames and send input without a window.
 

@@ -6,7 +6,7 @@ Usage: Scripts/mcp-session.py PATH_TO_PARHELION_EXECUTABLE
 The session works on a copy of the LibraryApp fixture in a temporary
 directory. It starts the server with a compile error in the app, fixes the
 error, rebuilds, and then uses the app: it reads the view tree, taps, takes a
-screenshot, switches to dark at a large text size, and checks that @State and
+screenshot and compares the screen with it, switches to dark at a large text size, and checks that @State and
 the appearance survive a rebuild. Run it without a display, with
 SDL_VIDEODRIVER=offscreen or no DISPLAY at all.
 """
@@ -15,7 +15,9 @@ import base64
 import json
 import os
 import pathlib
+import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -83,6 +85,18 @@ def check(condition, description):
     print(f"ok: {description.splitlines()[0][:100]}")
 
 
+def tiny_png():
+    """A 1 x 1 white PNG."""
+    import zlib
+
+    def chunk(kind, data):
+        body = kind + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
+
+    header = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", zlib.compress(b"\x00\xff\xff\xff")) + chunk(b"IEND", b"")
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -134,10 +148,28 @@ def main():
         image = next(c for c in result["content"] if c["type"] == "image")
         check(base64.b64decode(image["data"])[:8] == b"\x89PNG\r\n\x1a\n", "the screenshot is a PNG")
 
+        # The screenshot is a design board for the compare_image tool.
+        board = pathlib.Path(directory) / "board.png"
+        board.write_bytes(base64.b64decode(image["data"]))
+        diff = pathlib.Path(directory) / "diff.png"
+        result, text = session.call("compare_image", {"path": str(board), "diff_path": str(diff)})
+        check("0.00% of pixels differ" in text, "compare_image finds no difference from an identical board")
+        check(any(c["type"] == "image" for c in result["content"]) and diff.exists(), "compare_image writes a diff PNG")
+        _, text = session.call("compare_image", {"path": str(pathlib.Path(directory) / "none.png")}, expect_error=True)
+        check("Cannot read" in text, "a missing board is a tool error")
+        # A 1 x 1 PNG is not the shape of the screen.
+        tiny = pathlib.Path(directory) / "tiny.png"
+        tiny.write_bytes(tiny_png())
+        _, text = session.call("compare_image", {"path": str(tiny)}, expect_error=True)
+        check("A board for this screen is" in text, "a board of the wrong size is a tool error")
+
         _, text = session.call("set_appearance", {"color_scheme": "dark", "dynamic_type_size": "accessibility2"})
         check("dark at Dynamic Type size accessibility2" in text, "set_appearance switches the device")
         _, text = session.call("get_view_tree")
         check("Root colorScheme=dark dynamicTypeSize=accessibility2" in text, "the view tree's root shows the appearance")
+        _, text = session.call("compare_image", {"path": str(board), "diff_path": str(diff)})
+        share = float(re.search(r"([0-9.]+)% of pixels differ", text).group(1))
+        check(share > 10, f"compare_image finds the light board differs from the dark screen ({share}%)")
         _, text = session.call("set_appearance", {"color_scheme": "sepia"}, expect_error=True)
         check("color_scheme" in text, "an unknown color scheme is a tool error")
 

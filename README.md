@@ -214,7 +214,8 @@ Dynamic Island, and the home indicator. `--device` picks the iPhone to simulate:
 default), 16 Plus, 16 Pro, 16 Pro Max, 16e, 17, 17 Pro, 17 Pro Max, Air, 18 Pro, or 18 Pro Max,
 as in `parhelion run --device "iPhone 18 Pro Max"`. `--no-bezel` shows the screen without the
 phone around it. `--zoom` changes the window size, and `--scale` changes the pixels per point the
-app renders at.
+app renders at. `--overlay board.png` draws a design board PNG over the screen, at
+`--overlay-opacity` (0 to 1, default 0.5), to compare by eye.
 
 Animation in the window follows the display: the window waits for each refresh, at 60, 180, or
 240 Hz, and the app draws each frame for the moment it will be on screen. Animation never runs
@@ -285,6 +286,7 @@ The agent gets these tools:
 | `tap`, `type_text`, `press_key` | Tap by identifier, label, or position; type into text fields; Tab, Return, Backspace, and the caret keys |
 | `scroll`, `scroll_to`, `drag`, `wait` | Scroll like a mouse wheel, to an offset, or by dragging with momentum, and wait for it to settle |
 | `set_appearance` | Switch the simulated iPhone between light and dark, and set its Dynamic Type size; the setting stays for later rebuilds |
+| `compare_image` | Render the screen at a design board PNG's scale and return the share of pixels that differ, within a tolerance, with a diff PNG that marks them in red |
 | `rebuild`, `app_output` | Rebuild after editing the code, keeping `@State`, with compiler errors on failure; read what the app printed |
 
 Each interaction reports the screen's revision, so the agent can tell whether it changed

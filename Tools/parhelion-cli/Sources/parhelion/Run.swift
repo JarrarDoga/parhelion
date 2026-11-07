@@ -34,6 +34,10 @@ struct Run: ParsableCommand {
             directories with prebuilt .a and .so files for the linker. \
             The options --pre-build, --watch, and --library-path do the same.
 
+            --overlay board.png draws a design board over the window, at \
+            --overlay-opacity (0 to 1, default 0.5), to compare by eye. For a number \
+            instead, use the compare_image tool of parhelion mcp.
+
             Example: parhelion run --package-path ~/Code/MyApp
             """
     )
@@ -41,6 +45,8 @@ struct Run: ParsableCommand {
     @OptionGroup var window: WindowOptions
 
     @OptionGroup var web: WebOptions
+
+    @OptionGroup var overlay: OverlayOptions
 
     @Option(help: "The directory of the app's package.")
     var packagePath = "."
@@ -124,6 +130,7 @@ struct Run: ParsableCommand {
             print("Running \(app!.hello.appName). Save a file to reload. Press Control-C to quit.")
         } else {
             let host = try window.openWindow(for: app!.hello)
+            try overlay.apply(to: host, hello: app!.hello)
             wakeBox.set(host.waker)
             surface = host
             print(
