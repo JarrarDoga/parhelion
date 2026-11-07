@@ -185,7 +185,9 @@ func lazyStacksOutline() {
                │  └─ Text "A"
                ├─ Button menu=true
                │  └─ Text "More"
-               └─ Text "Loading"
+               └─ ProgressView style=circular
+                  ├─ ProgressIndicator phase=0.000 shape=spinner
+                  └─ Text "Loading"
             """)
 }
 

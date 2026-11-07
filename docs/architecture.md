@@ -371,6 +371,24 @@ keeps an effect that stays where it was with the pixels it read and left, as it 
 copies it while the pixels beneath do not change; a checksum of those pixels tells whether they
 changed, so a list scrolling under the bar does not pay for copies.
 
+### Progress views
+
+`ProgressView` is a primitive whose node, `ProgressView`, records its `style` (`circular` or
+`linear`) and, for a known amount, `value` and `total`. Its children are the label views and one
+`ProgressIndicator` node with a `shape` (`spinner`, `ring`, or `bar`) and the `fraction` completed.
+The kind registers itself through the extension seam ([ADR 0011](adr/0011-extension-seam.md)): the
+`ProgressView` is laid out as a vertical stack, leading-aligned with the label above the bar for a
+bar and centered with the label below for a spinner or a ring, and the indicator draws itself at
+20 points across (4 points thick and as wide as it is offered, for a bar).
+
+A spinner and an indeterminate bar animate on the host's clock as an `.animation` timeline does:
+the evaluation asks the host for the time (`resolveTimeline`), records the turn as `phase` (0 to
+under 1), and `isAnimating` stays true while one is on screen. The spinner steps its leading spoke
+once every eighth of a second; the bar's highlight crosses in 1.5 seconds. A custom
+`ProgressViewStyle` gets the fraction and the labels in its configuration and builds its own body.
+Assumed, not measured against a device: the sizes, the secondary color of labels, and the
+indeterminate bar's look.
+
 ### Timelines
 
 `TimelineView` reads the host's clock, not the real one, so it follows `advanceTime(by:)` and the
