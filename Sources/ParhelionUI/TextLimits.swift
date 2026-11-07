@@ -501,16 +501,20 @@ extension ViewHost {
             let index = geometry.lineIndex(forOffset: caret)
             switch key {
             case .home:
-                caretOffset = geometry.lines[index].start
+                setSelection(anchor: nil, caret: geometry.lines[index].start)
             case .end:
-                caretOffset = geometry.lines[index].end
+                setSelection(anchor: nil, caret: geometry.lines[index].end)
             default:
                 let target = index + (key == .up ? -1 : 1)
                 if geometry.lines.indices.contains(target) {
-                    caretOffset = geometry.offset(
-                        onLine: target, nearX: geometry.caretX(offset: caret, line: index))
+                    setSelection(
+                        anchor: nil,
+                        caret: geometry.offset(
+                            onLine: target, nearX: geometry.caretX(offset: caret, line: index)))
                 } else {
-                    caretOffset = key == .up ? 0 : textFields[id]?.wrappedValue.count ?? 0
+                    setSelection(
+                        anchor: nil, caret: key == .up ? 0 : textFields[id]?.wrappedValue.count ?? 0
+                    )
                 }
             }
             update()

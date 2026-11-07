@@ -76,6 +76,19 @@ struct PreviewChannelTests {
         try app.send(.hello(PreviewHello(appName: "A", screenWidth: 1, screenHeight: 1, scale: 1)))
         #expect(try host.receiveAppMessage(timeout: 1) != nil)
     }
+
+    @Test("Pasteboard messages arrive intact in both directions")
+    func pasteboard() throws {
+        let (app, host) = try PreviewChannel.pair()
+        try app.send(AppMessage.pasteboard("ünï — 日本語"))
+        #expect(try host.receiveAppMessage(timeout: 1) == .pasteboard("ünï — 日本語"))
+        try host.send(HostMessage.paste("pasted"))
+        #expect(try app.receiveHostMessage(timeout: 1) == .paste("pasted"))
+        try host.send(HostMessage.pasteboard(""))
+        #expect(try app.receiveHostMessage(timeout: 1) == .pasteboard(""))
+        try host.send(.command(id: 1, .setPasteboard("sid=1")))
+        #expect(try app.receiveHostMessage(timeout: 1) == .command(id: 1, .setPasteboard("sid=1")))
+    }
 }
 
 @Suite("Commands and replies")

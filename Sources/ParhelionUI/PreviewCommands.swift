@@ -10,6 +10,8 @@ struct InspectionReport: Codable {
     var revision: Int
     var focusedNodeID: NodeID?
     var caretOffset: Int?
+    /// The selected characters of the focused field, as `[start, end]`.
+    var selectedRange: [Int]?
     var pressedNodeID: NodeID?
     var isAnimating: Bool
     var pendingTasks: Int
@@ -83,6 +85,12 @@ extension ViewHost {
                 }
                 typeText(text)
                 return reply(true, "Typed \(text.count) characters into \(focused).")
+
+            case .setPasteboard(let text):
+                copyToPasteboard(text)
+                return reply(
+                    true,
+                    "Put \(text.count) character\(text.count == 1 ? "" : "s") on the clipboard.")
 
             case .pressKey(let name):
                 guard let key = Key(rawValue: name) else {
@@ -173,6 +181,9 @@ extension ViewHost {
     private func inspectionOutline() -> String {
         var header = "revision \(revision)"
         if let focusedNodeID { header += " · editing \(focusedNodeID) at character \(caretOffset)" }
+        if let range = selectedRange {
+            header += " · selected characters \(range.lowerBound)..<\(range.upperBound)"
+        }
         if isAnimating { header += " · animating" }
         if pendingTaskCount > 0 {
             header += " · \(pendingTaskCount) task\(pendingTaskCount == 1 ? "" : "s") running"
@@ -186,6 +197,7 @@ extension ViewHost {
             revision: revision,
             focusedNodeID: focusedNodeID,
             caretOffset: focusedNodeID == nil ? nil : caretOffset,
+            selectedRange: selectedRange.map { [$0.lowerBound, $0.upperBound] },
             pressedNodeID: pressedNodeID,
             isAnimating: isAnimating,
             pendingTasks: pendingTaskCount

@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import ParhelionPreview
+import ParhelionTooling
 
 /// One running app and the connection to it.
 ///
@@ -89,6 +90,7 @@ final class AppConnection: @unchecked Sendable {
         // Only an app that lists capabilities understands a welcome.
         let agreed = offered.filter { hello.capabilities?.contains($0) == true }
         capabilities = Set(agreed)
+        ClipboardBridge.shared.isShared = capabilities.contains(PreviewCapability.pasteboard)
         if !agreed.isEmpty {
             try channel.send(.welcome(PreviewWelcome(capabilities: agreed)))
         }
@@ -162,6 +164,8 @@ final class AppConnection: @unchecked Sendable {
                 replies[id] = reply
                 lock.broadcast()
             }
+        case .pasteboard(let text):
+            ClipboardBridge.shared.copy(text)
         case .hello:
             break
         }

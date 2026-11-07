@@ -10,7 +10,9 @@ import Foundation
 /// Click or tap the field to focus it, or press Tab to move between fields.
 /// While a field is focused, typing inserts text at the caret, and Backspace,
 /// Delete, the arrow keys, Home, and End edit and move the caret. Return or
-/// Escape ends editing. Text selection is not supported yet.
+/// Escape ends editing. Drag over the text, or hold Shift with the arrow
+/// keys, to select it; copy, cut, and paste use the host's pasteboard (see
+/// ``ViewHost/pasteboardText``).
 public struct TextField: View {
     public typealias Body = Never
 

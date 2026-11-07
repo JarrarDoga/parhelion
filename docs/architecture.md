@@ -804,8 +804,22 @@ the caret between lines, and Home and End go to the start and end of the caret's
 The window host turns SDL3 text input events into `text` messages, after keyboard layouts and
 input methods, and key events into `key` messages. A field is one line tall and fills the width
 it is offered. It draws its text, or its placeholder in the tertiary color, shifts the text left
-to keep the caret in view, and draws a caret in the tint color while focused. There is no text
-selection yet.
+to keep the caret in view, and draws a caret in the tint color while focused.
+
+**Selection and the pasteboard.** The host keeps a selection anchor beside the caret
+(`ViewHost.selectedRange`): the selection is the characters between them. Dragging over a field
+anchors at the press and follows the pointer; `selectLeft`, `selectRight`, `selectHome`,
+`selectEnd`, and `selectAll` move the caret and keep the anchor; a plain arrow key collapses the
+selection to its edge. Typing, Backspace, Delete, and paste replace the selection. The renderer
+draws the selection as the tint color at 25% behind the text, and the cache keys include the
+anchor. The host also has a pasteboard of text (`ViewHost.pasteboardText`), which `copy` and `cut`
+fill, `paste` inserts (line breaks become spaces, as in a one-line UIKit field), and `PasteButton`
+reads: a `PasteButton` is a `Button` in a `PasteButton` node, disabled while the pasteboard has
+nothing of its type. The `pasteboard` capability connects it to the window: the window hook sends
+`paste` with the system clipboard's text on Control-V and `pasteboard` when the window gains
+focus, and the app sends `pasteboard` when it copies, which the window puts on the system
+clipboard. The `set_clipboard` tool and `PreviewCommand.setPasteboard` fill it for agents. The web
+preview does not pass clipboard keys yet.
 
 ### Controls
 

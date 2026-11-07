@@ -140,6 +140,11 @@ final class FlowRecorder {
         append(.command(.typeText(text)))
     }
 
+    /// Records the text a paste read from the clipboard.
+    func pasteboard(_ text: String) {
+        append(.command(.setPasteboard(text)))
+    }
+
     func key(_ name: String) {
         guard ViewHost.Key(rawValue: name) != nil else { return }
         append(.command(.pressKey(name)))

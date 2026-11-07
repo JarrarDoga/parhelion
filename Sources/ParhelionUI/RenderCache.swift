@@ -42,6 +42,8 @@ final class RenderCache {
         var pressedNodeID: NodeID?
         var focusedNodeID: NodeID?
         var caretOffset: Int
+        /// The other end of the selected text, if any.
+        var selectionAnchor: Int?
     }
 
     struct Backdrop {
@@ -62,6 +64,8 @@ final class RenderCache {
         var pressedNodeID: NodeID?
         var focusedNodeID: NodeID?
         var caretOffset: Int
+        /// The other end of the selected text, if any.
+        var selectionAnchor: Int?
     }
 
     /// A fading presentation drawn at full opacity over a backdrop.
