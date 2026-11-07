@@ -341,7 +341,6 @@ may contain breaking changes.
   hit testing. `drag` is now public and sends a drag to the view under its start, or moves the
   pointer there as before.
 
-- Placeholder for #49 (compile-only stubs for every missing API): the change for that issue replaces this line.
 
 - `parhelion run` and `parhelion mcp` build apps that link a native library, such as a Rust core
   with UniFFI bindings. A `parhelion.json` in the app's package, or the options `--pre-build`,
@@ -445,6 +444,14 @@ may contain breaking changes.
 - `contentMargins(_:_:for:)`, `safeAreaPadding(_:_:)`, and `ignoresSafeArea(_:edges:)`, with
   `ContentMarginPlacement` and `SafeAreaRegions`.
 - README images of a scrolled list under both bars, in the soft and hard styles, in light and dark.
+- Compile-only stubs for the SwiftUI API that Rustle's iPhone app uses and Parhelion did not have:
+  lazy stacks, `swipeActions`, `refreshable`, `onMove`, `onDelete`, `EditMode`, `Menu`,
+  `contextMenu`, `searchable`, `ProgressView`, `ScrollViewReader`, `scrollPosition`, `glassEffect`,
+  `GlassEffectContainer`, gestures, `rotationEffect`, `blur`, `mask`, `matchedGeometryEffect`,
+  `sensoryFeedback`, `scenePhase`, `PasteButton`, `lineLimit`, `TimelineView`, and more. They
+  compile and draw their content, and do nothing else yet.
+- `MediaPlayer` and `AVFAudio` modules on Linux, as compile-only stand-ins for Apple's frameworks,
+  and an empty `ParhelionTesting` target.
 
 ### Changed
 
