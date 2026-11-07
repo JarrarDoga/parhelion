@@ -74,6 +74,8 @@ extension LayoutEngine {
             stack.origin = origin
             stack.spacing = spacing
             stack.scrollView = viewport
+            stack.offsets = offsets
+            stack.vertical = vertical
             stack.viewportLength = high - low
             let crossVisible =
                 vertical

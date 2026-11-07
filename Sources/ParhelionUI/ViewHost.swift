@@ -49,6 +49,8 @@ public final class ViewHost {
     /// What lazy stacks and lists keep between evaluating and laying out.
     var lazy: LazyLayoutState { scrolling.lazy }
     private var isEvaluating = false
+    /// What scroll views need between evaluations; see ScrollPosition.swift.
+    let scrollState = ScrollHostState()
     /// The tree as evaluated, before layout. Scrolling lays it out again
     /// without evaluating views.
     private var resolvedRoot = ViewNode(id: "", kind: "Root")
@@ -323,6 +325,9 @@ public final class ViewHost {
         var button: NodeID?
         /// The scroll view being dragged, once the press turns into a scroll.
         var scrollView: NodeID?
+        /// Where the scroll view's content was when the press began to
+        /// scroll it, for settling on a page.
+        var scrollStartOffset: CGPoint?
         /// The sheet being dragged down, once the press turns into a drag
         /// that dismisses it.
         var sheet: NodeID?
@@ -354,6 +359,7 @@ public final class ViewHost {
             last: point,
             button: button,
             scrollView: nil,
+            scrollStartOffset: nil,
             sheet: nil,
             samples: [(time, point)],
             swipe: swipePress
@@ -400,6 +406,7 @@ public final class ViewHost {
                     press.sheet = sheet
                 } else {
                     press.scrollView = scrollView
+                    press.scrollStartOffset = scrollView.flatMap { scrolling.metrics[$0]?.offset }
                 }
                 press.button = nil
                 pressedNodeID = nil
@@ -459,7 +466,10 @@ public final class ViewHost {
             return nil
         }
         if let scrollView = press.scrollView {
-            startMomentum(scrollView, samples: press.samples + [(time, point)])
+            let samples = press.samples + [(time, point)]
+            if !settleScroll(scrollView, from: press.scrollStartOffset, samples: samples) {
+                startMomentum(scrollView, samples: samples)
+            }
             return nil
         }
         if let open = press.swipe.closeOnRelease {
@@ -672,7 +682,7 @@ public final class ViewHost {
 
     /// Scroll velocities in points per second, for scroll views that are
     /// still moving after a drag.
-    private var momentum: [NodeID: CGPoint] = [:]
+    var momentum: [NodeID: CGPoint] = [:]
 
     /// Whether anything is still moving, so that a client should keep calling
     /// ``advanceTime(by:)`` and drawing frames.
@@ -1070,6 +1080,7 @@ public final class ViewHost {
         actions = evaluator.actions
         textFields = evaluator.textFields
         inputHandlers = evaluator.inputHandlers
+        adoptScrollEvaluation(evaluator.scrollRecord)
         implicitAnimations = evaluator.implicitAnimations
         previousTransitions = transitions
         transitions = evaluator.transitions
@@ -1105,10 +1116,8 @@ public final class ViewHost {
     /// Lays out the evaluated tree again, for example after scrolling.
     func relayout() {
         let previous = presentedRoot
-        scrolling.metrics = [:]
-        lazy.beginLayout()
-        root = layoutEngine.layout(resolvedRoot)
-        SwipeLayout.apply(to: &root, state: &swipe)
+        layoutAgain()
+        applyScrollRequests()
         if hasLaidOut {
             animations.update(
                 from: previous,
@@ -1142,9 +1151,13 @@ public final class ViewHost {
         revision += 1
         // Scrolling can move the screen past the views a lazy stack made.
         // Evaluating resolves the stacks' new windows and lays out again.
+        // Until then the rows are estimated, so scroll bindings and geometry
+        // wait for the layout that follows.
         if lazy.needsWindowChange {
             needsUpdate = true
             if !isEvaluating { update() }
+        } else {
+            finishScrollLayout()
         }
         // A tab bar minimized or returned: evaluate again for the
         // accessory's new placement, animated.
@@ -1156,5 +1169,14 @@ public final class ViewHost {
             needsUpdate = true
             if !isEvaluating { update() }
         }
+    }
+
+    /// Lays the evaluated tree out with the current scroll offsets, and
+    /// records each scroll view's metrics.
+    func layoutAgain() {
+        scrolling.metrics = [:]
+        lazy.beginLayout()
+        root = layoutEngine.layout(resolvedRoot)
+        SwipeLayout.apply(to: &root, state: &swipe)
     }
 }

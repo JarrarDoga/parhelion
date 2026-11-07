@@ -212,6 +212,8 @@ extension ForEach: LazyContentSource {
                     let nodes = evaluator.evaluate(
                         content(element), at: path.appending("ForEach[\(identity)]"))
                     evaluator.environment.tagCollector?.recordImplicit(elementID, for: nodes)
+                    // A scroll view can scroll to an element by its identifier.
+                    evaluator.scrollRecord.recordImplicit(AnyHashable(elementID), for: nodes)
                     return nodes
                 }))
     }
