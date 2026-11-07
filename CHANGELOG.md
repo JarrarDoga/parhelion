@@ -354,7 +354,11 @@ may contain breaking changes.
 
 - Placeholder for #52 (compare the preview with a design board PNG): the change for that issue replaces this line.
 
-- Placeholder for #69 (accessibility identifiers and labels): the change for that issue replaces this line.
+- `accessibilityIdentifier(_:)`, `accessibilityLabel(_:)`, and `accessibilityElement(children:)`,
+  recorded in the view tree. An identifier on a container reaches the views inside it, as in
+  SwiftUI. `tapButton(labeled:)` and the `tap` tool match accessibility labels. `ViewHost` taps,
+  focuses, and scrolls by identifier, and the `tap`, `type_text`, and `scroll_to` tools of
+  `parhelion mcp` take `accessibility_identifier`, so an agent's script survives layout changes.
 
 - A manual clock for agents: in `parhelion mcp` without `--window` or `--web`, `wait` advances the
   app's time instead of sleeping, so animations, scroll momentum, and `Task.sleep` in `task`

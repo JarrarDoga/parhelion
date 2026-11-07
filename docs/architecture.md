@@ -579,9 +579,36 @@ renderer call for the kinds they do not handle themselves.
 - **`disabled(_:)`** turns off `EnvironmentValues.isEnabled`. Controls, buttons, links, and text
   fields under it register no actions, record `disabled=true`, and draw dimmed.
 
+### Accessibility
+
+`accessibilityIdentifier(_:)`, `accessibilityLabel(_:)` (a string or a `Text`), and
+`accessibilityElement(children:)` record the attributes `accessibilityIdentifier`,
+`accessibilityLabel`, and `accessibilityElement` (`ignore`, `combine`, or `contain`) on the nodes
+the view resolves to, so `outline()` and the JSON tree show them. Lookups follow SwiftUI's rules,
+which `ViewNode.accessibilityEntries()` applies in one pass:
+
+- An identifier on a view that is not an element, such as a stack, passes down to the views
+  inside it and replaces theirs. `accessibilityElement(children: .contain)` makes the view an
+  element whose children keep their own identifiers.
+- The children of an `.ignore` or `.combine` element, and of a control such as a button, belong
+  to that element and are not found by identifier on their own. Assumed, not documented by
+  Apple: a control with no identifier takes the first one set inside its label.
+- `ViewNode.label` prefers `accessibilityLabel`, so `tapButton(labeled:)` and the `tap` tool's
+  `label` match accessibility labels, as XCUITest does. An `.ignore` element reads only its
+  label; a `.combine` element joins its children's labels with `", "` (Apple does not document
+  the separator).
+
+`ViewHost` taps, focuses, and scrolls by identifier. A node that is not the kind of view the
+action needs, such as a toggle whose switch is inside it, stands for the views of that kind
+inside it. Several candidates are an `InteractionError.ambiguousAccessibilityIdentifier` that
+lists them, as XCUITest's `element` fails on several matches. The MCP tools `tap`, `type_text`,
+and `scroll_to` take `accessibility_identifier` for this, and the app accepts the matching
+`PreviewCommand`s when its hello lists the `accessibilityIdentifiers` capability.
+
 ### Interaction
 
-`ViewHost` delivers taps by node identifier (`tap(_:)`), by label (`tapButton(labeled:)`), or by
+`ViewHost` delivers taps by node identifier (`tap(_:)`), by accessibility identifier
+(`tap(accessibilityIdentifier:)`), by label (`tapButton(labeled:)`), or by
 screen position (`tap(at:)`). A tap at a position goes to the frontmost node with an action whose
 frame contains the point, or moves a slider's knob there. Every failure is a typed
 `InteractionError` that names the problem, so an agent can recover without parsing messages.
@@ -645,6 +672,9 @@ hosts from before a capability keep working with newer ones
 - **`appearance`: the appearance switches.** The app takes `setAppearance` commands. The host
   reads this one in the hello and sends no welcome for it, so `parhelion mcp` without a window,
   which welcomes nothing, can switch it too.
+- **`accessibilityIdentifiers`: views by accessibility identifier.** The app takes
+  `tapAccessibilityIdentifier`, `focusAccessibilityIdentifier`, and
+  `scrollToAccessibilityIdentifier` commands. Like `appearance`, the host reads it in the hello.
 
 - **`manualClock`: the host moves time.** An app started with `PARHELION_MANUAL_CLOCK=1` lists
   it, and a host that shows no frames (`parhelion mcp` without `--window` or `--web`) welcomes it

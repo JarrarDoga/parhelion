@@ -19,6 +19,7 @@ struct ContentView: View {
             Image("Badge", bundle: .module)
             Text("Count: \(count)")
             Button("Increase") { count += 1 }
+                .accessibilityIdentifier("increase")
         }
         .padding()
     }

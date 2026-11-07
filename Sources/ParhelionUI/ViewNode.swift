@@ -82,13 +82,17 @@ public struct ViewNode: Hashable, Sendable {
         kind == "Text" ? attributes["text"] : nil
     }
 
-    /// The text of this node and its descendants, in reading order, or the
-    /// node's `label` attribute when it has one. A back button, which shows
-    /// only a chevron, records the title of the view it returns to there.
+    /// What a screen reader, or a tool that taps by label, reads for this
+    /// node: its `accessibilityLabel(_:)`, else the node's `label` attribute,
+    /// else the text of this node and its descendants in reading order. A back
+    /// button, which shows only a chevron, records the title of the view it
+    /// returns to there. `accessibilityElement(children:)` decides which
+    /// descendants count: see ``AccessibilityChildBehavior``.
     public var label: String {
+        if let label = accessibilityLabel { return label }
         if let label = attributes["label"] { return label }
         var parts: [String] = []
-        collectText(into: &parts)
+        collectAccessibilityText(into: &parts)
         return parts.joined(separator: " ")
     }
 
@@ -106,14 +110,6 @@ public struct ViewNode: Hashable, Sendable {
         return nil
     }
 
-    private func collectText(into parts: inout [String]) {
-        if let text { parts.append(text) }
-        // An overlay's views are not part of the label of the view they
-        // cover.
-        for child in children where child.kind != "Overlay" {
-            child.collectText(into: &parts)
-        }
-    }
 }
 
 extension ViewNode: Codable {
