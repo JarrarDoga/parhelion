@@ -25,7 +25,9 @@ enum AgentTools {
     }
 
     static let keys = [
-        "backspace", "delete", "left", "right", "home", "end", "tab", "backTab", "return", "escape",
+        "backspace", "delete", "left", "right", "up", "down", "home", "end", "tab", "backTab",
+        "return",
+        "escape",
     ]
 
     /// The tools that plug in from files of their own; see
@@ -107,7 +109,7 @@ enum AgentTools {
                 """,
             inputSchema: #"""
                 {"type": "object", "properties": {
-                  "key": {"type": "string", "enum": ["backspace", "delete", "left", "right", "home", "end", "tab", "backTab", "return", "escape"]}},
+                  "key": {"type": "string", "enum": ["backspace", "delete", "left", "right", "up", "down", "home", "end", "tab", "backTab", "return", "escape"]}},
                  "required": ["key"]}
                 """#
         ),

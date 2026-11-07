@@ -323,6 +323,8 @@ final class WindowHost: PreviewSurface {
         case SDLK_DELETE: "delete"
         case SDLK_LEFT: "left"
         case SDLK_RIGHT: "right"
+        case SDLK_UP: "up"
+        case SDLK_DOWN: "down"
         case SDLK_HOME: "home"
         case SDLK_END: "end"
         case SDLK_TAB: shift ? "backTab" : "tab"

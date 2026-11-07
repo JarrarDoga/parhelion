@@ -317,8 +317,8 @@ struct TreeRenderer {
 
         case "Text":
             drawText(
-                node.text ?? "", font: ResolvedFont(node: node), in: frame,
-                color: paint(foreground ?? "primary"), into: &canvas)
+                measurer.textLines(for: node, width: frame.width), font: ResolvedFont(node: node),
+                in: frame, color: paint(foreground ?? "primary"), into: &canvas)
 
         case "TextField":
             drawTextField(
@@ -602,13 +602,12 @@ struct TreeRenderer {
     /// Draws text wrapped the same way layout measured it, one line per
     /// baseline, aligned to the leading edge.
     private func drawText(
-        _ text: String,
+        _ lines: [TextLine],
         font: ResolvedFont,
         in frame: CGRect,
         color: RGBA,
         into canvas: inout Canvas
     ) {
-        let lines = measurer.lines(of: text, font: font, width: frame.width)
         let typeface = font.typeface
         let baseline = font.baseline
         for (index, line) in lines.enumerated() {
@@ -635,6 +634,10 @@ struct TreeRenderer {
         paint: (String) -> RGBA,
         into canvas: inout Canvas
     ) {
+        if node.isVerticalTextField {
+            drawVerticalTextField(node, in: frame, style: style, paint: paint, into: &canvas)
+            return
+        }
         let value = node.attributes["value"] ?? ""
         let isFocused = node.id == focusedNodeID
         let geometry = TextFieldGeometry(node: node)

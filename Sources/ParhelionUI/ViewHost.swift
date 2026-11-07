@@ -557,6 +557,8 @@ public final class ViewHost {
     /// A key that edits text or moves keyboard focus.
     public enum Key: String, Codable, Sendable, CaseIterable {
         case backspace, delete, left, right, home, end
+        /// Moves the caret to the previous or next line of a vertical text field.
+        case up, down
         /// Moves focus to the next text field.
         case tab
         /// Moves focus to the previous text field.
@@ -580,7 +582,7 @@ public final class ViewHost {
 
     /// The caret's position in the focused field, in characters from the
     /// start of its text.
-    public private(set) var caretOffset = 0 {
+    public internal(set) var caretOffset = 0 {
         didSet {
             if caretOffset != oldValue { revision += 1 }
         }
@@ -617,6 +619,7 @@ public final class ViewHost {
     /// Applies an editing or focus key.
     public func press(_ key: Key) {
         update()
+        if pressInVerticalField(key) { return }
         switch key {
         case .tab, .backTab:
             moveFocus(forward: key == .tab)
@@ -674,8 +677,11 @@ public final class ViewHost {
         let shift =
             focusedNodeID == id
             ? geometry.horizontalShift(text: text, caret: caretOffset, width: frame.width) : 0
+        let offset =
+            verticalCaretOffset(for: node, at: point)
+            ?? geometry.caretOffset(in: text, atX: point.x - frame.minX, shift: shift)
         focusedNodeID = id
-        caretOffset = geometry.caretOffset(in: text, atX: point.x - frame.minX, shift: shift)
+        caretOffset = offset
     }
 
     // MARK: - Scrolling
