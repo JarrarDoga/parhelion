@@ -35,12 +35,14 @@ public struct ProgressView<Label: View, CurrentValueLabel: View>: View {
     let amount: (value: Double, total: Double)?
 
     init(
-        label: Label, currentValueLabel: CurrentValueLabel, amount: (Double, Double)?
+        label: Label, currentValueLabel: CurrentValueLabel, amount: (Double, Double)?,
+        hasLabel: Bool? = nil, hasCurrentValueLabel: Bool? = nil
     ) {
         self.label = label
         self.currentValueLabel = currentValueLabel
-        hasLabel = Label.self != EmptyView.self
-        hasCurrentValueLabel = CurrentValueLabel.self != EmptyView.self
+        self.hasLabel = hasLabel ?? (Label.self != EmptyView.self)
+        self.hasCurrentValueLabel =
+            hasCurrentValueLabel ?? (CurrentValueLabel.self != EmptyView.self)
         self.amount = amount.map { (value: $0.0, total: $0.1) }
     }
 
@@ -53,6 +55,23 @@ extension ProgressView {
     private static func amount<V: BinaryFloatingPoint>(_ value: V?, _ total: V) -> (Double, Double)?
     {
         value.map { (Double($0), Double(total)) }
+    }
+}
+
+extension ProgressView
+where
+    Label == ProgressViewStyleConfiguration.Label,
+    CurrentValueLabel == ProgressViewStyleConfiguration.CurrentValueLabel
+{
+    /// Creates a progress view from a style's configuration, drawn in the
+    /// default look, so that a custom style can wrap it.
+    public init(_ configuration: ProgressViewStyleConfiguration) {
+        self.init(
+            label: configuration.label ?? .init(content: EmptyView()),
+            currentValueLabel: configuration.currentValueLabel ?? .init(content: EmptyView()),
+            amount: configuration.fractionCompleted.map { ($0, 1) },
+            hasLabel: configuration.label != nil,
+            hasCurrentValueLabel: configuration.currentValueLabel != nil)
     }
 }
 
@@ -285,7 +304,12 @@ extension ProgressView: PrimitiveView {
         switch evaluator.environment.progressViewStyle {
         case .custom(let style):
             attributes["style"] = baseTypeName(of: type(of: style))
-            children = evaluator.evaluate(customBody(style, fraction: fraction), at: ownPath)
+            // The style's body draws with the default style, so a progress
+            // view inside it does not evaluate the style again.
+            let body = customBody(style, fraction: fraction)
+            children = evaluator.withEnvironment({
+                $0.progressViewStyle = ProgressViewStyleKey.defaultValue
+            }) { evaluator.evaluate(body, at: ownPath) }
             return [
                 ViewNode(
                     id: ownPath.id, kind: "ProgressView", attributes: attributes,

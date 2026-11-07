@@ -199,6 +199,28 @@ struct ProgressViewTests {
                 """)
     }
 
+    @Test("A custom style can wrap the default look with ProgressView(configuration)")
+    func customStyleWrapsConfiguration() {
+        struct Framed: ProgressViewStyle {
+            func makeBody(configuration: Configuration) -> some View {
+                ProgressView(configuration).padding(4)
+            }
+        }
+        struct Content: View {
+            var body: some View {
+                ProgressView(value: 0.4) { Text("Songs") }.progressViewStyle(Framed())
+            }
+        }
+        #expect(
+            ViewHost(Content(), device: screen).root.outline() == """
+                Root
+                └─ ProgressView style=Framed total=1 value=0.4
+                   └─ ProgressView padding(4) style=linear total=1 value=0.4
+                      ├─ Text "Songs"
+                      └─ ProgressIndicator fraction=0.4 shape=bar
+                """)
+    }
+
     // MARK: Layout
 
     @Test("A spinner is 20 points across, centered, with its label below")
