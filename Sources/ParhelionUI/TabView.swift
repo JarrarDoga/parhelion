@@ -480,7 +480,9 @@ extension Tab: PrimitiveTabContent {
                 value: value.map { AnyHashable($0) },
                 role: role,
                 label: evaluator.evaluate(label, at: ownPath.appending("label")),
-                content: evaluator.evaluate(content, at: ownPath))
+                content: evaluator.withEnvironment({ $0.isInSearchTab = role == .search }) {
+                    evaluator.evaluate(content, at: ownPath)
+                })
         ]
     }
 }
