@@ -323,6 +323,8 @@ struct GlassEffectTests {
 
     /// Writes the pictures of Rustle's token screen to a directory, when
     /// `PARHELION_GLASS_PNG_DIR` names one, for a person to look at.
+    /// `docs/images/glass-effect*.png` came from it: the token screens
+    /// scaled down to 1x, and `morph-2.png`.
     @Test("The glass of Rustle's token screen draws on board 17's sizes")
     func tokenScreen() throws {
         let host = ViewHost(TokenScreen(), device: .iPhone18ProMax)
@@ -395,6 +397,12 @@ private struct TokenScreen: View {
                 .padding(12)
                 .frame(width: 400, height: 76)
                 .glassEffect(.regular, in: .rect(cornerRadius: 28))
+                HStack(spacing: 16) {
+                    Image(systemName: "heart").frame(width: 56, height: 56)
+                        .glassEffect(.clear, in: .circle)
+                    Text("Clear card").font(.subheadline).frame(width: 160, height: 56)
+                        .glassEffect(.clear, in: .rect(cornerRadius: 16))
+                }
             }
         }
     }
