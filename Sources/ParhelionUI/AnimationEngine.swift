@@ -34,7 +34,7 @@ enum NavigationDirection {
 @MainActor
 final class AnimationEngine {
     /// A node moving from an old position, size, or opacity to its new one.
-    private struct Displacement {
+    struct Displacement {
         var animation: Animation
         var start: TimeInterval
         /// The old values minus the new ones, relative to the parent.
@@ -44,7 +44,7 @@ final class AnimationEngine {
     }
 
     /// A node entering with a transition.
-    private struct Entrance {
+    struct Entrance {
         var animation: Animation
         var start: TimeInterval
         var offset: CGSize
@@ -52,7 +52,7 @@ final class AnimationEngine {
     }
 
     /// A node that left the tree and is drawn until its transition ends.
-    private struct Exit {
+    struct Exit {
         var animation: Animation
         var start: TimeInterval
         /// The node as last drawn, with frames relative to its parent's
@@ -66,15 +66,18 @@ final class AnimationEngine {
         var opacity: Double
     }
 
-    private var displacements: [NodeID: Displacement] = [:]
-    private var entrances: [NodeID: Entrance] = [:]
-    private var exits: [NodeID: Exit] = [:]
+    var displacements: [NodeID: Displacement] = [:]
+    var entrances: [NodeID: Entrance] = [:]
+    var exits: [NodeID: Exit] = [:]
+    /// Zoom transitions in progress (MatchedGeometry.swift).
+    var zooms: [NodeID: Zoom] = [:]
 
     /// Whether anything is still moving at `time`.
     func isActive(at time: TimeInterval) -> Bool {
         displacements.values.contains { time < $0.start + $0.animation.totalDuration }
             || entrances.values.contains { time < $0.start + $0.animation.totalDuration }
             || exits.values.contains { time < $0.start + $0.animation.totalDuration }
+            || zooms.values.contains { time < $0.start + $0.animation.totalDuration }
     }
 
     /// Forgets animations that have ended.
@@ -84,6 +87,7 @@ final class AnimationEngine {
         }
         entrances = entrances.filter { time < $0.value.start + $0.value.animation.totalDuration }
         exits = exits.filter { time < $0.value.start + $0.value.animation.totalDuration }
+        zooms = zooms.filter { time < $0.value.start + $0.value.animation.totalDuration }
     }
 
     // MARK: - Starting animations
@@ -194,6 +198,10 @@ final class AnimationEngine {
                 opacity: effect.opacity
             )
         }
+
+        applyMatchedGeometry(
+            old: old, new: new, oldIDs: Set(oldNodes.keys), newIDs: Set(newNodes.keys),
+            request: request, at: time)
     }
 
     /// The transition for a node entering or leaving. A screen of a
@@ -233,7 +241,8 @@ final class AnimationEngine {
     /// The tree as it appears at `time`: the final tree with every animation
     /// in progress applied.
     func presented(_ root: ViewNode, at time: TimeInterval) -> ViewNode {
-        guard !displacements.isEmpty || !entrances.isEmpty || !exits.isEmpty else { return root }
+        guard !displacements.isEmpty || !entrances.isEmpty || !exits.isEmpty || !zooms.isEmpty
+        else { return root }
         return present(root, parentTarget: .zero, parentPresented: .zero, at: time)
     }
 
@@ -268,12 +277,20 @@ final class AnimationEngine {
             origin.y += entrance.offset.height * (1 - progress)
             opacity *= entrance.opacity + (1 - entrance.opacity) * min(max(progress, 0), 1)
         }
+        var zoomRect: CGRect?
+        if let zoom = zooms[node.id], !zoom.isExit {
+            let rect = zoom.rect(from: zoom.source, to: frame, at: time)
+            zoomRect = rect
+            origin = rect.origin
+            opacity *= zoom.opacity(at: time)
+        }
         let shift = CGSize(width: origin.x - frame.minX, height: origin.y - frame.minY)
         node.frame = CGRect(origin: origin, size: size)
         node.modifierFrames = node.modifierFrames.map {
             $0.offsetBy(dx: shift.width, dy: shift.height)
         }
         Self.setOpacity(opacity, of: &node)
+        if let zoomRect { Zoom.scale(&node, to: zoomRect) }
 
         var children = node.children.map {
             present($0, parentTarget: frame.origin, parentPresented: origin, at: time)
@@ -288,6 +305,14 @@ final class AnimationEngine {
             Self.setOpacity(
                 Self.opacity(of: ghost)
                     * (1 - (1 - exit.opacity) * min(max(progress, 0), 1)), of: &ghost)
+            if let zoom = zooms[exit.node.id], zoom.isExit, let final = ghost.frame {
+                let rect = zoom.rect(from: final, to: zoom.source, at: time)
+                ghost = Self.translated(
+                    ghost, by: CGSize(width: rect.minX - final.minX, height: rect.minY - final.minY)
+                )
+                Zoom.scale(&ghost, to: rect)
+                Self.setOpacity(Self.opacity(of: ghost) * zoom.opacity(at: time), of: &ghost)
+            }
             let index = min(exit.index + (exit.isAbove ? 1 : 0), children.count)
             children.insert(ghost, at: index)
         }
@@ -297,22 +322,22 @@ final class AnimationEngine {
 
     // MARK: - Helpers
 
-    private static func relativeOrigin(_ frame: CGRect, in parent: ViewNode?) -> CGPoint {
+    static func relativeOrigin(_ frame: CGRect, in parent: ViewNode?) -> CGPoint {
         let parentOrigin = parent?.frame?.origin ?? .zero
         return CGPoint(x: frame.minX - parentOrigin.x, y: frame.minY - parentOrigin.y)
     }
 
-    private static func opacity(of node: ViewNode) -> Double {
+    static func opacity(of node: ViewNode) -> Double {
         node.opacity
     }
 
-    private static func setOpacity(_ opacity: Double, of node: inout ViewNode) {
+    static func setOpacity(_ opacity: Double, of node: inout ViewNode) {
         let clamped = min(max(opacity, 0), 1)
         node.attributes["opacity"] = clamped >= 0.9995 ? nil : String(format: "%.3f", clamped)
     }
 
     /// The node and its descendants moved by an offset.
-    private static func translated(_ node: ViewNode, by offset: CGSize) -> ViewNode {
+    static func translated(_ node: ViewNode, by offset: CGSize) -> ViewNode {
         var node = node
         node.frame = node.frame?.offsetBy(dx: offset.width, dy: offset.height)
         node.modifierFrames = node.modifierFrames.map {

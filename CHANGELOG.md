@@ -406,7 +406,11 @@ may contain breaking changes.
 
 - Placeholder for #65 (paste, copy, text selection, `PasteButton`): the change for that issue replaces this line.
 
-- Placeholder for #78 (`matchedGeometryEffect` and the zoom transition): the change for that issue replaces this line.
+- `matchedGeometryEffect(id:in:properties:anchor:isSource:)` makes a view that arrives in an animation start at the frame
+  of the view with the same ID and namespace, and the view it replaces moves to the new frame as it fades out.
+  `matchedTransitionSource(id:in:)` and `navigationTransition(.zoom(sourceID:in:))` make a `fullScreenCover` or a pushed
+  screen grow out of the source's frame and shrink back into it. A matched view that is inside a view that leaves fades
+  out where it was instead of moving, and `isSource` only decides which view is the starting point.
 
 - `tabViewBottomAccessory` draws its content in a glass capsule above the tab bar, `tabViewBottomAccessoryPlacement` is `.expanded` there and `.inline` beside a minimized bar, and `tabBarMinimizeBehavior(.onScrollDown)` or `.onScrollUp` shrinks the bar to a small capsule while the content scrolls, with an animation. A tap on the small capsule brings the bar back.
 
