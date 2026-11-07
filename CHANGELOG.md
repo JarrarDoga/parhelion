@@ -480,7 +480,7 @@ may contain breaking changes.
 
 - `scenePhase`: `@Environment(\.scenePhase)` in views and in an `App`, `Scene.onChange(of:initial:_:)`, and `ViewHost.scenePhase`, which the root records as `scenePhase=inactive` or `background`. The preview window sets `inactive` when it loses focus and `background` when it is minimized, and the `set_scene_phase` MCP tool moves the app between `active`, `inactive`, and `background`, so an agent can test what the app does on returning to the foreground.
 
-- Placeholder for #79 (the `AVFAudio` shim and interruptions): the change for that issue replaces this line.
+- `AVFAudio` audio interruptions and route changes on Linux. `AVAudioSession` keeps its category, mode, options, and activity and does nothing else, now with `AVAudioSession.Port`, `InterruptionReason`, and a `currentRoute` (the speaker until a device is plugged in). The `audio_interruption` (began or ended, with `should_resume` and a reason) and `audio_route_change` (default: headphones, `oldDeviceUnavailable`) MCP tools, and `ViewHost.postAudioInterruptionBegan(reason:)`, `postAudioInterruptionEnded(shouldResume:)`, and `postAudioRouteChange(reason:device:)`, post `AVAudioSession.interruptionNotification` and `routeChangeNotification` with Apple's keys, so an app's handlers run (see ADR 0018). `AVAudioSessionPortDescription.portType` is now `AVAudioSession.Port`, as in Apple's SDK (#79).
 
 - `TimelineView` with the `periodic(from:by:)`, `everyMinute`, `animation`, and `explicit(_:)` schedules, on the host's clock: it updates once per period as `advanceTime` or the manual clock moves, not with the real time. `ViewHost.date`, `referenceDate`, and `secondsUntilNextTimelineUpdate` report the host's date (#72).
 

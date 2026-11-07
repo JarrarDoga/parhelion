@@ -172,6 +172,49 @@ extension ViewHost {
                 result.flowReport = report
                 return result
 
+            case .audioInterruption(let began, let shouldResume, let reasonName):
+                let reason: AudioInterruptionReason
+                if let reasonName {
+                    guard let named = AudioInterruptionReason(rawValue: reasonName) else {
+                        return reply(
+                            false,
+                            "Unknown interruption reason \"\(reasonName)\". Use one of: "
+                                + AudioInterruptionReason.allCases.map(\.rawValue)
+                                .joined(separator: ", ") + ".")
+                    }
+                    reason = named
+                } else {
+                    reason = .default
+                }
+                if began {
+                    postAudioInterruptionBegan(reason: reason)
+                    return reply(true, "The audio interruption began (\(reason.rawValue)).")
+                }
+                postAudioInterruptionEnded(shouldResume: shouldResume)
+                return reply(
+                    true,
+                    "The audio interruption ended\(shouldResume ? ", and playback may resume" : "")."
+                )
+
+            case .audioRouteChange(let reasonName, let deviceName):
+                guard let reason = AudioRouteChangeReason(rawValue: reasonName) else {
+                    return reply(
+                        false,
+                        "Unknown route change reason \"\(reasonName)\". Use one of: "
+                            + AudioRouteChangeReason.allCases.map(\.rawValue)
+                            .joined(separator: ", ") + ".")
+                }
+                guard let device = AudioRouteDevice(rawValue: deviceName) else {
+                    return reply(
+                        false,
+                        "Unknown audio device \"\(deviceName)\". Use one of: "
+                            + AudioRouteDevice.allCases.map(\.rawValue)
+                            .joined(separator: ", ") + ".")
+                }
+                postAudioRouteChange(reason: reason, device: device)
+                return reply(
+                    true, "The audio route changed (\(reason.rawValue), \(device.rawValue)).")
+
             case .drag(let fromX, let fromY, let toX, let toY, let duration):
                 drag(
                     from: CGPoint(x: fromX, y: fromY), to: CGPoint(x: toX, y: toY),
