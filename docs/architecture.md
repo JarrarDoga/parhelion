@@ -264,6 +264,16 @@ device for the system interface it draws over the tree.
   deviation of the shadow's radius, and blends the layer over. A scale draws its inside on a layer
   at the scale it shows at, lined up with the canvas's pixels when both axes scale alike, so text
   stays sharp; taps still reach the unscaled frame.
+- **Rotation, blur, and mask** (`Effects+Transform.swift`, `Rendering+Transform.swift`) are custom
+  layout modifiers that the renderer draws through one hook in `drawChain`, because each draws the view inside
+  it on a layer of its own. The layer is lined up with the canvas's pixels. A rotation blends the layer over
+  the canvas turned clockwise around the anchor in the bounds at its place in the chain, sampling bilinearly
+  (`Canvas.draw(layer:atPixelX:y:rotatedBy:aroundX:y:)`); taps still reach the unrotated frame. A blur takes
+  the radius as the Gaussian's standard deviation, reaches three of them past what the view draws, and
+  blurs the layer with `Canvas.blur`; `opaque` blurs only the bounds and repeats the edge pixels. A mask is
+  evaluated as an `overlay` is, as an `Overlay` child placed by the `overlay` modifier that comes just before
+  the `mask` modifier; the renderer draws those views on a second layer and multiplies the first layer's opacity
+  by theirs (`Canvas.multiplyOpacity(by:)`). The layers draw without the render cache.
 - **Images** from asset catalogs are read from disk at run time, because on Linux SwiftPM copies
   an app target's `Assets.xcassets` unprocessed into the target's `<Package>_<Target>.bundle`
   ([ADR 0010](adr/0010-images-from-the-app-bundle.md)). An image's node records its `name`, its

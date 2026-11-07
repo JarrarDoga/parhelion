@@ -423,7 +423,9 @@ may contain breaking changes.
   navigation bar with a Cancel button while the user searches. Focus it, then `type_text` writes the binding.
   `isSearching` is true in the content while the field is focused or holds text, and `dismissSearch` ends the search.
 
-- Placeholder for #61 (`rotationEffect`, `blur`, `mask`): the change for that issue replaces this line.
+- `rotationEffect(_:anchor:)`, `blur(radius:opaque:)`, and `mask(alignment:_:)` draw rotated, blurred, and masked
+  views, in place of the compile-only stubs. A mask uses the alpha of its views, so a gradient fades a view out. None of
+  them changes layout.
 
 - Placeholder for #80 (`lineLimit`, `truncationMode`, vertical text fields): the change for that issue replaces this line.
 
