@@ -756,6 +756,18 @@ from the presentation layer ([ADR 0005](adr/0005-model-tree-and-presented-frames
 - **Transitions.** The topmost node of a new subtree enters with its transition, by default a
   fade. The topmost node of a removed subtree is kept, as last drawn, until its transition ends.
   Screens of a navigation stack slide across the stack; sheets move up from the bottom edge.
+- **Matched geometry.** `matchedGeometryEffect`, `matchedTransitionSource`, and the zoom
+  `navigationTransition` are modifiers that stay in the tree as data, with the namespace and the
+  ID (`MatchedGeometry.swift`). After the rest of an update, `AnimationEngine` pairs each view that
+  arrives with a view of the old tree that has the same namespace and ID (one that left first, then
+  a source, then any) and gives it a displacement from that view's frame, less what its ancestors'
+  entrances already move it, so a view that arrives inside a sheet still starts at the matched frame.
+  A view that left and sits at the top of its removed subtree moves to the new frame while it fades;
+  a matched view deeper inside one fades with its parent. A full-screen cover or pushed screen that
+  contains a zoom transition replaces its slide with a zoom: the node keeps its final size, and the
+  presented tree gives it the rectangle between the source's frame and its own as a `scaleEffect`
+  about its top leading corner, so that its content scales too. Content fades in over the first 40%
+  of a zoom and out over the last 40%.
 - **Time.** Curves are evaluated at the host's `time`, so the frames depend only on the changes
   and when they happened. `isAnimating` stays true until every animation has ended, and each
   `advanceTime(by:)` call while one runs increases `revision`, so the preview session draws a
