@@ -15,6 +15,13 @@ extension TreeRenderer {
         _ node: ViewNode, in frame: CGRect, opacity: Double, palette: ColorPalette.Appearance,
         paint: (RGBA) -> RGBA, into canvas: inout Canvas
     ) {
+        if node.attributes["minimized"] == "true" {
+            // A small capsule with the selected tab's symbol and no highlight.
+            canvas.drawGlass(
+                frame, cornerRadius: frame.height / 2, material: palette.smallGlass,
+                opacity: opacity)
+            return
+        }
         let search = node.children.first { $0.attributes["role"] == "search" }?.frame
         var capsule = frame
         if let search {

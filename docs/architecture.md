@@ -535,6 +535,23 @@ extra room at the end of its content, so its last row can scroll above the bar. 
 centered above the bar. The renderer draws the bar with the small glass of toolbar buttons and a
 gray highlight behind the selected tab, whose symbol and title take the tint color.
 
+
+**Bottom accessory and minimizing.** `tabViewBottomAccessory` and `tabBarMinimizeBehavior` write
+environment values that the tab view reads. The accessory is a `TabViewBottomAccessory` node, a
+child of the `TabView` before its `TabBar`, evaluated with
+`tabViewBottomAccessoryPlacement` set to `.expanded` or `.inline` and drawn as a glass capsule
+(`BottomAccessory.swift`). Open, it is 48 points high and 8 points above the bar, as wide as the
+bar; the content of a scroll view ends above it. The sizes are assumed, since the design export is
+not available. `.automatic` is `.never`, as on iPhone.
+
+The minimized state is host state (`ScrollLayout.tabBars`, `TabBarMinimize.swift`). After each
+layout, `LayoutEngine.updateTabBarMinimization` compares the offset of the scroll view under the
+bar with its offset at the last layout: with `.onScrollDown`, a move down minimizes and a move up,
+or the top, restores (`.onScrollUp` is the reverse). A change makes `ViewHost.relayout` evaluate the
+tree again with the new state, animated, so the accessory sees its new placement. A minimized bar
+is a 64 × 48 capsule at the leading end with only the selected tab's symbol; the accessory fills
+the row beside it. Tapping the capsule restores the bar. Only a tab whose content is one scroll
+view, alone or in a navigation stack, can minimize.
 ### Presentations
 
 A sheet, full-screen cover, or alert is a modifier that registers a presentation with the

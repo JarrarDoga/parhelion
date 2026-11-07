@@ -408,7 +408,7 @@ may contain breaking changes.
 
 - Placeholder for #78 (`matchedGeometryEffect` and the zoom transition): the change for that issue replaces this line.
 
-- Placeholder for #55 (`tabViewBottomAccessory` and `tabBarMinimizeBehavior`): the change for that issue replaces this line.
+- `tabViewBottomAccessory` draws its content in a glass capsule above the tab bar, `tabViewBottomAccessoryPlacement` is `.expanded` there and `.inline` beside a minimized bar, and `tabBarMinimizeBehavior(.onScrollDown)` or `.onScrollUp` shrinks the bar to a small capsule while the content scrolls, with an animation. A tap on the small capsule brings the bar back.
 
 - Placeholder for #57 (`swipeActions`): the change for that issue replaces this line.
 

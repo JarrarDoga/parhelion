@@ -542,23 +542,41 @@ extension TabView: PrimitiveView {
         }
 
         let barPath = ownPath.appending("bar")
+        let minimized = evaluator.isTabBarMinimized(id)
         var items: [ViewNode] = []
         for (index, tab) in tabs.enumerated() {
+            // A minimized bar shows only the selected tab, and a tap on it
+            // brings the bar back.
+            if minimized && index != selected { continue }
             let itemPath = barPath.appending(String(index))
             let selection = self.selection
             evaluator.registerAction(
                 { [weak host] in
-                    if let selection, let value = tab.value?.base as? SelectionValue {
+                    if minimized, let host {
+                        Evaluator.expandTabBar(id, in: host)
+                    } else if let selection, let value = tab.value?.base as? SelectionValue {
                         selection.wrappedValue = value
                     } else if let ownSelection, ownSelection.value != index {
                         ownSelection.value = index
                         host?.setNeedsUpdate()
                     }
                 }, for: itemPath.id)
-            items.append(tabBarItem(tab, at: itemPath, isSelected: index == selected))
+            items.append(
+                tabBarItem(tab, at: itemPath, isSelected: index == selected, symbolOnly: minimized))
         }
-        let bar = ViewNode(id: barPath.id, kind: "TabBar", children: items)
-        return [ViewNode(id: id, kind: "TabView", children: tabs[selected].content + [bar])]
+        let bar = ViewNode(
+            id: barPath.id, kind: "TabBar", attributes: minimized ? ["minimized": "true"] : [:],
+            children: items)
+        let behavior = evaluator.environment.tabBarMinimizeBehavior
+        var attributes: [String: String] = [:]
+        if behavior.minimizesOnScroll { attributes["tabBarMinimizeBehavior"] = behavior.name }
+        if minimized { attributes["tabBarMinimized"] = "true" }
+        let accessory = evaluator.bottomAccessoryNodes(at: ownPath, minimized: minimized)
+        return [
+            ViewNode(
+                id: id, kind: "TabView", attributes: attributes,
+                children: tabs[selected].content + accessory + [bar])
+        ]
     }
 
     /// Evaluates every tab, so that each keeps its state while it is not
@@ -584,7 +602,9 @@ extension TabView: PrimitiveView {
     /// symbol for a search tab. The symbol is the first one in the tab's
     /// label, in the fill variant as on iOS, and the title is the label's
     /// first text.
-    private func tabBarItem(_ tab: EvaluatedTab, at path: ViewPath, isSelected: Bool) -> ViewNode {
+    private func tabBarItem(
+        _ tab: EvaluatedTab, at path: ViewPath, isSelected: Bool, symbolOnly: Bool = false
+    ) -> ViewNode {
         let labelNodes = tab.label.flatMap(\.allNodes)
         let title = labelNodes.first { $0.kind == "Text" }?.text ?? ""
         let symbol = labelNodes.first { $0.kind == "Image" && $0.attributes["systemName"] != nil }?
@@ -613,7 +633,7 @@ extension TabView: PrimitiveView {
         if isSearch {
             // The search tab shows only its symbol; its title is its label.
             attributes["label"] = title
-        } else if !title.isEmpty {
+        } else if !title.isEmpty && !symbolOnly {
             children.append(
                 ViewNode(
                     id: path.appending("Text").id, kind: "Text",

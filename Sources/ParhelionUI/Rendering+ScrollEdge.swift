@@ -301,6 +301,7 @@ extension TreeRenderer {
     static func scrollView(under container: ViewNode) -> ViewNode? {
         let screens = container.children.filter {
             $0.kind != "NavigationBar" && $0.kind != "TabBar"
+                && $0.kind != "TabViewBottomAccessory"
         }
         guard screens.count == 1 else { return nil }
         if screens[0].isScrollContainer { return screens[0] }
