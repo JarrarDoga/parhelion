@@ -281,8 +281,16 @@ final class AgentController: @unchecked Sendable {
             return .text(
                 lines.isEmpty
                     ? "The app has not written any output." : lines.joined(separator: "\n"))
-        case "type_text" where arguments.string("field_id") != nil:
-            let focused = run(.focus(id: arguments.string("field_id")), summaryOnly: false)
+        case "type_text"
+        where arguments.string("field_id") != nil
+            || arguments.string("accessibility_identifier") != nil:
+            let field: PreviewCommand =
+                if let identifier = arguments.string("accessibility_identifier") {
+                    .focusAccessibilityIdentifier(identifier)
+                } else {
+                    .focus(id: arguments.string("field_id"))
+                }
+            let focused = run(field, summaryOnly: false)
             guard !focused.isError else { return focused }
             return run(.typeText(arguments.string("text") ?? ""), summaryOnly: false)
         case "wait":
@@ -332,6 +340,15 @@ final class AgentController: @unchecked Sendable {
 
     private func run(_ command: PreviewCommand, summaryOnly: Bool) -> MCPToolResult {
         guard let app = currentApp, !app.isDisconnected else { return notRunning() }
+        if AgentTools.usesAccessibilityIdentifier(command),
+            app.hello.capabilities?.contains(PreviewCapability.accessibilityIdentifiers) != true
+        {
+            return .text(
+                "\(app.hello.appName) was built with an older Parhelion, which cannot find "
+                    + "views by accessibility identifier. Update its Parhelion dependency and "
+                    + "rebuild, or tap by id or label.",
+                isError: true)
+        }
         guard let reply = app.request(command) else {
             return .text(
                 "The app did not answer. It may have crashed; see app_output, then rebuild.",

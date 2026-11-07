@@ -50,9 +50,15 @@ public enum PreviewCapability {
     /// only a host that shows no frames welcomes it; see
     /// `docs/adr/0012-manual-clock.md`.
     public static let manualClock = "manualClock"
+    /// The app takes the commands that name a view by its accessibility
+    /// identifier: ``PreviewCommand/tapAccessibilityIdentifier(_:)``,
+    /// ``PreviewCommand/focusAccessibilityIdentifier(_:)``, and
+    /// ``PreviewCommand/scrollToAccessibilityIdentifier(_:x:y:)``. A host only
+    /// needs to see it in the hello.
+    public static let accessibilityIdentifiers = "accessibilityIdentifiers"
     /// Every capability a window host can use. ``manualClock`` is not one:
     /// it replaces the host's clock instead of adding to it.
-    public static let all = [hostClock, sharedFrames, appearance]
+    public static let all = [hostClock, sharedFrames, appearance, accessibilityIdentifiers]
 }
 
 /// The first message an app sends after it connects.
@@ -237,10 +243,16 @@ public enum PreviewCommand: Codable, Equatable, Sendable {
     case tapNode(id: String)
     /// Taps the one button whose label is exactly `label`.
     case tapButton(label: String)
+    /// Taps the one control with an accessibility identifier. Only an app
+    /// whose hello lists ``PreviewCapability/accessibilityIdentifiers``
+    /// understands it.
+    case tapAccessibilityIdentifier(String)
     /// Taps whatever is at a point on the screen.
     case tapPoint(x: Double, y: Double)
     /// Focuses a text field, or ends editing when `id` is `nil`.
     case focus(id: String?)
+    /// Focuses the one text field with an accessibility identifier.
+    case focusAccessibilityIdentifier(String)
     /// Types text into the focused text field.
     case typeText(String)
     /// Presses an editing or focus key, by its `ViewHost.Key` name.
@@ -249,6 +261,8 @@ public enum PreviewCommand: Codable, Equatable, Sendable {
     case scroll(dx: Double, dy: Double, x: Double, y: Double)
     /// Scrolls a scroll view to an offset.
     case scrollTo(id: String, x: Double, y: Double)
+    /// Scrolls the scroll view with an accessibility identifier to an offset.
+    case scrollToAccessibilityIdentifier(String, x: Double, y: Double)
     /// Drags from one point to another over `duration` seconds, as a finger
     /// would. A fast drag over a scroll view leaves it moving.
     case drag(fromX: Double, fromY: Double, toX: Double, toY: Double, duration: Double)

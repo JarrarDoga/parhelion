@@ -22,6 +22,11 @@ public enum InteractionError: Error, Equatable, Sendable {
     case notEditable(NodeID)
     /// The node is behind a sheet or an alert, which receives input instead.
     case covered(NodeID)
+    /// No view on screen has this accessibility identifier.
+    case noAccessibilityIdentifier(String)
+    /// More than one view that could take the action has this accessibility
+    /// identifier.
+    case ambiguousAccessibilityIdentifier(String, matches: [NodeID])
 }
 
 /// Owns a view hierarchy: resolves it to a ``ViewNode`` tree, lays it out for
@@ -784,6 +789,63 @@ public final class ViewHost {
             throw .ambiguousButton(label: label, matches: matches.map(\.id))
         }
         try tap(button.id)
+    }
+
+    /// Taps the one control with an accessibility identifier, as set with
+    /// `accessibilityIdentifier(_:)`. An identifier on a container names every
+    /// control inside it, so it is ambiguous when there are several; see
+    /// ``ViewNode/accessibilityEntries()``. Only the frontmost sheet, alert,
+    /// or menu is searched while one is presented.
+    public func tap(accessibilityIdentifier identifier: String) throws(InteractionError) {
+        let id = try resolve(accessibilityIdentifier: identifier, otherwise: { .notTappable($0) }) {
+            actions[$0.id] != nil
+        }
+        try tap(id)
+    }
+
+    /// Focuses the one text field with an accessibility identifier.
+    public func focus(accessibilityIdentifier identifier: String) throws(InteractionError) {
+        let id = try resolve(accessibilityIdentifier: identifier, otherwise: { .notEditable($0) }) {
+            textFields[$0.id] != nil
+        }
+        try focus(id)
+    }
+
+    /// Scrolls the one scroll view with an accessibility identifier to an
+    /// offset, clamped to its content.
+    public func scroll(
+        accessibilityIdentifier identifier: String, to offset: CGPoint
+    ) throws(InteractionError) {
+        let id = try resolve(accessibilityIdentifier: identifier, otherwise: { .notScrollable($0) })
+        {
+            scrolling.metrics[$0.id] != nil
+        }
+        try scroll(id, to: offset)
+    }
+
+    /// The nodes with an accessibility identifier, wherever they are in the
+    /// tree.
+    public func nodes(withAccessibilityIdentifier identifier: String) -> [ViewNode] {
+        root.nodes(withAccessibilityIdentifier: identifier)
+    }
+
+    private func resolve(
+        accessibilityIdentifier identifier: String,
+        otherwise wrongKind: (NodeID) -> InteractionError,
+        where isTarget: (ViewNode) -> Bool
+    ) throws(InteractionError) -> NodeID {
+        update()
+        switch interactiveRoot.resolveAccessibilityIdentifier(identifier, isTarget: isTarget) {
+        case .found(let id): return id
+        case .ambiguous(let matches):
+            throw .ambiguousAccessibilityIdentifier(identifier, matches: matches)
+        case .wrongKind(let id): throw wrongKind(id)
+        case .none:
+            if let hidden = root.nodes(withAccessibilityIdentifier: identifier).first {
+                throw .covered(hidden.id)
+            }
+            throw .noAccessibilityIdentifier(identifier)
+        }
     }
 
     /// Every node whose kind is `"Text"` and whose text is exactly `text`.

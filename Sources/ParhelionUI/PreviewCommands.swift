@@ -52,6 +52,10 @@ extension ViewHost {
                 try tapButton(labeled: label)
                 return reply(true, "Tapped the button labeled \"\(label)\".")
 
+            case .tapAccessibilityIdentifier(let identifier):
+                try tap(accessibilityIdentifier: identifier)
+                return reply(true, "Tapped the view identified \"\(identifier)\".")
+
             case .tapPoint(let x, let y):
                 let point = CGPoint(x: x, y: y)
                 pointerDown(at: point)
@@ -68,6 +72,10 @@ extension ViewHost {
             case .focus(let id):
                 try focus(id.map { NodeID($0) })
                 return reply(true, id.map { "Focused \($0)." } ?? "Ended editing.")
+
+            case .focusAccessibilityIdentifier(let identifier):
+                try focus(accessibilityIdentifier: identifier)
+                return reply(true, "Focused the text field identified \"\(identifier)\".")
 
             case .typeText(let text):
                 guard let focused = focusedNodeID else {
@@ -95,6 +103,10 @@ extension ViewHost {
                 return reply(
                     true,
                     "Scrolled \(id) to (\(formatPoints(offset.x)), \(formatPoints(offset.y))).")
+
+            case .scrollToAccessibilityIdentifier(let identifier, let x, let y):
+                try scroll(accessibilityIdentifier: identifier, to: CGPoint(x: x, y: y))
+                return reply(true, "Scrolled the view identified \"\(identifier)\".")
 
             case .setAppearance(let schemeName, let sizeName):
                 if let schemeName {
@@ -193,6 +205,11 @@ extension ViewHost {
         case .notEditable(let id): return "\(id) is not a text field."
         case .covered(let id):
             return "\(id) is behind a sheet or an alert. Use the sheet or alert first."
+        case .noAccessibilityIdentifier(let identifier):
+            return "No view on screen has the accessibility identifier \"\(identifier)\"."
+        case .ambiguousAccessibilityIdentifier(let identifier, let matches):
+            return
+                "Several views have the accessibility identifier \"\(identifier)\": \(matches.map(\.rawValue).joined(separator: ", ")). Use id for one of them."
         }
     }
 }
