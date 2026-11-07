@@ -422,6 +422,40 @@ testing uses a row's cell instead of its frame, so a button row responds to taps
 width, and a pressed button row highlights its cell. `listStyle(_:)` records a `listStyle`
 attribute that layout and drawing read.
 
+### Lazy stacks and list rows
+
+`LazyVStack`, `LazyHStack`, and a `List` with more than 40 rows create only the rows near the
+screen ([ADR 0016](adr/0016-lazy-windows.md)). Evaluation is still a full pass, so the rows' limit
+comes from a loop between evaluating and laying out:
+
+1. The container flattens its content into *slots* without evaluating them. A `ForEach` is one
+   segment with a count and an identity for each element; `TupleView`, `if`, `Group`, and `Section`
+   are looked through, and any other view is one slot. A `ForEach` of `Section`s makes the slots of
+   each section.
+2. Evaluation creates the slots in a *window*: the first 40 at first, and later the slots that
+   layout found on screen, with a margin of half a scroll view on each side. It keeps the window
+   while it covers what is on screen, so scrolling evaluates once every few rows.
+3. Layout measures the slots that exist and keeps each slot's length by identity. A slot that does
+   not exist is as long as the mean of the others, so the content is the length of all the slots.
+   Placing the container finds the slots that overlap the scroll view, its *demand*. A stack takes
+   the width it is offered, which is assumed from how SwiftUI's lazy stacks behave in a scroll view.
+4. After each layout, the host compares every container's demand with its window. If the window
+   does not cover it, the host evaluates again and lays out again, until it does. Scroll requests
+   past the end wait for this, so they land on the end of the rows that were then measured.
+
+A view keeps its node identifiers and its `@State` keys from the structural path as in eager
+evaluation. The host keeps the state of a released row for as long as the row's identity is in the
+data. `onAppear`, `onDisappear`, and `task` follow the rows that exist, so the last row's
+`onAppear` can load more.
+
+The tree shows only the rows that exist. A container that holds some of its rows records
+`lazyCount` and `lazyResolved`, such as `lazyCount=5000 lazyResolved=1996..<2012`. In a list, the
+`Section` node holds them, and drawing reads the rows that exist, so the rounded groups and the
+separators are as before. `pinnedViews` keeps a section's header or footer at the edge of the scroll
+view, in front of its rows, until its section ends. A lazy stack outside a scroll view uses the
+screen as its viewport. `scroll_to` sets an offset, so it reaches a row that does not exist yet:
+the next update creates it.
+
 ### Navigation
 
 A `NavigationStack` keeps the entries above its root view in `ViewHost`, by the stack's

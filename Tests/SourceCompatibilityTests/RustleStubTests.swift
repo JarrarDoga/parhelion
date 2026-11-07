@@ -165,7 +165,7 @@ func rustleStubsResolve() {
 }
 
 @MainActor
-@Test("Lazy stacks and menus resolve to plain nodes")
+@Test("Lazy stacks resolve to their own kind, and menus to plain nodes")
 func lazyStacksOutline() {
     struct Content: View {
         var body: some View {
@@ -181,7 +181,7 @@ func lazyStacksOutline() {
         outline == """
             Root
             └─ VStack
-               ├─ VStack
+               ├─ LazyVStack
                │  └─ Text "A"
                ├─ Button menu=true
                │  └─ Text "More"

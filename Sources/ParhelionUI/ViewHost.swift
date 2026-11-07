@@ -46,6 +46,9 @@ public final class ViewHost {
     private let rootView: any View
     private let layoutEngine: LayoutEngine
     private let scrolling: ScrollLayout
+    /// What lazy stacks and lists keep between evaluating and laying out.
+    var lazy: LazyLayoutState { scrolling.lazy }
+    private var isEvaluating = false
     /// The tree as evaluated, before layout. Scrolling lays it out again
     /// without evaluating views.
     private var resolvedRoot = ViewNode(id: "", kind: "Root")
@@ -973,6 +976,9 @@ public final class ViewHost {
 
     private func evaluate() {
         needsUpdate = false
+        isEvaluating = true
+        defer { isEvaluating = false }
+        lazy.beginEvaluation()
         visitedKeys = []
         visitedNavigationStacks = []
         visitedAnimationKeys = []
@@ -1038,6 +1044,7 @@ public final class ViewHost {
         animationValues = animationValues.filter { visitedAnimationKeys.contains($0.key) }
         timelines.finishEvaluation()
         gestures.finishEvaluation()
+        lazy.finishEvaluation()
         let dismissed = presentations.filter { presented[$0.key] == nil }.values
         presentations = presented
         scrolling.presentationOffsets = scrolling.presentationOffsets.filter {
@@ -1054,7 +1061,8 @@ public final class ViewHost {
         relayout()
         // State belongs to a structural position. When a view leaves the
         // tree, its state goes with it.
-        storage = storage.filter { visitedKeys.contains($0.key) }
+        // A lazy stack keeps the state of the rows it released.
+        storage = storage.filter { visitedKeys.contains($0.key) || lazy.retainsState($0.key) }
         navigationState = navigationState.filter { visitedNavigationStacks.contains($0.key) }
 
         lifecycle.apply(evaluator.lifecycle, to: resolvedRoot)
@@ -1066,6 +1074,7 @@ public final class ViewHost {
     private func relayout() {
         let previous = presentedRoot
         scrolling.metrics = [:]
+        lazy.beginLayout()
         root = layoutEngine.layout(resolvedRoot)
         if hasLaidOut {
             animations.update(
@@ -1087,9 +1096,22 @@ public final class ViewHost {
         navigationChanges = [:]
         presentedCache = nil
         // Keep each offset clamped to its content, and forget the offsets of
-        // scroll views that left the tree.
-        scrolling.offsets = scrolling.metrics.mapValues(\.offset)
+        // scroll views that left the tree. While lazy stacks are about to
+        // evaluate more rows, the content is only estimated, so a request
+        // past the end stays a request, and lands on the end of the content
+        // that the rows then make.
+        if lazy.needsWindowChange {
+            scrolling.offsets = scrolling.offsets.filter { scrolling.metrics[$0.key] != nil }
+        } else {
+            scrolling.offsets = scrolling.metrics.mapValues(\.offset)
+        }
         momentum = momentum.filter { scrolling.metrics[$0.key] != nil }
         revision += 1
+        // Scrolling can move the screen past the views a lazy stack made.
+        // Evaluating resolves the stacks' new windows and lays out again.
+        if lazy.needsWindowChange {
+            needsUpdate = true
+            if !isEvaluating { update() }
+        }
     }
 }
