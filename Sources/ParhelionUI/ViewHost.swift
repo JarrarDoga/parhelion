@@ -480,13 +480,19 @@ public final class ViewHost {
     /// Moves a press from one point to another over `duration` seconds, as a
     /// finger would, then releases it.
     ///
-    /// A node at the start that registered a drag handler receives the drag.
+    /// A press that does not move is a ``longPress(at:duration:)`` when a view
+    /// at the point handles one. Otherwise a node at the start that
+    /// registered a drag handler receives the drag.
     /// Otherwise the press moves in 60 steps per second of the duration,
     /// advancing the clock, as it would for a person using the window: it
     /// drags a slider's knob, scrolls a scroll view, or pulls a sheet down.
     public func drag(from start: CGPoint, to end: CGPoint, duration: TimeInterval = 0.3) {
         update()
         let duration = min(max(duration, 0.02), 5)
+        // A press that does not move is a long press, which is how the
+        // `long_press` tool sends one: it reaches long press handlers, such
+        // as a context menu's, as well as long press gestures.
+        if start == end, (try? longPress(at: start, duration: duration)) != nil { return }
         if let target = frontmostNode(
             at: start, in: interactiveRoot, where: { inputHandlers[$0.id]?.drag != nil }),
             let handler = inputHandlers[target.id]?.drag

@@ -1,4 +1,5 @@
 import Foundation
+import ParhelionTesting
 import Testing
 
 @testable import ParhelionUI
@@ -348,6 +349,13 @@ struct ContextMenuTests {
         #expect(!host.root.allNodes.contains { $0.kind == "ContextMenu" })
     }
 
+    @Test("A press held in place by drag, as the long_press tool sends it, opens the menu")
+    func opensFromStationaryDrag() throws {
+        let host = ViewHost(Row(log: Log()), device: screen)
+        host.drag(from: CGPoint(x: 150, y: 250), to: CGPoint(x: 150, y: 250), duration: 0.6)
+        #expect(host.root.children.last?.kind == "ContextMenu")
+    }
+
     @Test("The lifted view keeps its place, and the menu opens below it")
     func liftedFrames() throws {
         let host = ViewHost(Row(log: Log()), device: screen)
@@ -503,6 +511,7 @@ struct MenuRenderingTests {
         try host.longPress(at: CGPoint(x: row.midX, y: row.midY))
         host.advanceTime(by: 1)
         write(host, "context-menu")
+        host.expectSnapshot(named: "context-menu", scale: 1, chrome: .systemBars)
         let open = host.render(scale: 1)
         let panel = try #require(host.root.allNodes.first { $0.kind == "MenuPanel" }?.frame)
         // The screen is blurred: text of another row is smeared, so a pixel

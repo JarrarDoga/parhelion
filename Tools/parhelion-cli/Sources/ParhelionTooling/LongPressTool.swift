@@ -22,7 +22,7 @@ public struct LongPressTool: AgentTool {
                 Presses at a point, holds for a duration, and releases, as a finger would. A \
                 view with onLongPressGesture or LongPressGesture runs its action once the \
                 hold reaches the gesture's minimum duration (0.5 seconds unless the view asks \
-                for another). The app's clock moves on by the duration, so the hold takes no \
+                for another), and a view with a contextMenu opens it. The app's clock moves on by the duration, so the hold takes no \
                 real time without a window. Up to \(Int(Self.longestDuration)) seconds.
                 """,
             inputSchema: #"""
