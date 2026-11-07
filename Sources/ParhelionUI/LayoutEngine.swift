@@ -78,6 +78,9 @@ struct LayoutEngine {
         var node = node
         let screen = CGRect(origin: .zero, size: device.screenSize)
         let safeArea = device.safeArea
+        if let place = NodeExtensions.behavior(for: node.kind)?.placePresentation {
+            return place(self, node, below)
+        }
         switch node.kind {
         case "Alert":
             let size = alertLayout(node).size
@@ -271,6 +274,10 @@ struct LayoutEngine {
             .scaleEffect:
             return child(proposal)
 
+        case .custom(let modifier):
+            guard let size = modifier.behavior?.size else { return child(proposal) }
+            return size(modifier.parameters, proposal, child)
+
         case .padding(let insets):
             let size = child(proposal.inset(by: insets))
             return CGSize(
@@ -331,6 +338,9 @@ struct LayoutEngine {
     private func baseSize(
         _ node: ViewNode, _ proposal: ProposedSize, parentAxis: LayoutAxis?
     ) -> CGSize {
+        if let size = NodeExtensions.behavior(for: node.kind)?.size {
+            return size(self, node, proposal, parentAxis)
+        }
         switch node.kind {
         case "Text":
             return measurer.size(
@@ -599,6 +609,14 @@ struct LayoutEngine {
                 node, in: rect.offsetBy(dx: offset.width, dy: offset.height), modifierCount: inner,
                 parentAxis: parentAxis)
 
+        case .custom(let modifier):
+            let content =
+                modifier.behavior?.place?(
+                    modifier.parameters, rect,
+                    { sizeThatFits(node, $0, modifierCount: inner, parentAxis: parentAxis) })
+                ?? rect
+            return place(node, in: content, modifierCount: inner, parentAxis: parentAxis)
+
         case .padding(let insets):
             let content = CGRect(
                 x: rect.minX + insets.leading,
@@ -656,6 +674,10 @@ struct LayoutEngine {
         node.frame = rect
         let proposal = ProposedSize(rect.size)
 
+        if let place = NodeExtensions.behavior(for: node.kind)?.place {
+            node.children = place(self, node, rect)
+            return node
+        }
         switch node.kind {
         case "VStack", "HStack", "Label":
             let axis: LayoutAxis = node.kind == "VStack" ? .vertical : .horizontal

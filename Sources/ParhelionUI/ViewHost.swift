@@ -48,6 +48,7 @@ public final class ViewHost {
     private var visitedKeys: Set<String> = []
     private var actions: [NodeID: @MainActor () -> Void] = [:]
     private var textFields: [NodeID: Binding<String>] = [:]
+    private var inputHandlers: [NodeID: NodeInputHandlers] = [:]
     /// The entries each navigation stack keeps above its root view, by the
     /// stack's identifier.
     var navigationState: [NodeID: [NavigationEntry]] = [:]
@@ -417,6 +418,54 @@ public final class ViewHost {
         return button
     }
 
+    /// Holds a press at a point for `duration` seconds, then releases it, and
+    /// updates the tree.
+    ///
+    /// The press goes to the frontmost node at the point that registered a
+    /// long press handler.
+    public func longPress(at point: CGPoint, duration: TimeInterval = 0.5) throws(InteractionError)
+    {
+        update()
+        guard
+            let target = frontmostNode(
+                at: point, in: interactiveRoot, where: { inputHandlers[$0.id]?.longPress != nil }),
+            let handler = inputHandlers[target.id]?.longPress
+        else { throw .nothingTappable(at: point) }
+        advanceTime(by: max(duration, 0))
+        handler(point, duration)
+        update()
+    }
+
+    /// Moves a press from one point to another over `duration` seconds, as a
+    /// finger would, then releases it.
+    ///
+    /// A node at the start that registered a drag handler receives the drag.
+    /// Otherwise the press moves in 60 steps per second of the duration,
+    /// advancing the clock, as it would for a person using the window: it
+    /// drags a slider's knob, scrolls a scroll view, or pulls a sheet down.
+    public func drag(from start: CGPoint, to end: CGPoint, duration: TimeInterval = 0.3) {
+        update()
+        let duration = min(max(duration, 0.02), 5)
+        if let target = frontmostNode(
+            at: start, in: interactiveRoot, where: { inputHandlers[$0.id]?.drag != nil }),
+            let handler = inputHandlers[target.id]?.drag
+        {
+            advanceTime(by: duration)
+            handler(start, end, duration)
+            update()
+            return
+        }
+        let steps = max(Int(duration * 60), 2)
+        pointerDown(at: start)
+        for step in 1...steps {
+            advanceTime(by: duration / Double(steps))
+            let t = CGFloat(step) / CGFloat(steps)
+            pointerMoved(
+                to: CGPoint(x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t))
+        }
+        pointerUp(at: end)
+    }
+
     // MARK: - Text input
 
     /// A key that edits text or moves keyboard focus.
@@ -746,13 +795,24 @@ public final class ViewHost {
     /// Children outside their parent's bounds, such as views moved by
     /// `offset`, still receive taps, except where a scroll view clips them.
     private func frontmostTappableNode(at point: CGPoint, in node: ViewNode) -> ViewNode? {
-        let isInside = node.hitFrame?.contains(point) ?? false
+        frontmostNode(at: point, in: node) { actions[$0.id] != nil || textFields[$0.id] != nil }
+    }
+
+    /// The frontmost node at a point that `matches`, found the way a tap
+    /// finds its target. A kind that registered a hit test decides for
+    /// itself whether a point is on it.
+    private func frontmostNode(
+        at point: CGPoint, in node: ViewNode, where matches: (ViewNode) -> Bool
+    ) -> ViewNode? {
+        let isInside =
+            NodeExtensions.behavior(for: node.kind)?.hitTest?(node, point)
+            ?? node.hitFrame?.contains(point) ?? false
         if node.isScrollContainer, !isInside { return nil }
         for child in node.children.reversed() {
-            if let match = frontmostTappableNode(at: point, in: child) { return match }
+            if let match = frontmostNode(at: point, in: child, where: matches) { return match }
         }
         guard isInside else { return nil }
-        return actions[node.id] != nil || textFields[node.id] != nil ? node : nil
+        return matches(node) ? node : nil
     }
 
     /// Slides a navigation stack's screens, with the navigation animation
@@ -845,6 +905,7 @@ public final class ViewHost {
         }
         actions = evaluator.actions
         textFields = evaluator.textFields
+        inputHandlers = evaluator.inputHandlers
         implicitAnimations = evaluator.implicitAnimations
         previousTransitions = transitions
         transitions = evaluator.transitions

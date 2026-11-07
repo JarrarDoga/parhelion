@@ -301,7 +301,17 @@ struct TreeRenderer {
             return
         }
 
+        let custom = NodeExtensions.behavior(for: node.kind)?.draw
         switch node.kind {
+        case _ where custom != nil:
+            // A kind that plugs in from its own file; see NodeBehavior.swift.
+            var drawing = NodeDrawing(
+                frame: frame, foreground: foreground, tint: tint, opacity: opacity,
+                scheme: scheme, palette: palette, container: container)
+            custom?(self, node, &drawing, &canvas)
+            foreground = drawing.foreground
+            container = drawing.container
+
         case "Color":
             canvas.fill(frame, color: paint(node.attributes["color"] ?? "clear"))
 
