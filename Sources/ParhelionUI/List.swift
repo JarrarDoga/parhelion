@@ -103,11 +103,11 @@ extension List: PrimitiveView {
                 return child.asListRow()
             }
         }
-        return [
-            ViewNode(
-                id: ownPath.id, kind: "List", attributes: evaluator.environment.scrollAttributes,
-                children: sections)
-        ]
+        var list = ViewNode(
+            id: ownPath.id, kind: "List", attributes: evaluator.environment.scrollAttributes,
+            children: sections)
+        SectionIndex.attach(to: &list, in: evaluator)
+        return [list]
     }
 }
 

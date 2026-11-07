@@ -497,6 +497,14 @@ testing uses a row's cell instead of its frame, so a button row responds to taps
 width, and a pressed button row highlights its cell. `listStyle(_:)` records a `listStyle`
 attribute that layout and drawing read.
 
+A list shows a **section index** when `listSectionIndexVisibility` is not `.hidden` and a section has a
+`sectionIndexLabel`, which a section records as the `sectionIndexLabel` attribute (`SectionIndex.swift`).
+`List` adds the index as an `overlay` aligned trailing: a 28-point column of plain buttons, one for
+each distinct label, 16 points apart, with a drag gesture on the column. A button, `tap(at:)`, or a
+drag that reaches a letter sets the list's scroll offset to the section's distance from the first
+section, so the section sits at the top of the content below a navigation bar, or as far as the
+content allows for the last sections. Assumed: the sizes, and that `.automatic` shows the index.
+
 ### Lazy stacks and list rows
 
 `LazyVStack`, `LazyHStack`, and a `List` with more than 40 rows create only the rows near the
