@@ -394,7 +394,7 @@ may contain breaking changes.
   and `glassEffectID(_:in:)` makes glass that appears or disappears in an animation grow out of, or shrink into, the glass
   beside it. `@Namespace` now keeps its ID across updates.
 
-- Placeholder for #58 (`Menu` and `contextMenu`): the change for that issue replaces this line.
+- `Menu` opens a glass menu of buttons, sections, dividers, destructive items, and a `ControlGroup` row of icon-over-title buttons, from a tap or, with a `primaryAction`, a long press. `contextMenu(menuItems:)` and `contextMenu(menuItems:preview:)` open the same menu on a long press (`ViewHost.longPress(at:duration:)`): the screen behind blurs and the view lifts to 1.03.
 
 - Placeholder for #60 (`ScrollViewReader`, `scrollPosition`, paging, scroll geometry): the change for that issue replaces this line.
 
