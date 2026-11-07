@@ -450,7 +450,10 @@ may contain breaking changes.
 
 - Placeholder for #62 (`sensoryFeedback` and Reduce Motion): the change for that issue replaces this line.
 
-- Placeholder for #74 (`refreshable`): the change for that issue replaces this line.
+- `refreshable(action:)` on a `List` or vertical `ScrollView`: dragging down from the top pulls the content
+  away from iOS's spinner, and releasing past 60 points runs the action as a host task, so
+  `waitForTasks()` waits for it, and holds the spinner until it returns. The `refresh` environment
+  value runs the action. `ViewNode.isRefreshable` and `isRefreshing` report the state.
 
 - `ProgressView` draws iOS 26's spinner (eight spokes, one turn a second) for an unknown amount, a
   ring for a known amount in `.circular`, and a 4-point bar for `value:total:` (such as "640 of

@@ -81,9 +81,15 @@ final class Evaluator {
     }
 
     /// Registers what a node does with a long press or a drag; see
-    /// ``NodeInputHandlers``.
+    /// ``NodeInputHandlers``. A handler that is set replaces the node's
+    /// handler of that kind; the node keeps its other handlers, so a
+    /// `contextMenu` around a `refreshable` list keeps the pull.
     func registerInputHandlers(_ handlers: NodeInputHandlers, for id: NodeID) {
-        inputHandlers[id] = handlers
+        var merged = inputHandlers[id] ?? NodeInputHandlers()
+        if let longPress = handlers.longPress { merged.longPress = longPress }
+        if let drag = handlers.drag { merged.drag = drag }
+        if let refresh = handlers.refresh { merged.refresh = refresh }
+        inputHandlers[id] = merged
     }
 
     func registerTextField(_ text: Binding<String>, for id: NodeID) {

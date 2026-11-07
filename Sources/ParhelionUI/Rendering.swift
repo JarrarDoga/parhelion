@@ -419,6 +419,7 @@ struct TreeRenderer {
         let outerClip = canvas.clipRect
         if node.isScrollContainer {
             canvas.clipRect = outerClip.map { $0.intersection(frame) } ?? frame
+            drawRefreshControl(node, scheme: scheme, paint: paint, into: &canvas)
         }
         let inherited = Inherited(
             foreground: foreground, tint: tint, opacity: opacity, container: container,

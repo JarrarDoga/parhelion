@@ -1046,7 +1046,9 @@ struct LayoutEngine {
         }
         let topBar = vertical ? scrolling.obscuredTop : nil
         let bottomBar = vertical ? scrolling.obscuredBottom : nil
-        let topInset = max(topBar ?? space.minY, space.minY) - rect.minY
+        let barInset = max(topBar ?? space.minY, space.minY) - rect.minY
+        // A pull to refresh opens room above the content.
+        let topInset = barInset + scrolling.refresh.pull(for: node.id)
         // Content that scrolls under a bar floating over the bottom of the
         // scroll view, such as the tab bar, can scroll up above the bar.
         let bottomInset =
@@ -1090,6 +1092,7 @@ struct LayoutEngine {
         node.attributes["contentSize"] =
             "\(formatPoints(contentSize.width)) × \(formatPoints(contentSize.height))"
         node.attributes["contentOffset"] = "\(formatPoints(offset.x)), \(formatPoints(offset.y))"
+        scrolling.refresh.annotate(&node, gapTop: rect.minY + barInset - offset.y)
 
         // Which bars the content lies under now, for the scroll edge effect.
         var underBars: [String] = []
@@ -1217,6 +1220,8 @@ final class ScrollLayout {
     /// How far each sheet is dragged down from where it rests, by the
     /// sheet's identifier.
     var presentationOffsets: [NodeID: CGFloat] = [:]
+    /// Pulls to refresh in progress. See Refreshable.swift.
+    let refresh = RefreshState()
     var metrics: [NodeID: ScrollMetrics] = [:]
     /// The top of a bar that floats over the scroll views being placed, such
     /// as the tab bar, in screen points.
