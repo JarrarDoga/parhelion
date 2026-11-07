@@ -39,4 +39,23 @@ public enum Shell {
         return Result(
             status: process.terminationStatus, output: String(decoding: data, as: UTF8.self))
     }
+
+    /// The environment variable that limits the jobs of `swift build`, like
+    /// Cargo's `CARGO_BUILD_JOBS`.
+    public static let buildJobsVariable = "PARHELION_BUILD_JOBS"
+
+    /// The number of jobs `swift build` may run at once: `option` if given,
+    /// otherwise the value of `PARHELION_BUILD_JOBS`. `nil` leaves SwiftPM's
+    /// default, one job per core. Values that are not positive whole numbers
+    /// are ignored.
+    public static func buildJobs(
+        option: Int? = nil,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Int? {
+        if let option { return option > 0 ? option : nil }
+        guard let text = environment[buildJobsVariable],
+            let value = Int(text.trimmingCharacters(in: .whitespaces)), value > 0
+        else { return nil }
+        return value
+    }
 }

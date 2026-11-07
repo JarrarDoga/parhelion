@@ -12,6 +12,10 @@ public struct AppBuilder: Sendable {
     public let plan: RunPlan
     /// `debug` or `release`, as for `swift build --configuration`.
     public let configuration: String
+    /// The most jobs `swift build` may run at once, or `nil` for SwiftPM's
+    /// default of one per core. Many sessions on one machine pass a limit
+    /// so that their builds do not compete; see ``Shell/buildJobs(option:environment:)``.
+    public let jobs: Int?
 
     /// The variable Parhelion's manifest reads; see its `Package.swift`.
     public static let optimizeFrameworkVariable = "PARHELION_OPTIMIZE_FRAMEWORK"
@@ -30,9 +34,12 @@ public struct AppBuilder: Sendable {
         public var environment: [String: String]
     }
 
-    public init(plan: RunPlan, configuration: String = "debug") {
+    public init(
+        plan: RunPlan, configuration: String = "debug", jobs: Int? = Shell.buildJobs()
+    ) {
         self.plan = plan
         self.configuration = configuration
+        self.jobs = jobs
     }
 
     /// Where the build products go.
@@ -82,7 +89,9 @@ public struct AppBuilder: Sendable {
 
     /// The command that builds the product.
     public func buildCommand() -> Command {
-        command(["build", "--product", plan.product])
+        var command = command(["build", "--product", plan.product])
+        if let jobs { command.arguments += ["--jobs", String(jobs)] }
+        return command
     }
 
     /// The command that prints the directory of the built products.

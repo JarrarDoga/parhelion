@@ -293,6 +293,45 @@ Each interaction reports the screen's revision, so the agent can tell whether it
 anything. Add `--window` to watch the app in a preview window and use it yourself while the agent
 works, or `--web` to do that from a browser.
 
+### Many sessions on one machine
+
+Sessions share nothing, so `parhelion mcp` processes can run side by side, each in
+its own package directory, such as one git worktree per agent. Each session builds into its own
+`.build/parhelion`, listens on a Unix socket named after its process ID in the temporary
+directory, writes one state file there, and draws frames into anonymous shared memory. The SDL
+`offscreen` driver keeps no state outside the process. Two things can collide: sessions in the
+same package directory, which share one `.build/parhelion` (not tested), and `--web`, which tries only
+the 11 ports from 8417, so give each session `--web-port 0`.
+
+Memory goes to the build, not to the session. Measured on 2026-11-06 with a scaffold of eight tabs
+and a fixture model of 1,535 songs, on a 6-core machine that other builds were using, as the
+proportional set size of every process under `parhelion mcp`:
+
+| | Peak | When idle |
+| --- | --- | --- |
+| The first build in a fresh directory, default jobs | 820 MB | |
+| The first build, `--jobs 2`, 10 sessions at once | 350 to 480 MB each, 4.0 GB together | |
+| The app | 13 MB | 13 MB |
+| The host (`parhelion mcp`) | 6 to 12 MB | 6 to 12 MB |
+| A session after its build | | 18 to 25 MB |
+
+Ten sessions in ten directories, started in the same second with `--jobs 2`, all built and
+answered `get_view_tree` without errors. The machine's available memory fell by 3.5 GB at the
+lowest point, and each build took about 9 minutes because the CPUs were shared by all of them.
+Later builds, after an edit, are incremental and take a few seconds.
+
+So the limit is how many first builds run in the same minute, not how many sessions are open.
+Plan for 0.5 GB per session that is building and 20 MB per idle one: 25 sessions need about
+0.5 GB when idle, and a start of 10 at once peaks near 4 GB. Cap the builds with `--jobs N` or
+the `PARHELION_BUILD_JOBS` environment variable, the way Cargo's `CARGO_BUILD_JOBS` works, and
+use `--jobs 2` to `--jobs 4` when something else, such as Cargo, uses the same cores. The option
+wins over the variable. `Scripts/measure-mcp-sessions.py` repeats the measurement:
+
+```console
+$ SDL_VIDEODRIVER=offscreen Scripts/measure-mcp-sessions.py \
+    Tools/parhelion-cli/.build/debug/parhelion --sessions 10 --jobs 2
+```
+
 ## Status
 
 | Area | Supported today |

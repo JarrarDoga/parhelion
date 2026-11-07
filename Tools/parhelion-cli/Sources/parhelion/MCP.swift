@@ -34,6 +34,14 @@ struct MCP: ParsableCommand {
     @Option(name: [.customShort("c"), .long], help: "debug or release.")
     var configuration: Run.BuildConfiguration = .debug
 
+    @Option(
+        name: [.customShort("j"), .long],
+        help: """
+            The most jobs that swift build runs at once. (default: $PARHELION_BUILD_JOBS, \
+            or one per core) Pass 2 to 4 when many sessions share a machine.
+            """)
+    var jobs: Int?
+
     @Flag(help: "Also show the app in a preview window.")
     var window = false
 
@@ -51,6 +59,9 @@ struct MCP: ParsableCommand {
     @OptionGroup var web: WebOptions
 
     func run() throws {
+        if let jobs, jobs < 1 {
+            throw ValidationError("--jobs must be at least 1.")
+        }
         let package = try AppPackage.load(at: packagePath)
         let plan = try RunPlan.make(
             for: package, at: packagePath, product: product,
@@ -60,7 +71,9 @@ struct MCP: ParsableCommand {
         let appearance = AppearanceState()
         let controller = try AgentController(
             plan: plan,
-            builder: AppBuilder(plan: plan, configuration: configuration.rawValue),
+            builder: AppBuilder(
+                plan: plan, configuration: configuration.rawValue,
+                jobs: Shell.buildJobs(option: jobs)),
             scale: showsFrames ? 2 : 1,
             device: device,
             // Without a window or a page, nobody shows frames or keeps time, so
