@@ -1,0 +1,18 @@
+[package]
+name = "fixture-backend"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "fixture_backend"
+# A cdylib is loaded at launch, so a rebuilt library reaches the app without
+# relinking it. The staticlib is what an iOS build links.
+crate-type = ["cdylib", "staticlib", "lib"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+
+[dependencies]
+uniffi = { version = "0.29", features = ["cli"] }

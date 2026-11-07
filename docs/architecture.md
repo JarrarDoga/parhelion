@@ -763,7 +763,8 @@ shows them in its title.
 2. It builds, starts the app with `parhelion preview`'s protocol, and watches the package's
    Swift files with inotify, one watch per source directory, so a save is seen within a
    millisecond. Where inotify is missing or out of watches, it compares modification times twice
-   a second instead.
+   a second instead. A `parhelion.json` in the package can add more paths to watch, such as
+   Rust crates, which are watched for every file and not only Swift files.
 3. On a change, it rebuilds on a background thread while the window keeps showing the running
    app. If the build fails, it prints the errors, with runner paths mapped back to the app's
    files, and leaves the app running.

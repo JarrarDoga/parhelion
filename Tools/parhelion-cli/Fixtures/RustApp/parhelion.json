@@ -1,0 +1,5 @@
+{
+  "preBuild": "scripts/build-rust.sh",
+  "watch": ["crates", "Cargo.toml"],
+  "libraryPaths": ["target/debug"]
+}

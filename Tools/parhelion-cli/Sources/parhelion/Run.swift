@@ -27,6 +27,13 @@ struct Run: ParsableCommand {
             has a button and a menu for them. Set PARHELION_COLOR_SCHEME or \
             PARHELION_DYNAMIC_TYPE_SIZE to start with another setting.
 
+            An app that links a Rust library, or builds anything else before Swift, \
+            says how in parhelion.json in its package: "preBuild" is a shell command \
+            that runs before every swift build, "watch" lists more files and \
+            directories whose changes rebuild the app, and "libraryPaths" lists \
+            directories with prebuilt .a and .so files for the linker. \
+            The options --pre-build, --watch, and --library-path do the same.
+
             Example: parhelion run --package-path ~/Code/MyApp
             """
     )
@@ -40,6 +47,8 @@ struct Run: ParsableCommand {
 
     @Option(help: "The product to run, if the package has more than one.")
     var product: String?
+
+    @OptionGroup var build: BuildOptions
 
     @Option(
         name: [.customShort("c"), .long],
@@ -57,9 +66,11 @@ struct Run: ParsableCommand {
         // Show progress as it happens, even when output goes to a file.
         parhelion_line_buffer_standard_output()
         let package = try AppPackage.load(at: packagePath)
-        let plan = try RunPlan.make(for: package, at: packagePath, product: product)
+        let plan = try RunPlan.make(
+            for: package, at: packagePath, product: product,
+            config: try build.config(packagePath: packagePath))
         let builder = AppBuilder(plan: plan, configuration: configuration.rawValue)
-        let watcher = SourceWatcher(root: plan.watchRoot)
+        let watcher = SourceWatcher(plan: plan)
         // The page is up before the first build, so it can show the build's errors.
         let webHost = web.isEnabled ? try WebHost(options: web, bezel: window.bezel) : nil
         if let webHost { print(webHost.announcement) }
@@ -194,6 +205,36 @@ struct Run: ParsableCommand {
     private func report(_ outcome: AppBuilder.Outcome, from builder: AppBuilder) {
         print("Build failed:")
         print(builder.errorSummary(outcome.output))
+    }
+}
+
+/// What the app needs built besides its Swift sources, on top of
+/// `parhelion.json`; see ``AppConfig``.
+struct BuildOptions: ParsableArguments {
+    @Option(
+        help: ArgumentHelp(
+            "A shell command to run before every swift build.", valueName: "command"))
+    var preBuild: String?
+
+    @Option(
+        name: .customLong("watch"),
+        help: ArgumentHelp(
+            "A file or directory besides the Swift sources whose changes rebuild the app. "
+                + "Repeat it for more.", valueName: "path"))
+    var watch: [String] = []
+
+    @Option(
+        name: .customLong("library-path"),
+        help: ArgumentHelp(
+            "A directory with prebuilt libraries to link and load. Repeat it for more.",
+            valueName: "path"))
+    var libraryPath: [String] = []
+
+    /// The package's `parhelion.json` with these options on top. Relative
+    /// paths are relative to the package.
+    func config(packagePath: String) throws -> AppConfig {
+        try AppConfig.load(at: packagePath).overriding(
+            preBuild: preBuild, watch: watch, libraryPaths: libraryPath)
     }
 }
 

@@ -29,6 +29,8 @@ struct MCP: ParsableCommand {
     @Option(help: "The product to run, if the package has more than one.")
     var product: String?
 
+    @OptionGroup var build: BuildOptions
+
     @Option(name: [.customShort("c"), .long], help: "debug or release.")
     var configuration: Run.BuildConfiguration = .debug
 
@@ -50,7 +52,9 @@ struct MCP: ParsableCommand {
 
     func run() throws {
         let package = try AppPackage.load(at: packagePath)
-        let plan = try RunPlan.make(for: package, at: packagePath, product: product)
+        let plan = try RunPlan.make(
+            for: package, at: packagePath, product: product,
+            config: try build.config(packagePath: packagePath))
         let webHost = web.isEnabled ? try WebHost(options: web, bezel: bezel) : nil
         let showsFrames = window || webHost != nil
         let appearance = AppearanceState()

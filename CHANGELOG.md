@@ -343,7 +343,12 @@ may contain breaking changes.
 
 - Placeholder for #49 (compile-only stubs for every missing API): the change for that issue replaces this line.
 
-- Placeholder for #50 (apps that link a Rust library through UniFFI): the change for that issue replaces this line.
+- `parhelion run` and `parhelion mcp` build apps that link a native library, such as a Rust core
+  with UniFFI bindings. A `parhelion.json` in the app's package, or the options `--pre-build`,
+  `--watch`, and `--library-path`, name a command that runs before every `swift build`, more
+  files and directories whose changes rebuild the app, and directories with prebuilt libraries.
+  Errors from the command reach `parhelion mcp` like Swift errors. The runner package keeps a
+  target's linker settings.
 
 - Placeholder for #51 (many `parhelion mcp` sessions on one PC): the change for that issue replaces this line.
 

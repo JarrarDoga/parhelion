@@ -13,6 +13,17 @@ public struct RunPlan: Equatable, Sendable {
     public var runner: Runner?
     /// How a debug build gets an optimized Parhelion.
     public var optimization: FrameworkOptimization = .frameworkOnly
+    /// A shell command to run in ``packageRoot`` before every `swift build`;
+    /// see ``AppConfig/preBuild``.
+    public var preBuild: String?
+    /// The app's package directory, where the pre-build command runs.
+    public var packageRoot: String = ""
+    /// Absolute paths besides the Swift sources whose changes rebuild the
+    /// app; see ``AppConfig/watch``.
+    public var extraWatchPaths: [String] = []
+    /// Absolute directories with prebuilt libraries; see
+    /// ``AppConfig/libraryPaths``.
+    public var libraryPaths: [String] = []
 
     /// How `parhelion run` makes a debug build render at release speed.
     public enum FrameworkOptimization: Equatable, Sendable {
@@ -60,10 +71,26 @@ public struct RunPlan: Equatable, Sendable {
     /// that compiles the library's sources as an executable, so that its
     /// `@main` type becomes the entry point.
     public static func make(
-        for package: AppPackage, at packagePath: String, product: String?
+        for package: AppPackage, at packagePath: String, product: String?,
+        config: AppConfig = AppConfig()
     )
         throws -> RunPlan
     {
+        var plan = try makePlan(for: package, at: packagePath, product: product)
+        let root = plan.packageRoot
+        func absolute(_ path: String) -> String {
+            URL(fileURLWithPath: path, relativeTo: URL(fileURLWithPath: root, isDirectory: true))
+                .standardizedFileURL.path
+        }
+        plan.preBuild = config.preBuild
+        plan.extraWatchPaths = config.watch.map(absolute)
+        plan.libraryPaths = config.libraryPaths.map(absolute)
+        return plan
+    }
+
+    private static func makePlan(
+        for package: AppPackage, at packagePath: String, product: String?
+    ) throws -> RunPlan {
         let root = URL(fileURLWithPath: packagePath).standardizedFileURL.path
         // SwiftPM gives every executable target a product of the same name,
         // even when the manifest does not declare one.
@@ -100,7 +127,7 @@ public struct RunPlan: Equatable, Sendable {
         if chosen.isExecutable {
             return RunPlan(
                 buildPackagePath: root, product: chosen.name, watchRoot: root, runner: nil,
-                optimization: optimization)
+                optimization: optimization, packageRoot: root)
         }
         guard
             let appTarget = chosen.targets.first.flatMap({ name in
@@ -116,7 +143,8 @@ public struct RunPlan: Equatable, Sendable {
             product: appTarget.name,
             watchRoot: root,
             runner: runner,
-            optimization: optimization
+            optimization: optimization,
+            packageRoot: root
         )
     }
 
@@ -199,6 +227,12 @@ struct RunnerGenerator {
             links["Sources/\(target.name)"] = packageRoot + "/" + target.path
             let kind = target.name == appTarget.name ? "executableTarget" : "target"
             let dependencies = target.dependencies.map(render).joined(separator: ",\n")
+            var linker = ""
+            if !target.linkerSettings.isEmpty {
+                let settings = target.linkerSettings.map(render).joined(separator: ",\n")
+                linker =
+                    ",\n            linkerSettings: [\n\(indent(settings, by: 16))\n            ]"
+            }
             declarations.append(
                 """
                         .\(kind)(
@@ -206,7 +240,7 @@ struct RunnerGenerator {
                             dependencies: [
                 \(indent(dependencies, by: 16))
                             ],
-                            path: \(quote("Sources/\(target.name)"))
+                            path: \(quote("Sources/\(target.name)"))\(linker)
                         )
                 """
             )
@@ -287,6 +321,19 @@ struct RunnerGenerator {
                 return ".target(name: \(quote(name))\(condition(platforms)))"
             }
             return ".byName(name: \(quote(name))\(condition(platforms)))"
+        }
+    }
+
+    private func render(_ setting: AppPackage.LinkerSetting) -> String {
+        // The condition of a linker setting has no argument label.
+        let when = condition(setting.platforms).replacingOccurrences(
+            of: ", condition: ", with: ", ")
+        switch setting.kind {
+        case .library(let name):
+            return ".linkedLibrary(\(quote(name))\(when))"
+        case .unsafeFlags(let flags):
+            let rendered = flags.map(quote).joined(separator: ", ")
+            return ".unsafeFlags([\(rendered)]\(when))"
         }
     }
 

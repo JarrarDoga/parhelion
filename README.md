@@ -187,6 +187,28 @@ It runs a package's executable product, or, for apps created with `xtool new`, t
 `@main` type, through a small generated runner package. To open an already-built executable
 without watching, use `parhelion preview .build/debug/Counter`.
 
+An app that needs something built before Swift, such as a Rust library with UniFFI bindings, says
+how in `parhelion.json` next to its `Package.swift`:
+
+```json
+{
+  "preBuild": "scripts/build-ios.sh --linux",
+  "watch": ["../crates", "../Cargo.toml"],
+  "libraryPaths": ["../target/debug"]
+}
+```
+
+`preBuild` is a shell command that runs in the package before every `swift build`; it finds the
+build configuration in `PARHELION_CONFIGURATION`. Its errors appear like Swift errors, in the
+terminal, on the web page, and in `parhelion mcp`. `watch` lists more files and directories
+whose changes rebuild the app, such as the Rust crates (a Cargo `target` directory is skipped).
+`libraryPaths` lists directories with prebuilt `.a` and `.so` files: the linker searches them for
+the libraries that a target links with `.linkedLibrary`, and the app finds a `.so` there when it
+starts. `--pre-build`, `--watch`, and `--library-path` do the same on the command line. Paths
+are relative to the package. Have the command write generated files only when they changed,
+because a write to a Swift file counts as an edit. The `RustApp` fixture in
+`Tools/parhelion-cli/Fixtures` shows the whole setup.
+
 The window shows the screen inside a phone, like the iOS Simulator, with the status bar, the
 Dynamic Island, and the home indicator. `--device` picks the iPhone to simulate: iPhone 16 (the
 default), 16 Plus, 16 Pro, 16 Pro Max, 16e, 17, 17 Pro, 17 Pro Max, Air, 18 Pro, or 18 Pro Max,
