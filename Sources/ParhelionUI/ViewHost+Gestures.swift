@@ -191,11 +191,14 @@ final class GestureSession {
     }
 
     /// Whether a gesture on a view inside the scroll view or sheet `node`,
-    /// or one that has priority, has the press or may still get it.
-    func blocksScroll(of node: NodeID) -> Bool {
+    /// or one that has priority, has the press or may still get it. With
+    /// `includingNode`, a gesture on `node` itself counts too, as for a list
+    /// row that would swipe.
+    func blocksScroll(of node: NodeID, includingNode: Bool = false) -> Bool {
         let scrollDepth = chain.firstIndex(of: node) ?? -1
         return items.contains { item in
-            guard !item.isControl, item.priority == .high || item.depth > scrollDepth else {
+            let inside = item.depth > scrollDepth || (includingNode && item.depth == scrollDepth)
+            guard !item.isControl, item.priority == .high || inside else {
                 return false
             }
             return item.status == .active || item.recognizer.couldActivate
@@ -455,10 +458,11 @@ extension ViewHost {
     }
 
     /// Gives the press to a scroll view or sheet, if no gesture has the press
-    /// or may still get it. Returns whether it did.
-    func handOverPress(to node: NodeID?) -> Bool {
+    /// or may still get it. Returns whether it did. With `includingNode`,
+    /// gestures on `node` itself keep the press too.
+    func handOverPress(to node: NodeID?, includingNode: Bool = false) -> Bool {
         guard let session = gestures.session else { return true }
-        if let node, session.blocksScroll(of: node) { return false }
+        if let node, session.blocksScroll(of: node, includingNode: includingNode) { return false }
         if session.hasClaimed { return false }
         session.cancelCompeting()
         settleControl()

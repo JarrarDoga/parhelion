@@ -473,6 +473,36 @@ separators are as before. `pinnedViews` keeps a section's header or footer at th
 view, in front of its rows, until its section ends. A lazy stack outside a scroll view uses the
 screen as its viewport. `scroll_to` sets an offset, so it reaches a row that does not exist yet:
 the next update creates it.
+### Swipe actions
+
+`swipeActions(edge:allowsFullSwipe:content:)` on a list row appends an `Overlay` child to the row,
+as `overlay(alignment:content:)` does, so layout leaves it out of the row's own layout. In it, a
+`SwipeActions` node (registered through the extension seam) holds the row's action buttons for
+one edge, evaluated like any buttons, so each has an identifier, an action, and a frame. The row
+records `swipeActions=trailing,leading`. Outside a list the modifier does nothing.
+
+- **Layout.** `SwipeLayout.apply` runs after the layout engine, in `ViewHost.relayout`, on a tree
+  with every row at rest. For each row it reads the offset `ViewHost` keeps (`swipe.offsets`,
+  negative for the trailing actions), moves the row's content by it inside its cell, and puts
+  the buttons rigidly beside it, 8 points from its edge. The cell, `listRowFrame`, stays where it
+  is, and the row records `swipeOffset` while it is not at rest. A button is at least 74 points
+  wide, with 16 points of padding around its label, and the first action sits at the cell's edge
+  on either side. Past a threshold, the first action grows to fill the space the row left and the
+  others move out of the way. Buttons of a row at rest have no area, so a tap cannot reach them;
+  `tap(_:)` and `tapButton(labeled:)` still do, as they do for any node. Assumed, not measured on
+  iOS 26: these sizes.
+- **Input.** In `pointerMoved`, a press that moves mostly sideways on a row with actions on that
+  side, or on the open row, becomes a swipe instead of a scroll, and the row follows the pointer.
+  `ViewHost.drag(from:to:duration:)` goes through the same path. A row without a full swipe
+  resists past its actions. On release, a row dragged more than half of its actions' width, or
+  flung at 400 points per second, springs open; otherwise it closes. A row dragged to its full
+  swipe distance, the larger of its actions' width plus 40 points and half of its cell, runs its
+  first action. Running an action closes the row. A press anywhere but on an open row's actions,
+  including a tap on the row itself, only closes it, and opening one row closes another.
+- **Drawing.** Each button is a continuous rounded rectangle in its `tint`, red for a destructive
+  button and gray otherwise, with white labels. A `swipeClip` modifier on the row clips what is
+  inside it to the cell, so the row slides out of its cell and the buttons slide in.
+  Labels are laid out as in any button: a `Label` is one line, not an icon above its title.
 
 ### Navigation
 
