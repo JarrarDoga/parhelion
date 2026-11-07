@@ -47,8 +47,8 @@ struct TextLimitsTests {
                    ├─ Text "Plain"
                    ├─ Text "One" lineLimit=1
                    ├─ Text "Reserved" lineLimit=3 reservesSpace=true
-                   ├─ Text "Range" lineLimit=5
-                   ├─ Text "Open"
+                   ├─ Text "Range" lineLimit=5 lineLimitMinimum=2
+                   ├─ Text "Open" lineLimitMinimum=2
                    ├─ Text "Head" lineLimit=1 truncationMode=head
                    ├─ Text "Nearest" lineLimit=1
                    └─ VStack
@@ -137,7 +137,9 @@ struct TextLimitsTests {
         }
         #expect(try height(Text("Short").lineLimit(3)) == 22)
         #expect(try height(Text("Short").lineLimit(3, reservesSpace: true)) == 66)
-        #expect(try height(Text("Short").lineLimit(2...5)) == 22)
+        // A range's lower bound is the fewest lines, as in SwiftUI.
+        #expect(try height(Text("Short").lineLimit(2...5)) == 44)
+        #expect(try height(Text("Short").lineLimit(2...)) == 44)
     }
 
     @Test("In a row, a long title gives way to the text beside it")

@@ -99,14 +99,15 @@ extension View {
         environment(\.textLineLimit, TextLineLimit(maximum: number))
     }
 
-    /// Lets a vertical text field grow without a limit, starting at the
-    /// range's lower bound in lines. Text views are not limited.
+    /// Sets the fewest lines text takes, with no limit: a text view or a
+    /// vertical text field is at least the range's lower bound in lines tall.
     public func lineLimit(_ limit: PartialRangeFrom<Int>) -> some View {
         environment(\.textLineLimit, TextLineLimit(maximum: nil, fieldMinimum: limit.lowerBound))
     }
 
-    /// Limits text to the range's upper bound in lines. A vertical text field
-    /// is at least the lower bound tall and grows to the upper bound.
+    /// Limits text to the range's upper bound in lines. A text view or a
+    /// vertical text field is at least the lower bound tall and grows to the
+    /// upper bound.
     public func lineLimit(_ limit: ClosedRange<Int>) -> some View {
         environment(
             \.textLineLimit,
@@ -138,11 +139,12 @@ extension EnvironmentValues {
     func recordTextLimits(in attributes: inout [String: String], isField: Bool) {
         let limit = textLineLimit
         if let maximum = limit.maximum { attributes["lineLimit"] = String(maximum) }
-        if isField {
-            if limit.fieldMinimum > 1 {
-                attributes["lineLimitMinimum"] = String(limit.fieldMinimum)
-            }
-        } else {
+        // A range's lower bound is the fewest lines a `Text` or a vertical
+        // field takes, even when it needs fewer.
+        if limit.fieldMinimum > 1, isField || !limit.reservesSpace {
+            attributes["lineLimitMinimum"] = String(limit.fieldMinimum)
+        }
+        if !isField {
             if limit.reservesSpace { attributes["reservesSpace"] = "true" }
             if truncationMode != .tail { attributes["truncationMode"] = truncationMode.name }
         }
@@ -208,7 +210,9 @@ extension TextMeasurer {
         let font = ResolvedFont(node: node)
         let limit = node.textLineLimit
         let lines = textLines(for: node, width: width)
-        let count = limit.reservesSpace ? max(lines.count, limit.maximum ?? 0) : lines.count
+        let count = max(
+            limit.reservesSpace ? max(lines.count, limit.maximum ?? 0) : lines.count,
+            limit.fieldMinimum)
         return CGSize(
             width: lines.map(\.width).max() ?? 0,
             height: CGFloat(count) * font.lineHeight)

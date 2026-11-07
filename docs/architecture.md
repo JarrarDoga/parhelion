@@ -160,7 +160,8 @@ the child. A `nil` dimension in a proposal asks for the child's ideal size.
   and drawing wrap the text, and when it needs more lines than the limit, the last line (tail),
   the first (head), or the middle one stands for the lines that do not show and is cut to the
   width with an ellipsis, `…`, at a character boundary. Layout and drawing call the same
-  function, so they agree. A range sets only the upper bound for a `Text`.
+  function, so they agree. A range's upper bound is the limit, and its lower bound is the fewest
+  lines the `Text` takes, as in SwiftUI.
 - **Dynamic Type** scales text styles: each `Text` resolves its font at the environment's
   `dynamicTypeSize`, with the size and line height of the iOS 27 UI Kit's Dynamic Type table
   (`DynamicTypeTable`), and records the size in `fontSize` when it differs from the size at
