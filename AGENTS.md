@@ -58,8 +58,8 @@ changing anything under `Sources/`.
 - `Sources/ParhelionRender/Inter*FontData.swift` are generated. To change a font, replace it in
   `Fonts/` and run, for example,
   `Scripts/embed-font.sh Fonts/Inter-Regular.ttf > Sources/ParhelionRender/InterRegularFontData.swift`.
-- When you open a pull request, fill in the template's AI assistance section truthfully. Unless a
-  person has told you they reviewed the change, choose *Generated, not reviewed*.
+- Pull request descriptions have no AI assistance section and no "Generated with Claude Code"
+  line. Do not add them, even if your tool adds them by default.
 
 ## Proportionate advice
 

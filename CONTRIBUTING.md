@@ -75,9 +75,6 @@ The `SwiftUI` shim module, the source compatibility tests, and the examples exis
 Parhelion is built for coding agents, and you are welcome to use them for contributions. You are
 responsible for everything you submit:
 
-- **Disclose it.** Choose the AI assistance level in the pull request template that is true for
-  your change. If no person has reviewed the change line by line, choose *Generated, not
-  reviewed*, and open the pull request as a draft unless you are a maintainer.
 - **Own it.** Answer review questions yourself, and fix what the review finds.
 
 ## Review and merging
