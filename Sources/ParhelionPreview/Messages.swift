@@ -75,11 +75,14 @@ public enum PreviewCapability {
     /// ``PreviewCommand/sensoryFeedback(clear:)``. A host only needs to see it
     /// in the hello.
     public static let accessibilitySettings = "accessibilitySettings"
+    /// The app takes ``PreviewCommand/setScenePhase(_:)``. A host only needs to
+    /// see it in the hello.
+    public static let scenePhase = "scenePhase"
     /// Every capability a window host can use. ``manualClock`` is not one:
     /// it replaces the host's clock instead of adding to it.
     public static let all = [
         hostClock, sharedFrames, appearance, accessibilityIdentifiers, flowReplay, pasteboard,
-        accessibilitySettings,
+        accessibilitySettings, scenePhase,
     ]
 }
 
@@ -309,6 +312,10 @@ public enum PreviewCommand: Codable, Equatable, Sendable {
     /// Only an app that lists ``PreviewCapability/accessibilitySettings``
     /// understands it.
     case sensoryFeedback(clear: Bool)
+    /// Moves the app's scene to a phase, by SwiftUI's case names: "active",
+    /// "inactive", or "background". Only an app whose hello lists
+    /// ``PreviewCapability/scenePhase`` understands it.
+    case setScenePhase(String)
     /// Moves the app's clock on by `seconds` without waiting: animations and
     /// scroll momentum advance, and each `Task.sleep` that falls due wakes in
     /// deadline order, with the app settled after each. Only an app that

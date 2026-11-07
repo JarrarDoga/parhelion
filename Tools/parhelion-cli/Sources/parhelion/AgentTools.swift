@@ -36,6 +36,7 @@ enum AgentTools {
         let registry = AgentToolRegistry.shared
         registry.register(LongPressTool())
         registry.register(SensoryFeedbackTool())
+        registry.register(ScenePhaseTool())
         return registry
     }()
 

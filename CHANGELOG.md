@@ -470,7 +470,7 @@ may contain breaking changes.
   indeterminate bar animate on the host's clock, so they follow `advanceTime(by:)` and a manual
   clock (#77).
 
-- Placeholder for #63 (`scenePhase`): the change for that issue replaces this line.
+- `scenePhase`: `@Environment(\.scenePhase)` in views and in an `App`, `Scene.onChange(of:initial:_:)`, and `ViewHost.scenePhase`, which the root records as `scenePhase=inactive` or `background`. The preview window sets `inactive` when it loses focus and `background` when it is minimized, and the `set_scene_phase` MCP tool moves the app between `active`, `inactive`, and `background`, so an agent can test what the app does on returning to the foreground.
 
 - Placeholder for #79 (the `AVFAudio` shim and interruptions): the change for that issue replaces this line.
 

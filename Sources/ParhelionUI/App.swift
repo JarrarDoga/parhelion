@@ -209,7 +209,7 @@ extension AppRoot: PrimitiveView {
 }
 
 @MainActor
-private func windowContent(of scene: any Scene) -> (any View)? {
+func windowContent(of scene: any Scene) -> (any View)? {
     if let window = scene as? any WindowContentProviding {
         return window.windowContent
     }

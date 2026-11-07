@@ -133,6 +133,21 @@ public final class ViewHost {
         }
     }
 
+    /// The phase of the app's scene: `active` by default. The preview window
+    /// sets `inactive` when it loses focus and `background` when it is
+    /// minimized, and the `set_scene_phase` tool sets any of them. Views read
+    /// it with `@Environment(\.scenePhase)`, so an `onChange(of:)` action runs
+    /// after each change. The phase moves straight to the one set, without
+    /// passing through `inactive`. Setting it updates the tree, whose root
+    /// records `scenePhase` while it is not `active`.
+    public var scenePhase: ScenePhase = .active {
+        didSet {
+            guard scenePhase != oldValue else { return }
+            setNeedsUpdate()
+            update()
+        }
+    }
+
     /// The text size the simulated device is set to, as in its Settings:
     /// `large` by default. Text styles, custom fonts, and `@ScaledMetric`
     /// values scale with it. Setting it updates the tree, whose root records
@@ -990,6 +1005,7 @@ public final class ViewHost {
         evaluator.environment.colorScheme = windowScheme
         evaluator.environment.dynamicTypeSize = dynamicTypeSize
         evaluator.environment.accessibilityReduceMotion = reduceMotion
+        evaluator.environment.scenePhase = scenePhase
         var preferences: [NodeID: ColorScheme] = [:]
         var presented: [NodeID: Presentation] = [:]
         // A change to an observable property that a view reads marks the
@@ -1029,6 +1045,7 @@ public final class ViewHost {
         if let feedback = sensoryFeedbackLog.rootValue {
             rootAttributes[SensoryFeedbackKey.attribute] = feedback
         }
+        if scenePhase != .active { rootAttributes["scenePhase"] = scenePhase.name }
         resolvedRoot = ViewNode(
             id: "", kind: "Root", attributes: rootAttributes, children: children)
         // A preference that changed applies to its whole presentation,

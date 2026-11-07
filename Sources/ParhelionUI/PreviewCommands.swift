@@ -144,6 +144,15 @@ extension ViewHost {
                 if clear { clearSensoryFeedback() }
                 return reply(true, description)
 
+            case .setScenePhase(let name):
+                guard let phase = ScenePhase(name: name) else {
+                    return reply(
+                        false,
+                        "Unknown scene phase \"\(name)\". Use active, inactive, or background.")
+                }
+                scenePhase = phase
+                return reply(true, "The scene is \(phase.name).")
+
             case .advanceTime(let seconds):
                 guard hasManualClock else {
                     let key = previewManualClockEnvironmentKey

@@ -76,6 +76,8 @@ public struct WindowEvent: Sendable, Equatable {
         /// The wheel or trackpad scrolled by `dx`, `dy` steps.
         case wheel(dx: Double, dy: Double)
         case focusGained, focusLost
+        /// The window was minimized, or restored from being minimized.
+        case minimized, restored
         /// Any other SDL event, by its type number.
         case other(rawType: UInt32)
     }
