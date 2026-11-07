@@ -27,6 +27,10 @@ public let previewDeviceEnvironmentKey = "PARHELION_DEVICE"
 public let previewColorSchemeEnvironmentKey = "PARHELION_COLOR_SCHEME"
 public let previewDynamicTypeSizeEnvironmentKey = "PARHELION_DYNAMIC_TYPE_SIZE"
 
+/// The name of the environment variable that starts an app with Reduce Motion
+/// on when its value is `1` or `true`. Without it, Reduce Motion is off.
+public let previewReduceMotionEnvironmentKey = "PARHELION_REDUCE_MOTION"
+
 /// Optional parts of the protocol. An app lists the ones it supports in its
 /// ``PreviewHello``, and a window host that supports them too answers with
 /// ``HostMessage/welcome(_:)``. A host sends the newer messages only after
@@ -67,10 +71,15 @@ public enum PreviewCapability {
     /// that welcomes it. ``PreviewCommand/setPasteboard(_:)`` needs no
     /// welcome; a host only needs to see it in the hello.
     public static let pasteboard = "pasteboard"
+    /// The app takes ``PreviewCommand/setReduceMotion(_:)`` and
+    /// ``PreviewCommand/sensoryFeedback(clear:)``. A host only needs to see it
+    /// in the hello.
+    public static let accessibilitySettings = "accessibilitySettings"
     /// Every capability a window host can use. ``manualClock`` is not one:
     /// it replaces the host's clock instead of adding to it.
     public static let all = [
         hostClock, sharedFrames, appearance, accessibilityIdentifiers, flowReplay, pasteboard,
+        accessibilitySettings,
     ]
 }
 
@@ -291,6 +300,15 @@ public enum PreviewCommand: Codable, Equatable, Sendable {
     /// keeps one as it is. Only an app whose hello lists
     /// ``PreviewCapability/appearance`` understands it.
     case setAppearance(colorScheme: String?, dynamicTypeSize: String?)
+    /// Turns the simulated device's Reduce Motion setting on or off. Only an
+    /// app whose hello lists ``PreviewCapability/accessibilitySettings``
+    /// understands it.
+    case setReduceMotion(Bool)
+    /// Answers with the sensory feedback (haptics) that views asked for, one
+    /// event per line, oldest first. With `clear`, forgets them afterwards.
+    /// Only an app that lists ``PreviewCapability/accessibilitySettings``
+    /// understands it.
+    case sensoryFeedback(clear: Bool)
     /// Moves the app's clock on by `seconds` without waiting: animations and
     /// scroll momentum advance, and each `Task.sleep` that falls due wakes in
     /// deadline order, with the app settled after each. Only an app that

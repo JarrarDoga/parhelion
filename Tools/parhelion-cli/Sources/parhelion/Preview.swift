@@ -23,6 +23,13 @@ struct WindowOptions: ParsableArguments {
     @Flag(help: "Exit after showing the first frame. For automated checks.")
     var exitAfterFirstFrame = false
 
+    @Flag(
+        help: """
+            Start with Reduce Motion on, as in the device's Accessibility settings. \
+            Control-Shift-M switches it in the window.
+            """)
+    var reduceMotion = false
+
     func validate() throws {
         guard scale > 0, zoom > 0 else {
             throw ValidationError("--scale and --zoom must be greater than zero.")
@@ -117,7 +124,7 @@ struct Preview: ParsableCommand {
         // Frames that arrive before the window exists are kept until it does.
         let wakeBox = WakeBox()
         if let webHost { wakeBox.set(webHost.waker) }
-        let appearance = AppearanceState()
+        let appearance = AppearanceState(reduceMotion: window.reduceMotion)
         let app = try AppConnection(
             executable: URL(fileURLWithPath: executable).path,
             arguments: arguments,

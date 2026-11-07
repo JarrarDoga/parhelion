@@ -495,7 +495,8 @@ extension PreviewSession {
             let session = PreviewSession(
                 host: ViewHost(
                     anyRootView: content, device: device, colorScheme: appearance.colorScheme,
-                    dynamicTypeSize: appearance.dynamicTypeSize, restoring: savedState),
+                    dynamicTypeSize: appearance.dynamicTypeSize,
+                    reduceMotion: simulatedReduceMotion(), restoring: savedState),
                 channel: channel,
                 scale: scale,
                 appName: appName,

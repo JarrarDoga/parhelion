@@ -17,6 +17,8 @@ public struct PreviewAppearance: Equatable, Sendable {
 
     public var colorScheme = "light"
     public var dynamicTypeSize = "large"
+    /// Whether Reduce Motion is on.
+    public var reduceMotion = false
 
     public init() {}
 
@@ -29,6 +31,10 @@ public struct PreviewAppearance: Equatable, Sendable {
         case textSize(steps: Int)
         /// Sets either value by name; `nil` keeps it.
         case set(colorScheme: String?, dynamicTypeSize: String?)
+        /// Reduce Motion goes on, or off when it is on.
+        case toggleReduceMotion
+        /// Turns Reduce Motion on or off.
+        case setReduceMotion(Bool)
     }
 
     /// The setting after a change, or `nil` when the change names a scheme
@@ -42,6 +48,10 @@ public struct PreviewAppearance: Equatable, Sendable {
             let sizes = Self.dynamicTypeSizes
             let index = sizes.firstIndex(of: dynamicTypeSize) ?? sizes.firstIndex(of: "large")!
             result.dynamicTypeSize = sizes[min(max(index + steps, 0), sizes.count - 1)]
+        case .toggleReduceMotion:
+            result.reduceMotion.toggle()
+        case .setReduceMotion(let on):
+            result.reduceMotion = on
         case .set(let colorScheme, let dynamicTypeSize):
             if let colorScheme {
                 guard Self.colorSchemes.contains(colorScheme) else { return nil }
@@ -60,22 +70,30 @@ public struct PreviewAppearance: Equatable, Sendable {
         .setAppearance(colorScheme: colorScheme, dynamicTypeSize: dynamicTypeSize)
     }
 
+    /// The command that gives a running app the Reduce Motion setting.
+    public var reduceMotionCommand: PreviewCommand {
+        .setReduceMotion(reduceMotion)
+    }
+
     /// The environment variables that start an app with this setting.
     public var environment: [String: String] {
         [
             previewColorSchemeEnvironmentKey: colorScheme,
             previewDynamicTypeSizeEnvironmentKey: dynamicTypeSize,
+            previewReduceMotionEnvironmentKey: reduceMotion ? "1" : "0",
         ]
     }
 
     /// The setting in a few words for a window's title, such as "Dark" or
-    /// "Dark, accessibility2", or an empty string for light at Large.
+    /// "Dark, accessibility2, Reduce Motion", or an empty string for light at
+    /// Large with Reduce Motion off.
     public var summary: String {
         var parts: [String] = []
         if colorScheme != "light" {
             parts.append(colorScheme.prefix(1).uppercased() + colorScheme.dropFirst())
         }
         if dynamicTypeSize != "large" { parts.append(dynamicTypeSize) }
+        if reduceMotion { parts.append("Reduce Motion") }
         return parts.joined(separator: ", ")
     }
 
@@ -84,5 +102,12 @@ public struct PreviewAppearance: Equatable, Sendable {
     /// do not.
     public static func isSupported(by hello: PreviewHello) -> Bool {
         hello.capabilities?.contains(PreviewCapability.appearance) == true
+    }
+
+    /// Whether an app takes the Reduce Motion command and the sensory
+    /// feedback command: whether its hello lists
+    /// ``PreviewCapability/accessibilitySettings``.
+    public static func supportsAccessibilitySettings(_ hello: PreviewHello) -> Bool {
+        hello.capabilities?.contains(PreviewCapability.accessibilitySettings) == true
     }
 }

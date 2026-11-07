@@ -25,7 +25,9 @@ struct Run: ParsableCommand {
             In the window, Control-Shift-A switches between light and dark, and \
             Control-Alt-Plus and Control-Alt-Minus change the text size; the page \
             has a button and a menu for them. Set PARHELION_COLOR_SCHEME or \
-            PARHELION_DYNAMIC_TYPE_SIZE to start with another setting.
+            PARHELION_DYNAMIC_TYPE_SIZE to start with another setting. Control-Shift-M \
+            switches Reduce Motion, which --reduce-motion or PARHELION_REDUCE_MOTION=1 \
+            starts on.
 
             An app that links a Rust library, or builds anything else before Swift, \
             says how in parhelion.json in its package: "preBuild" is a shell command \
@@ -133,7 +135,7 @@ struct Run: ParsableCommand {
         // the recording would not replay from there.
         var recording = record
         // Each launch starts with the appearance the window or a page set.
-        let appearance = AppearanceState()
+        let appearance = AppearanceState(reduceMotion: window.reduceMotion)
         func launch() throws -> AppConnection {
             var launchEnvironment = environment.merging(appearance.environment) { $1 }
             launchEnvironment[previewRecordFlowEnvironmentKey] = recording

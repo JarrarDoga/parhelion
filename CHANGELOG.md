@@ -448,7 +448,13 @@ may contain breaking changes.
 
 - `listSectionIndexVisibility(_:)` and `sectionIndexLabel(_:)`: a list with labeled sections shows an A to Z index at its trailing edge, and tapping a letter or dragging over the letters scrolls the section with that label to the top.
 
-- Placeholder for #62 (`sensoryFeedback` and Reduce Motion): the change for that issue replaces this line.
+- `sensoryFeedback(_:trigger:)` and its closure and condition forms record the feedback they would play, since
+  Linux has no haptics. `ViewHost.sensoryFeedbackEvents` lists the last 50, the root of the view tree lists the newest
+  ten in `sensoryFeedback`, `PARHELION_DEBUG=1` logs each one, and `parhelion mcp` returns them from the new
+  `get_sensory_feedback` tool. `accessibilityReduceMotion` now reads `ViewHost.reduceMotion`, which the root shows as
+  `reduceMotion=true`. Switch it with Control-Shift-M in the preview window, `set_appearance` with `reduce_motion` in
+  `parhelion mcp`, `--reduce-motion` or `PARHELION_REDUCE_MOTION=1` on the command line, or the `setReduceMotion` preview
+  command (capability `accessibilitySettings`).
 
 - `refreshable(action:)` on a `List` or vertical `ScrollView`: dragging down from the top pulls the content
   away from iOS's spinner, and releasing past 60 points runs the action as a host task, so
