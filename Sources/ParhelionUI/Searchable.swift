@@ -61,7 +61,7 @@ extension EnvironmentValues {
     /// ``View/searchable(text:placement:prompt:)`` is focused or holds text.
     /// Read it in the searchable view's content, not on the view that
     /// applies the modifier, as in SwiftUI.
-    public var isSearching: Bool {
+    public internal(set) var isSearching: Bool {
         get { self[IsSearchingKey.self] }
         set { self[IsSearchingKey.self] = newValue }
     }
@@ -73,7 +73,7 @@ extension EnvironmentValues {
 
     /// An action that ends the search of the enclosing `searchable`: it
     /// clears the text and ends editing.
-    public var dismissSearch: DismissSearchAction {
+    public internal(set) var dismissSearch: DismissSearchAction {
         get { self[DismissSearchKey.self] }
         set { self[DismissSearchKey.self] = newValue }
     }
