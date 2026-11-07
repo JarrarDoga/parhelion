@@ -81,17 +81,22 @@ extension ForEach {
 
 extension ForEach: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
-        data.flatMap { element in
-            let elementID = element[keyPath: id]
-            let identity = String(describing: elementID)
-            let nodes = evaluator.evaluate(
-                content(element), at: path.appending("ForEach[\(identity)]"))
-            // In a container that chooses among tagged views, such as a
-            // Picker, an element's views are tagged with its identifier.
-            evaluator.environment.tagCollector?.recordImplicit(elementID, for: nodes)
-            // A scroll view can scroll to an element by its identifier.
-            evaluator.scrollRecord.recordImplicit(AnyHashable(elementID), for: nodes)
-            return nodes
-        }
+        data.flatMap { evaluateElement($0, in: evaluator, at: path).nodes }
+    }
+
+    /// Resolves one element's views, with the identity in their path.
+    func evaluateElement(
+        _ element: Data.Element, in evaluator: Evaluator, at path: ViewPath
+    ) -> (identity: String, nodes: [ViewNode]) {
+        let elementID = element[keyPath: id]
+        let identity = String(describing: elementID)
+        let nodes = evaluator.evaluate(
+            content(element), at: path.appending("ForEach[\(identity)]"))
+        // In a container that chooses among tagged views, such as a
+        // Picker, an element's views are tagged with its identifier.
+        evaluator.environment.tagCollector?.recordImplicit(elementID, for: nodes)
+        // A scroll view can scroll to an element by its identifier.
+        evaluator.scrollRecord.recordImplicit(AnyHashable(elementID), for: nodes)
+        return (identity, nodes)
     }
 }

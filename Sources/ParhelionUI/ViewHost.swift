@@ -325,6 +325,11 @@ public final class ViewHost {
         /// The button the press started on, until the press turns into a
         /// scroll.
         var button: NodeID?
+        /// What a drag that started on a node with a drag handler does when
+        /// the press ends. Such a press never turns into a scroll.
+        var dragHandler: (@MainActor (CGPoint, CGPoint, TimeInterval) -> Void)?
+        /// When the press started.
+        var startTime: TimeInterval = 0
         /// The scroll view being dragged, once the press turns into a scroll.
         var scrollView: NodeID?
         /// Where the scroll view's content was when the press began to
@@ -356,7 +361,14 @@ public final class ViewHost {
         // A press on the rest of an open swiped row only closes the row, so
         // it reaches no control or gesture.
         let swipePress = swipePressBegan(at: point, button: &button)
-        if slider == nil, swipePress.closeOnRelease == nil {
+        // A press on a node with a drag handler, such as a list row's reorder
+        // handle, goes to that handler alone, as a slider's does.
+        let dragHandler =
+            slider == nil && swipePress.closeOnRelease == nil
+            ? frontmostNode(
+                at: point, in: interactiveRoot, where: { inputHandlers[$0.id]?.drag != nil }
+            ).flatMap { inputHandlers[$0.id]?.drag } : nil
+        if slider == nil, swipePress.closeOnRelease == nil, dragHandler == nil {
             beginGesturePress(at: point, control: button)
         } else {
             gestures.session = nil
@@ -365,6 +377,8 @@ public final class ViewHost {
             start: point,
             last: point,
             button: button,
+            dragHandler: dragHandler,
+            startTime: time,
             scrollView: nil,
             scrollStartOffset: nil,
             sheet: nil,
@@ -389,6 +403,7 @@ public final class ViewHost {
             self.press = press
         }
         if let button = press.button, dragSlider(button, to: point) { return }
+        if press.dragHandler != nil { return }
         let moved = CGSize(width: point.x - press.start.x, height: point.y - press.start.y)
         // Gestures see the pointer first. A scroll view or sheet that the press
         // could still turn into holds back the gestures outside it.
@@ -461,6 +476,11 @@ public final class ViewHost {
         self.press = nil
         pressedNodeID = nil
         if let button = press.button, endSliderDrag(button, at: point) { return button }
+        if let handler = press.dragHandler {
+            handler(press.start, point, max(time - press.startTime, 0))
+            update()
+            return nil
+        }
         let released = releaseGesturePress(at: point)
 
         if press.swipe.row != nil {

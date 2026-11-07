@@ -8,7 +8,9 @@ import Foundation
 /// Each view the content resolves to is one row. Rows outside a ``Section``
 /// are grouped into sections of their own. A button row responds to taps
 /// across its whole width. The default style is iOS's inset grouped style.
-/// Selection and editing are not supported yet. Rows can have ``View/swipeActions(edge:allowsFullSwipe:content:)``.
+/// Selection is not supported yet. Rows can have
+/// ``View/swipeActions(edge:allowsFullSwipe:content:)``, and rows of a
+/// `ForEach` with `onMove` or `onDelete` can be edited; see ``EditMode``.
 public struct List<SelectionValue: Hashable, Content: View>: View {
     public typealias Body = Never
 
