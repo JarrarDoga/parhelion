@@ -570,6 +570,12 @@ struct LayoutEngine {
         modifierCount: Int,
         parentAxis: LayoutAxis?
     ) -> ViewNode {
+        // A view that ignores the safe area reaches the edge of the screen
+        // on each ignored edge where its space reaches the safe area's.
+        var rect = rect
+        if modifierCount == node.modifiers.count, let edges = node.attributes["ignoresSafeArea"] {
+            rect = extended(rect, ignoring: edges)
+        }
         guard modifierCount > 0 else {
             return placeBaseKeepingOverlays(node, in: rect, parentAxis: parentAxis)
         }
@@ -584,6 +590,33 @@ struct LayoutEngine {
         }
         placed.modifierFrames[modifierCount - 1] = rect
         return placed
+    }
+
+    /// The rectangle with the named edges (`all`, or a comma-separated list
+    /// such as `top,bottom`) moved to the edge of the screen, where they are
+    /// at the edge of the safe area.
+    private func extended(_ rect: CGRect, ignoring edges: String) -> CGRect {
+        let names =
+            edges == "all"
+            ? ["top", "leading", "bottom", "trailing"]
+            : edges.split(separator: ",").map(String.init)
+        let safeArea = device.safeArea
+        var rect = rect
+        if names.contains("top"), abs(rect.minY - safeArea.minY) < 0.5 {
+            rect.size.height += rect.minY
+            rect.origin.y = 0
+        }
+        if names.contains("bottom"), abs(rect.maxY - safeArea.maxY) < 0.5 {
+            rect.size.height = device.screenSize.height - rect.minY
+        }
+        if names.contains("leading"), abs(rect.minX - safeArea.minX) < 0.5 {
+            rect.size.width += rect.minX
+            rect.origin.x = 0
+        }
+        if names.contains("trailing"), abs(rect.maxX - safeArea.maxX) < 0.5 {
+            rect.size.width = device.screenSize.width - rect.minX
+        }
+        return rect
     }
 
     /// Places a node inside its outermost applied modifier.
@@ -709,13 +742,27 @@ struct LayoutEngine {
             let barRect = CGRect(
                 x: rect.minX, y: rect.minY, width: rect.width,
                 height: min(Self.navigationBarHeight(bar), rect.height))
-            let contentRect = CGRect(
-                x: rect.minX, y: barRect.maxY, width: rect.width,
-                height: rect.height - barRect.height)
             let content = node.children.filter { $0.kind != "NavigationBar" }
+            // A scroll view as the screen fills the stack and scrolls under
+            // the bar, starting its content below it. Other content is
+            // centered below the bar.
+            // Assumed: a sheet's bar keeps the content below it, since the
+            // sheet's rounded top would have to clip the effect.
+            let scrollsUnderBar =
+                bar != nil && bar?.attributes["presentation"] != "sheet" && content.count == 1
+                && content[0].isScrollContainer
+            let contentRect =
+                scrollsUnderBar
+                ? rect
+                : CGRect(
+                    x: rect.minX, y: barRect.maxY, width: rect.width,
+                    height: rect.height - barRect.height)
+            let outer = scrolling.obscuredTop
+            scrolling.obscuredTop = scrollsUnderBar ? barRect.maxY : nil
+            let placedContent = placeCentered(content, id: node.id, in: contentRect)
+            scrolling.obscuredTop = outer
             node.children =
-                (bar.map { [place($0, in: barRect, parentAxis: nil)] } ?? [])
-                + placeCentered(content, id: node.id, in: contentRect)
+                (bar.map { [place($0, in: barRect, parentAxis: nil)] } ?? []) + placedContent
         case "TabView":
             node.children = placeTabView(node, in: rect)
         case "NavigationBar":
@@ -939,7 +986,7 @@ struct LayoutEngine {
                 id: node.id,
                 kind: "VStack",
                 attributes: ["spacing": formatPoints(style.sectionSpacing)],
-                modifiers: [.padding(style.contentInsets)],
+                modifiers: [.padding(style.contentInsets)] + marginModifiers(node),
                 children: node.children
             )
             return (stack, .vertical)
@@ -949,9 +996,19 @@ struct LayoutEngine {
         let stack = ViewNode(
             id: node.id,
             kind: axis == .vertical ? "VStack" : "HStack",
+            modifiers: marginModifiers(node),
             children: node.children
         )
         return (stack, axis)
+    }
+
+    /// The padding that a scroll view's content margins add around its
+    /// content, which scrolls with the content.
+    private func marginModifiers(_ node: ViewNode) -> [LayoutModifier] {
+        guard let margins = ContentMargins(recorded: node.attributes["contentMargins"]) else {
+            return []
+        }
+        return [.padding(margins.insets)]
     }
 
     /// The proposal a scroll view gives its content: no limit along the
@@ -969,20 +1026,50 @@ struct LayoutEngine {
         return sizeThatFits(stack, scrollContentProposal(node, proposal), parentAxis: nil)
     }
 
-    private func placeScrollView(_ node: inout ViewNode, in rect: CGRect) {
+    private func placeScrollView(_ node: inout ViewNode, in space: CGRect) {
         let (stack, axis) = scrollContentStack(node)
+        let vertical = Self.scrollAxes(of: node).vertical
+        let safeArea = device.safeArea
+        let screenHeight = device.screenSize.height
+
+        // A scroll view that reaches the top or bottom of the safe area
+        // takes the whole screen height, and starts its content at the safe
+        // area, below the navigation bar, or above the tab bar, so that
+        // content scrolls under the bars.
+        var rect = space
+        if vertical {
+            if abs(space.minY - safeArea.minY) < 0.5 {
+                rect.size.height += rect.minY
+                rect.origin.y = 0
+            }
+            if abs(space.maxY - safeArea.maxY) < 0.5 { rect.size.height = screenHeight - rect.minY }
+        }
+        let topBar = vertical ? scrolling.obscuredTop : nil
+        let bottomBar = vertical ? scrolling.obscuredBottom : nil
+        let topInset = max(topBar ?? space.minY, space.minY) - rect.minY
+        // Content that scrolls under a bar floating over the bottom of the
+        // scroll view, such as the tab bar, can scroll up above the bar.
+        let bottomInset =
+            vertical ? max(rect.maxY - min(bottomBar ?? space.maxY, space.maxY), 0) : 0
+        node.frame = rect
+
+        let outerTop = scrolling.obscuredTop
+        let outerBottom = scrolling.obscuredBottom
+        scrolling.obscuredTop = nil
+        scrolling.obscuredBottom = nil
+        defer {
+            scrolling.obscuredTop = outerTop
+            scrolling.obscuredBottom = outerBottom
+        }
+
         let contentSize = sizeThatFits(
             stack,
             scrollContentProposal(node, ProposedSize(rect.size)),
             parentAxis: nil
         )
-        // Content that scrolls under a bar floating over the bottom of the
-        // scroll view, such as the tab bar, can scroll up above the bar.
-        let bottomInset =
-            axis == .vertical ? max(rect.maxY - (scrolling.obscuredBottom ?? rect.maxY), 0) : 0
         let maxOffset = CGPoint(
             x: max(contentSize.width - rect.width, 0),
-            y: max(contentSize.height + bottomInset - rect.height, 0)
+            y: max(contentSize.height + topInset + bottomInset - rect.height, 0)
         )
         let requested = scrolling.offsets[node.id] ?? .zero
         let offset = CGPoint(
@@ -993,17 +1080,26 @@ struct LayoutEngine {
             viewport: rect,
             contentSize: contentSize,
             offset: offset,
+            topInset: topInset,
             bottomInset: bottomInset
         )
         node.attributes["contentSize"] =
             "\(formatPoints(contentSize.width)) × \(formatPoints(contentSize.height))"
         node.attributes["contentOffset"] = "\(formatPoints(offset.x)), \(formatPoints(offset.y))"
 
+        // Which bars the content lies under now, for the scroll edge effect.
+        var underBars: [String] = []
+        if topBar != nil, offset.y > 0.5 { underBars.append("top") }
+        if bottomBar != nil, offset.y < maxOffset.y - 0.5 { underBars.append("bottom") }
+        if !underBars.isEmpty {
+            node.attributes["contentUnderBars"] = underBars.joined(separator: ",")
+        }
+
         // Content narrower than the scroll view is centered across the scroll
         // axis, as in SwiftUI.
         let contentRect = CGRect(
             x: rect.minX - offset.x,
-            y: rect.minY - offset.y,
+            y: rect.minY + topInset - offset.y,
             width: axis == .vertical ? max(contentSize.width, rect.width) : contentSize.width,
             height: axis == .horizontal ? max(contentSize.height, rect.height) : contentSize.height
         )
@@ -1092,6 +1188,9 @@ struct ScrollMetrics: Equatable {
     var contentSize: CGSize
     /// How far the content is scrolled, clamped to the content.
     var offset: CGPoint
+    /// Room above the content, where the scroll view starts its content
+    /// below the safe area or a bar that floats over its top.
+    var topInset: CGFloat = 0
     /// Extra room below the content, for a bar that floats over the bottom
     /// of the scroll view.
     var bottomInset: CGFloat = 0
@@ -1100,7 +1199,7 @@ struct ScrollMetrics: Equatable {
     var maxOffset: CGPoint {
         CGPoint(
             x: max(contentSize.width - viewport.width, 0),
-            y: max(contentSize.height + bottomInset - viewport.height, 0)
+            y: max(contentSize.height + topInset + bottomInset - viewport.height, 0)
         )
     }
 }
@@ -1118,4 +1217,7 @@ final class ScrollLayout {
     /// The top of a bar that floats over the scroll views being placed, such
     /// as the tab bar, in screen points.
     var obscuredBottom: CGFloat?
+    /// The bottom of a bar that floats over the top of the scroll view
+    /// being placed, such as the navigation bar, in screen points.
+    var obscuredTop: CGFloat?
 }

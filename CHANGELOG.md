@@ -376,8 +376,6 @@ may contain breaking changes.
 
 - Placeholder for #71 (snapshot tests): the change for that issue replaces this line.
 
-- Placeholder for #30 (the scroll edge effect): the change for that issue replaces this line.
-
 - Placeholder for #32 (build, install and run on the iPhone): the change for that issue replaces this line.
 
 - Placeholder for #34 (your own SF Symbols in front of Phosphor): the change for that issue replaces this line.
@@ -430,8 +428,24 @@ may contain breaking changes.
 
 - Placeholder for #67 (performance on Rustle's screens): the change for that issue replaces this line.
 
+- The scroll edge effect. A `ScrollView` or `List` as the screen of a navigation stack, or the
+  content of a tab view, takes the whole screen and starts its content below the navigation bar,
+  so content scrolls under the bar and the tab bar. While content lies under a bar, the scroll view
+  blurs it: the soft style (a heavy blur that fades out toward the content) or the hard style (a
+  light blur under a nearly opaque cover with a dividing line), in light and dark, at the top
+  under the navigation bar and at the bottom above the tab bar. `scrollEdgeEffectStyle(_:for:)`,
+  `scrollEdgeEffectHidden(_:for:)`, and `ScrollEdgeEffectStyle`; `.automatic` is the soft style.
+  A scroll view records `contentUnderBars`, `scrollEdgeEffectTop`, and `scrollEdgeEffectBottom`.
+- `contentMargins(_:_:for:)`, `safeAreaPadding(_:_:)`, and `ignoresSafeArea(_:edges:)`, with
+  `ContentMarginPlacement` and `SafeAreaRegions`.
+- README images of a scrolled list under both bars, in the soft and hard styles, in light and dark.
+
 ### Changed
 
+- A scroll view that reaches the top or bottom of the safe area takes the whole screen height, and
+  starts its content at the safe area, so its frame and `contentOffset` count from the top of the
+  screen. Scrolling stops with the last row above the bottom inset. A navigation bar draws over
+  the screen it scrolls under, and its buttons receive taps first.
 - `ViewHost.tapButton(labeled:)` taps any control with the label, such as a toggle's switch, and
   reports a disabled control as not tappable.
 

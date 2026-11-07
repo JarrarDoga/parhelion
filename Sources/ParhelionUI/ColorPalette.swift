@@ -342,7 +342,39 @@ extension ColorPalette {
         var menuHighlightBlendMode: Canvas.BlendMode
         /// The tertiary label color, for a list row's disclosure indicator.
         var tertiaryLabel: RGBA
+        /// The tint and dividing line of the hard scroll edge effect.
+        var hardScrollEdge: HardScrollEdge
     }
+
+    // MARK: Scroll edge effect
+
+    /// The hard style's light colors. System page
+    /// (`8BB9E8C9…`), `Scroll Edge Effect/Light/Top - Hard/Color`:
+    /// Backgrounds/Light/Primary, white, at layer opacity 0.85. `/Blur`'s
+    /// border, inside the bottom side only, is black at 5%.
+    static let lightHardScrollEdge = HardScrollEdge(
+        tint: RGBA(red: 255, green: 255, blue: 255, alpha: 217),
+        line: RGBA(red: 0, green: 0, blue: 0, alpha: 13))
+
+    /// The hard style's dark colors. System page, `Scroll Edge Effect/Dark/
+    /// Top - Hard/Color`: Backgrounds/Dark - Base/Primary, black, at layer
+    /// opacity 0.55. The bottom hairline is white at 10%.
+    static let darkHardScrollEdge = HardScrollEdge(
+        tint: RGBA(red: 0, green: 0, blue: 0, alpha: 140),
+        line: RGBA(red: 255, green: 255, blue: 255, alpha: 26))
+
+    /// The hard style's blur radius: `Scroll Edge Effect/Light/Top - Hard/
+    /// Blur`, background blur 6.
+    static let hardScrollEdgeBlurRadius = 6.0
+    /// The width of the hard style's hairline: 0.6666 points.
+    static let hardScrollEdgeLineWidth: CGFloat = 0.6666
+    /// The soft style's blur radius: `Scroll Edge Effect/Top - Soft (no
+    /// text)/Blur`, background blur 100.
+    static let softScrollEdgeBlurRadius = 100.0
+    /// The soft style's strength at the outer edge: `/Gradient Mask`, a
+    /// mask at layer opacity 0.6 whose gradient runs from opaque at the top
+    /// to clear at the bottom.
+    static let softScrollEdgePeak = 0.6
 
     /// The appearance of a color scheme. Content in a sheet is `elevated`:
     /// its dark backgrounds are lighter, as iOS's elevated system
@@ -384,7 +416,8 @@ extension ColorPalette {
         selectedSegment: selectedSegment,
         menuHighlight: menuHighlight,
         menuHighlightBlendMode: .plusDarker,
-        tertiaryLabel: color(named: "tertiary")
+        tertiaryLabel: color(named: "tertiary"),
+        hardScrollEdge: lightHardScrollEdge
     )
 
     /// The dark appearance, from the dark swatches, layer styles, and
@@ -458,7 +491,8 @@ extension ColorPalette {
         menuHighlightBlendMode: .plusLighter,
         // Lists/􀻃/Dark/Rows/Accessories - Trailing: the disclosure chevron is
         // Labels/Dark/3 Tertiary.
-        tertiaryLabel: RGBA(red: 235, green: 235, blue: 245, alpha: 76)
+        tertiaryLabel: RGBA(red: 235, green: 235, blue: 245, alpha: 76),
+        hardScrollEdge: darkHardScrollEdge
     )
 
     /// The dark appearance of content in a sheet. A sheet at its large

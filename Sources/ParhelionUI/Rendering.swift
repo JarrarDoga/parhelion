@@ -417,7 +417,23 @@ struct TreeRenderer {
         let inherited = Inherited(
             foreground: foreground, tint: tint, opacity: opacity, container: container,
             scheme: scheme, elevated: elevated)
-        for (index, child) in node.children.enumerated() {
+        // A navigation bar draws after the screen, which scrolls under it,
+        // and the scroll edge effect draws between them.
+        var children = node.children
+        if node.kind == "NavigationStack" {
+            children =
+                children.filter { $0.kind != "NavigationBar" }
+                + children.filter { $0.kind == "NavigationBar" }
+        }
+        let scrollEdgeBar = node.kind == "NavigationStack" ? "NavigationBar" : "TabBar"
+        let scrollView =
+            node.kind == "NavigationStack" || node.kind == "TabView"
+            ? Self.scrollView(under: node) : nil
+        for (index, child) in children.enumerated() {
+            if let scrollView, child.kind == scrollEdgeBar {
+                drawScrollEdgeEffect(
+                    of: scrollView, under: child, scheme: scheme, opacity: opacity, into: &canvas)
+            }
             var childInherited = inherited
             // An alert's message, after its title, is gray.
             if node.kind == "Alert", index > 0, child.kind != "Button",

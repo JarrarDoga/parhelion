@@ -120,6 +120,21 @@ size. These images come from
   <img src="docs/images/settings-xxxlarge.png" alt="The Settings example at the xxxLarge text size, with larger labels in taller rows and the segmented control at its usual size." width="190">
 </p>
 
+A `ScrollView` or `List` that is a navigation stack's screen, or a tab's content, takes the whole
+screen and scrolls under the navigation bar and the tab bar. While content lies under a bar, the
+scroll edge effect blurs it: the soft style fades a heavy blur out toward the content, and the hard
+style covers it with a nearly opaque blur and a dividing line. `scrollEdgeEffectStyle(_:for:)` and
+`scrollEdgeEffectHidden(_:for:)` choose, and `contentMargins` and `safeAreaPadding` inset the
+content. These images come from
+`PARHELION_README_IMAGES=docs/images swift test --filter "ScrollEdgeTests/writeReadmeImages"`:
+
+<p align="center">
+  <img src="docs/images/scroll-edge-soft.png" alt="A list scrolled under an inline navigation bar and a glass tab bar, with the soft scroll edge effect: the rows at the top and bottom are blurred and faded." width="190">
+  <img src="docs/images/scroll-edge-soft-dark.png" alt="The same list in dark, with the soft scroll edge effect." width="190">
+  <img src="docs/images/scroll-edge-hard.png" alt="A list scrolled under an inline navigation bar with the hard scroll edge effect: a nearly opaque white blur above a hairline." width="190">
+  <img src="docs/images/scroll-edge-hard-dark.png" alt="The same list in dark, with the hard scroll edge effect: a darkened blur above a hairline." width="190">
+</p>
+
 Shapes, gradients, and the styling modifiers draw as in SwiftUI: `clipShape`, `overlay`,
 `shadow`, and `scaleEffect` apply at their place in the modifier chain without changing layout.
 `Image` reads an app's `Assets.xcassets` from its target's resource bundle, with 1×, 2×, and 3×

@@ -721,3 +721,15 @@ extension ViewHost {
         setNeedsUpdate()
     }
 }
+
+extension ViewNode {
+    /// The children in the order input reaches them: the last first, as the
+    /// last draws on top. A navigation bar draws after its stack's screen,
+    /// which scrolls under it, so it comes first.
+    var hitOrder: [ViewNode] {
+        let reversed = Array(children.reversed())
+        guard kind == "NavigationStack" else { return reversed }
+        return reversed.filter { $0.kind == "NavigationBar" }
+            + reversed.filter { $0.kind != "NavigationBar" }
+    }
+}
