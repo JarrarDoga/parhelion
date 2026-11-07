@@ -11,6 +11,10 @@ public let previewSocketEnvironmentKey = "PARHELION_PREVIEW_SOCKET"
 /// to it when the host closes it, so hot reload keeps state across restarts.
 public let previewStateEnvironmentKey = "PARHELION_PREVIEW_STATE"
 
+/// The name of the environment variable that starts an app on a manual clock
+/// when its value is `1`. See ``PreviewCapability/manualClock``.
+public let previewManualClockEnvironmentKey = "PARHELION_MANUAL_CLOCK"
+
 /// The name of the environment variable that names the device an app
 /// simulates, such as "iPhone 17 Pro". Without it, the app uses its default
 /// device.
@@ -39,7 +43,15 @@ public enum PreviewCapability {
     /// commands. A host only needs to see it in the hello; the app does not
     /// wait for a welcome to accept them.
     public static let appearance = "appearance"
-    /// Every capability this version of Parhelion supports.
+    /// The app runs on a manual clock: it never moves its own time, and
+    /// `Task.sleep` waits until the host sends
+    /// ``PreviewCommand/advanceTime(seconds:)``. An app lists it in its hello
+    /// only when the host started it with `PARHELION_MANUAL_CLOCK=1`, and
+    /// only a host that shows no frames welcomes it; see
+    /// `docs/adr/0011-manual-clock.md`.
+    public static let manualClock = "manualClock"
+    /// Every capability a window host can use. ``manualClock`` is not one:
+    /// it replaces the host's clock instead of adding to it.
     public static let all = [hostClock, sharedFrames, appearance]
 }
 
@@ -245,6 +257,11 @@ public enum PreviewCommand: Codable, Equatable, Sendable {
     /// keeps one as it is. Only an app whose hello lists
     /// ``PreviewCapability/appearance`` understands it.
     case setAppearance(colorScheme: String?, dynamicTypeSize: String?)
+    /// Moves the app's clock on by `seconds` without waiting: animations and
+    /// scroll momentum advance, and each `Task.sleep` that falls due wakes in
+    /// deadline order, with the app settled after each. Only an app that
+    /// lists ``PreviewCapability/manualClock`` understands it.
+    case advanceTime(seconds: Double)
 }
 
 /// The app's answer to a ``PreviewCommand``.
@@ -262,10 +279,13 @@ public struct PreviewReply: Codable, Equatable, Sendable {
     /// How many `task` actions of the views on screen have not finished, or
     /// `nil` from an app built before replies reported them.
     public var pendingTasks: Int?
+    /// On a manual clock, the seconds until the next `Task.sleep` wakes, or
+    /// `nil` when none is waiting or the clock is real.
+    public var nextWake: Double?
 
     public init(
         ok: Bool, message: String, png: Data? = nil, revision: Int, isAnimating: Bool,
-        pendingTasks: Int? = nil
+        pendingTasks: Int? = nil, nextWake: Double? = nil
     ) {
         self.ok = ok
         self.message = message
@@ -273,6 +293,7 @@ public struct PreviewReply: Codable, Equatable, Sendable {
         self.revision = revision
         self.isAnimating = isAnimating
         self.pendingTasks = pendingTasks
+        self.nextWake = nextWake
     }
 }
 

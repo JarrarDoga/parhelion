@@ -51,7 +51,7 @@ Milestones are ordered. Each one is usable on its own. Dates are not promised.
 - [x] Off-screen rendering, so another app can embed or stream the preview: the socket protocol's
       commands and screenshots
 - [x] An agent and a person using the same app: `parhelion mcp --window`
-- [ ] A manual clock for agents, so that `wait` advances time instead of sleeping
+- [x] A manual clock for agents, so that `wait` advances time instead of sleeping
 - [x] Extend the deterministic clock to animations
 - [ ] Extend the deterministic clock to timers
 

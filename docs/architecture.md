@@ -328,7 +328,8 @@ Momentum runs on the host's own clock, which advances only through `advanceTime(
 steps. The same input at the same times always produces the same frames, however the time is
 split, so tests and agents can step animations exactly. The preview session advances the clock
 to the moment each frame will be on screen and draws once per display refresh while anything
-moves (see *The preview window*). `ViewHost.revision` increases whenever the screen changes, and
+moves (see *The preview window*). On a manual clock, `advanceTime` moves it instead, together
+with every `Task.sleep`. `ViewHost.revision` increases whenever the screen changes, and
 the session sends a frame only then.
 
 ### Lists
@@ -644,6 +645,16 @@ hosts from before a capability keep working with newer ones
 - **`appearance`: the appearance switches.** The app takes `setAppearance` commands. The host
   reads this one in the hello and sends no welcome for it, so `parhelion mcp` without a window,
   which welcomes nothing, can switch it too.
+
+- **`manualClock`: the host moves time.** An app started with `PARHELION_MANUAL_CLOCK=1` lists
+  it, and a host that shows no frames (`parhelion mcp` without `--window` or `--web`) welcomes it
+  ([ADR 0011](adr/0011-manual-clock.md)). The app then never reads the real clock and never
+  draws on its own schedule. `advanceTime(seconds:)` moves `ViewHost.time` and the executors'
+  clock together, waking each `Task.sleep` in deadline order and settling the app after each. At
+  start, `App.main()` replaces Swift's main and default executors (`HostClockExecutor`, Swift 6.3
+  and later, SPI), which hold sleeps and run all work serially on the main thread. MCP `wait`
+  sends the command, so it returns at once. The reply's `nextWake` is the time to the next held
+  sleep.
 
 **Main-actor work.** The app receives the host's messages on a background thread. Its main
 thread waits in the main run loop, so the main actor's work runs while nothing arrives: `task`

@@ -356,7 +356,12 @@ may contain breaking changes.
 
 - Placeholder for #69 (accessibility identifiers and labels): the change for that issue replaces this line.
 
-- Placeholder for #70 (the manual clock): the change for that issue replaces this line.
+- A manual clock for agents: in `parhelion mcp` without `--window` or `--web`, `wait` advances the
+  app's time instead of sleeping, so animations, scroll momentum, and `Task.sleep` in `task`
+  actions, `Task`s, and detached tasks reach the state they would after that long, in milliseconds.
+  The app starts with `PARHELION_MANUAL_CLOCK=1`, lists the `manualClock` capability, and takes
+  the `advanceTime(seconds:)` command; its replies carry `nextWake`. It needs Swift 6.3 or later;
+  with a window or a page, `wait` keeps real time. See ADR 0011.
 
 - Placeholder for #71 (snapshot tests): the change for that issue replaces this line.
 

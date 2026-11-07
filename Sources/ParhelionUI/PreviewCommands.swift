@@ -23,7 +23,7 @@ extension ViewHost {
         func reply(_ ok: Bool, _ message: String, png: Data? = nil) -> PreviewReply {
             PreviewReply(
                 ok: ok, message: message, png: png, revision: revision, isAnimating: isAnimating,
-                pendingTasks: pendingTaskCount)
+                pendingTasks: pendingTaskCount, nextWake: secondsUntilNextWake)
         }
         do {
             switch command {
@@ -115,6 +115,19 @@ extension ViewHost {
                 }
                 return reply(true, appearanceDescription)
 
+            case .advanceTime(let seconds):
+                guard hasManualClock else {
+                    let key = previewManualClockEnvironmentKey
+                    return reply(
+                        false, "The app's clock is real. Start it with \(key)=1 to advance it.")
+                }
+                guard seconds.isFinite, seconds >= 0, seconds <= Self.longestAdvance else {
+                    let longest = Int(Self.longestAdvance)
+                    return reply(false, "The time to advance must be in 0...\(longest) seconds.")
+                }
+                advanceClock(by: seconds)
+                return reply(true, "Advanced the clock by \(formatSeconds(seconds)).")
+
             case .drag(let fromX, let fromY, let toX, let toY, let duration):
                 drag(
                     from: CGPoint(x: fromX, y: fromY), to: CGPoint(x: toX, y: toY),
@@ -127,9 +140,16 @@ extension ViewHost {
         }
     }
 
+    /// The most one `advanceTime` command moves the clock, in seconds.
+    static let longestAdvance: TimeInterval = 3600
+
     /// The simulated device's settings, as a reply states them.
     var appearanceDescription: String {
         "The device is set to \(colorScheme.name) at Dynamic Type size \(dynamicTypeSize.name)."
+    }
+
+    private func formatSeconds(_ seconds: TimeInterval) -> String {
+        "\(formatPoints(CGFloat(seconds))) s"
     }
 
     private func inspectionOutline() -> String {

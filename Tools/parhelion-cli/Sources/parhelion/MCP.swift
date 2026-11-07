@@ -63,8 +63,9 @@ struct MCP: ParsableCommand {
             builder: AppBuilder(plan: plan, configuration: configuration.rawValue),
             scale: showsFrames ? 2 : 1,
             device: device,
-            // Without a window or a page, nobody shows frames or keeps time.
-            capabilities: showsFrames ? PreviewCapability.all : [],
+            // Without a window or a page, nobody shows frames or keeps time, so
+            // the app runs on a manual clock that `wait` advances.
+            capabilities: showsFrames ? PreviewCapability.all : [PreviewCapability.manualClock],
             appearance: appearance,
             status: webHost.map { host in { host.setStatus($0) } }
         )
@@ -228,6 +229,10 @@ final class AgentController: @unchecked Sendable {
                 previewStateEnvironmentKey: stateFile,
             ]
             environment[previewDeviceEnvironmentKey] = device
+            // A rebuilt app keeps the manual clock, like the appearance below.
+            if capabilities.contains(PreviewCapability.manualClock) {
+                environment[previewManualClockEnvironmentKey] = "1"
+            }
             // A rebuilt app starts with the appearance the agent or a person set.
             environment.merge(appearance.environment) { $1 }
             let connection = try AppConnection(
@@ -345,12 +350,19 @@ final class AgentController: @unchecked Sendable {
         return .text("\(reply.message) (\(status))", isError: !reply.ok)
     }
 
-    /// Waits until nothing moves and every `task` action of the views on
-    /// screen has finished, or until `seconds` pass, then reports the state.
-    /// If nothing is moving or running to begin with, it waits the whole
-    /// time, which gives untracked work, such as a `Task` that a button
-    /// started, time to run.
+    /// Waits `seconds`, then reports the state. On a manual clock it moves
+    /// the app's time on by `seconds` instead, which wakes every `Task.sleep`
+    /// that falls due and finishes animations, in no real time. Otherwise it
+    /// waits until nothing moves and every `task` action of the views on
+    /// screen has finished, or until `seconds` pass; if nothing is moving or
+    /// running to begin with, it waits the whole time, which gives untracked
+    /// work, such as a `Task` that a button started, time to run.
     private func waitUntilSettled(seconds: Double) -> MCPToolResult {
+        if let app = currentApp, !app.isDisconnected,
+            app.capabilities.contains(PreviewCapability.manualClock)
+        {
+            return run(.advanceTime(seconds: seconds), summaryOnly: true)
+        }
         let deadline = Date(timeIntervalSinceNow: seconds)
         func isBusy() -> Bool {
             guard let app = currentApp, !app.isDisconnected else { return false }
@@ -376,6 +388,10 @@ final class AgentController: @unchecked Sendable {
         if reply.isAnimating { status += ", still animating" }
         if let tasks = reply.pendingTasks, tasks > 0 {
             status += ", \(tasks) task\(tasks == 1 ? "" : "s") running"
+        }
+        if let wake = reply.nextWake {
+            let seconds = String(format: "%g", (wake * 1000).rounded() / 1000)
+            status += ", the next timer fires in \(seconds) s"
         }
         return status
     }

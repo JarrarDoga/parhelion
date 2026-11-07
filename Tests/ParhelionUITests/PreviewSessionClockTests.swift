@@ -124,4 +124,56 @@ struct PreviewSessionClockTests {
         #expect(messages.count == 3)
         #expect(messages.dropFirst().allSatisfy { if case .frame = $0 { true } else { false } })
     }
+
+    /// Runs a session in which the button is tapped, then 0.3 s of real time
+    /// pass before the host closes it. Returns how far the app's clock moved.
+    private func clockAfterRealPause(welcoming capabilities: [String]) throws -> TimeInterval {
+        let (appEnd, hostEnd) = try PreviewChannel.pair()
+        let host = ViewHost(Growing(), device: screen)
+        let center = try buttonCenter(host)
+        nonisolated(unsafe) let sendingEnd = hostEnd
+        try sendingEnd.send(.welcome(PreviewWelcome(capabilities: capabilities)))
+        try sendingEnd.send(.pointerDown(x: Double(center.x), y: Double(center.y)))
+        try sendingEnd.send(.pointerUp(x: Double(center.x), y: Double(center.y)))
+        // The host reads the frames meanwhile, so the socket never fills.
+        let sender = Thread {
+            let end = Date(timeIntervalSinceNow: 0.3)
+            while Date() < end { _ = try? sendingEnd.receiveAppMessage(timeout: 0.01) }
+            try? sendingEnd.send(.close)
+            while (try? sendingEnd.receiveAppMessage(timeout: 0.1)) != nil {}
+        }
+        sender.start()
+        try PreviewSession(host: host, channel: appEnd, scale: 1, appName: "Growing").run()
+        return host.time
+    }
+
+    @Test("A session on a manual clock never moves the clock to real time")
+    func manualClockStaysPut() throws {
+        // The animation runs, and the session would draw on its own schedule,
+        // but only a command from the host moves time.
+        #expect(try clockAfterRealPause(welcoming: [PreviewCapability.manualClock]) == 0)
+        #expect(try clockAfterRealPause(welcoming: []) > 0.25)
+    }
+
+    @Test("advanceTime is refused while the app's clock is real")
+    func advanceRefusedOnRealClock() {
+        let host = ViewHost(Growing(), device: screen)
+        let reply = host.execute(.advanceTime(seconds: 1))
+        #expect(!reply.ok)
+        #expect(reply.nextWake == nil)
+        #expect(host.time == 0)
+    }
+
+    @Test("advanceClock on a real clock only advances the host's time")
+    func advanceClockWithoutExecutors() throws {
+        let host = ViewHost(Growing(), device: screen)
+        let center = try buttonCenter(host)
+        host.pointerDown(at: center)
+        host.pointerUp(at: center)
+        #expect(host.isAnimating)
+        host.advanceClock(by: 1.5)
+        #expect(host.time == 1.5)
+        #expect(!host.isAnimating)
+        #expect(!host.hasManualClock)
+    }
 }
