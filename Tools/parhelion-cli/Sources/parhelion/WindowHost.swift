@@ -26,6 +26,8 @@ final class WindowHost: PreviewSurface {
     /// The phone drawn around the screen, if any, and its texture.
     private let bezel: DeviceBezel?
     private var bezelTexture: UnsafeMutablePointer<SDL_Texture>?
+    /// A design board drawn over the screen, if any.
+    private var overlayTexture: UnsafeMutablePointer<SDL_Texture>?
     /// The frame's corners outside the phone, made once for the frame width
     /// they fit, with a buffer each to fade a frame's corner in.
     private var cornerFades: (width: Int, fades: [CornerFade])?
@@ -96,6 +98,7 @@ final class WindowHost: PreviewSurface {
     deinit {
         if let texture { SDL_DestroyTexture(texture) }
         if let bezelTexture { SDL_DestroyTexture(bezelTexture) }
+        if let overlayTexture { SDL_DestroyTexture(overlayTexture) }
         SDL_DestroyRenderer(renderer)
         SDL_DestroyWindow(window)
         SDL_Quit()
@@ -342,6 +345,24 @@ final class WindowHost: PreviewSurface {
         return texture
     }
 
+    /// Draws a design board over the screen, `opacity` from 0 to 1 opaque,
+    /// scaled to the screen's size, under the bezel.
+    func setOverlay(_ board: Bitmap, opacity: Double) throws {
+        guard
+            let texture = SDL_CreateTexture(
+                renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STATIC,
+                Int32(board.width), Int32(board.height))
+        else { throw SDLError.current("create a texture") }
+        _ = SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR)
+        _ = SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND)
+        _ = SDL_SetTextureAlphaMod(texture, UInt8((min(max(opacity, 0), 1) * 255).rounded()))
+        board.pixels.withUnsafeBytes { bytes in
+            _ = SDL_UpdateTexture(texture, nil, bytes.baseAddress, Int32(board.width * 4))
+        }
+        if let overlayTexture { SDL_DestroyTexture(overlayTexture) }
+        overlayTexture = texture
+    }
+
     /// Copies a frame's pixels into the window's texture, from the frame's
     /// own array or straight from its shared-memory slot. Only the frame's
     /// damaged rectangle is copied. Returns `false` for a frame without
@@ -414,9 +435,13 @@ final class WindowHost: PreviewSurface {
                     h: Float(bezel.screenHeight * scaleY)
                 )
                 _ = SDL_RenderTexture(renderer, texture, nil, &screen)
+                if let overlayTexture {
+                    _ = SDL_RenderTexture(renderer, overlayTexture, nil, &screen)
+                }
                 _ = SDL_RenderTexture(renderer, bezelTexture, nil, nil)
             } else {
                 _ = SDL_RenderTexture(renderer, texture, nil, nil)
+                if let overlayTexture { _ = SDL_RenderTexture(renderer, overlayTexture, nil, nil) }
             }
         }
         _ = SDL_RenderPresent(renderer)

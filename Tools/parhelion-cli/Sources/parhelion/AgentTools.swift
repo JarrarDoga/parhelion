@@ -19,7 +19,8 @@ enum AgentTools {
         the screen is animating or a task is running, call wait before you take a screenshot. After you edit the app's \
         Swift files, call rebuild; it returns compiler errors if the build fails and keeps \
         Codable @State values when it succeeds. To check the dark appearance or larger text, \
-        call set_appearance.
+        call set_appearance. To check a screen against its design board, call compare_image with \
+        the board's PNG.
         """
     }
 
@@ -31,8 +32,8 @@ enum AgentTools {
     /// ``AgentToolRegistry``.
     static let registry = AgentToolRegistry.shared
 
-    /// The built-in tools, then the registered ones.
-    static var definitions: [MCPTool] { builtInDefinitions + registry.definitions }
+    /// The built-in tools, `compare_image`, then the registered ones.
+    static var definitions: [MCPTool] { builtInDefinitions + [compareImage] + registry.definitions }
 
     private static let builtInDefinitions: [MCPTool] = [
         MCPTool(

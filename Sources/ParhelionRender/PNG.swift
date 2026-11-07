@@ -10,6 +10,13 @@ extension Canvas {
     }
 }
 
+extension Bitmap {
+    /// The bitmap encoded as a PNG image, the way ``Canvas/pngData()`` does.
+    public func pngData() -> [UInt8] {
+        PNGEncoder.encode(width: width, height: height, rgba: pixels)
+    }
+}
+
 enum PNGEncoder {
     static func encode(width: Int, height: Int, rgba: [UInt8]) -> [UInt8] {
         var png: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]

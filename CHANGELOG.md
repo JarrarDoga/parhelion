@@ -352,7 +352,12 @@ may contain breaking changes.
 
 - Placeholder for #51 (many `parhelion mcp` sessions on one PC): the change for that issue replaces this line.
 
-- Placeholder for #52 (compare the preview with a design board PNG): the change for that issue replaces this line.
+- The `compare_image` tool in `parhelion mcp`, which renders the screen at a design board's scale
+  and returns the share of pixels that differ, within a tolerance, the area they lie in, and a
+  diff PNG with them in red; `ImageDiff` and `BoardComparison` in `ParhelionTooling`, which
+  snapshot tests can use; and `Bitmap.pngData()`.
+- `parhelion run --overlay board.png --overlay-opacity 0.5`, which draws a design board over the
+  preview window.
 
 - `accessibilityIdentifier(_:)`, `accessibilityLabel(_:)`, and `accessibilityElement(children:)`,
   recorded in the view tree. An identifier on a container reaches the views inside it, as in

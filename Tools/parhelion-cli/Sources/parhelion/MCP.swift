@@ -297,6 +297,8 @@ final class AgentController: @unchecked Sendable {
             return waitUntilSettled(seconds: min(max(arguments.double("seconds") ?? 0.5, 0), 10))
         case "set_appearance":
             return setAppearance(arguments)
+        case "compare_image":
+            return compareImage(arguments)
         case _ where AgentTools.registry.has(name):
             // A tool from a file of its own answers itself or names a command.
             switch AgentTools.registry.call(name, arguments) {
@@ -413,7 +415,7 @@ final class AgentController: @unchecked Sendable {
         return status
     }
 
-    private func notRunning() -> MCPToolResult {
+    func notRunning() -> MCPToolResult {
         let reason = lock.withLock { lastFailure } ?? "It exited."
         return .text(
             "The app is not running. \(reason)\nFix the problem and call rebuild.", isError: true)

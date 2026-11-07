@@ -243,3 +243,11 @@ struct PNGDecoderTests {
         #expect(half.pixel(x: 1, y: 0) == RGBA(red: 10, green: 20, blue: 30))
     }
 }
+
+struct BitmapEncodingTests {
+    @Test func bitmapEncodesToPNGAndBack() throws {
+        let pixels: [UInt8] = (0..<(7 * 5 * 4)).map { UInt8(($0 * 37) % 256) }
+        let bitmap = Bitmap(width: 7, height: 5, pixels: pixels)
+        #expect(try Bitmap(pngData: bitmap.pngData()) == bitmap)
+    }
+}
