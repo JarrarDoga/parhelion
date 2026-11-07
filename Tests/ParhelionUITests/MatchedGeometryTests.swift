@@ -70,6 +70,13 @@ private struct ZoomPush: View {
     }
 }
 
+/// The width a node is drawn at, with its last scale.
+private func drawnWidth(_ node: ViewNode) -> CGFloat? {
+    guard let frame = node.frame else { return nil }
+    guard case .scaleEffect(let x, _, _)? = node.modifiers.last else { return frame.width }
+    return frame.width * x
+}
+
 /// The matched square as drawn: the `Color` with a matched geometry modifier.
 @MainActor
 private func box(_ host: ViewHost) -> ViewNode? {
@@ -271,6 +278,28 @@ struct MatchedGeometryTests {
         host.advanceTime(by: 5)
         #expect(host.presentedRoot.children.count == 1)
         #expect(!host.isAnimating)
+    }
+
+    @Test("A cover closed while it still zooms in shrinks from where it was drawn")
+    func coverClosesMidZoom() throws {
+        let host = ViewHost(ZoomCover(), device: screen)
+        try host.tapButton(labeled: "Open")
+        host.advanceTime(by: 0.1)
+        let before = try #require(host.presentedRoot.children.last)
+        let beforeWidth = try #require(drawnWidth(before))
+        #expect(beforeWidth < 300)
+        try host.tapButton(labeled: "Close")
+        let after = try #require(host.presentedRoot.children.last)
+        #expect(after.kind == "FullScreenCover")
+        let scales = after.modifiers.filter {
+            if case .scaleEffect = $0 { return true }
+            return false
+        }
+        #expect(scales.count == 1)
+        let afterWidth = try #require(drawnWidth(after))
+        #expect(abs(afterWidth - beforeWidth) < 1)
+        host.advanceTime(by: 5)
+        #expect(host.presentedRoot.children.count == 1)
     }
 
     @Test("A cover without a zoom transition still slides up")

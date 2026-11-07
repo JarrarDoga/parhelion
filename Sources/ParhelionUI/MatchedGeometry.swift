@@ -170,6 +170,9 @@ struct Zoom {
     var source: CGRect
     /// Whether the view is leaving, back to the source.
     var isExit: Bool
+    /// The scale the leaving view starts at: below 1 when it closes before
+    /// its zoom in finished.
+    var startScale = CGSize(width: 1, height: 1)
 
     func progress(at time: TimeInterval) -> Double {
         animation.progress(at: time - start)
@@ -347,9 +350,22 @@ extension AnimationEngine {
             else { continue }
             var zoomed = exit
             zoomed.offset = .zero
+            // A screen that closes while it still zooms in was captured with
+            // that zoom's scale. Take the scale off, and shrink from it.
+            var startScale = CGSize(width: 1, height: 1)
+            if let previous = zooms[id], !previous.isExit,
+                case .scaleEffect(let x, let y, _)? = zoomed.node.modifiers.last
+            {
+                zoomed.node.modifiers.removeLast()
+                if zoomed.node.modifierFrames.count > zoomed.node.modifiers.count {
+                    zoomed.node.modifierFrames.removeLast()
+                }
+                startScale = CGSize(width: x, height: y)
+            }
             exits[id] = zoomed
             zooms[id] = Zoom(
-                animation: exit.animation, start: time, source: source, isExit: true)
+                animation: exit.animation, start: time, source: source, isExit: true,
+                startScale: startScale)
         }
     }
 }

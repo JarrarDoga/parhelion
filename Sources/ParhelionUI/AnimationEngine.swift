@@ -306,7 +306,12 @@ final class AnimationEngine {
                 Self.opacity(of: ghost)
                     * (1 - (1 - exit.opacity) * min(max(progress, 0), 1)), of: &ghost)
             if let zoom = zooms[exit.node.id], zoom.isExit, let final = ghost.frame {
-                let rect = zoom.rect(from: final, to: zoom.source, at: time)
+                let from = CGRect(
+                    origin: final.origin,
+                    size: CGSize(
+                        width: final.width * zoom.startScale.width,
+                        height: final.height * zoom.startScale.height))
+                let rect = zoom.rect(from: from, to: zoom.source, at: time)
                 ghost = Self.translated(
                     ghost, by: CGSize(width: rect.minX - final.minX, height: rect.minY - final.minY)
                 )
