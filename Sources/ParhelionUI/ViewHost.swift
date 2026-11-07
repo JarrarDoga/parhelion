@@ -335,6 +335,9 @@ public final class ViewHost {
         var sheet: NodeID?
         /// Whether the press is selecting text in the field it started on.
         var selectsText = false
+        /// Where a selection by dragging began, in characters, fixed at the
+        /// first move so that scrolling the field's text does not move it.
+        var selectionAnchor: Int?
         /// Recent pointer positions, for the release velocity.
         var samples: [(time: TimeInterval, point: CGPoint)]
         /// A swipe of a list row with actions, or an open row to close.
@@ -402,7 +405,7 @@ public final class ViewHost {
                     && abs(moved.width) >= abs(moved.height))
         {
             press.selectsText = true
-            selectText(in: field, from: press.start, to: point)
+            selectText(in: field, from: press.start, to: point, anchor: &press.selectionAnchor)
             return
         }
         // A sideways press on a row with swipe actions swipes it, unless a

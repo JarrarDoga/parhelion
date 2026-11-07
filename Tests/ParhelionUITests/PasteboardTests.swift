@@ -226,6 +226,24 @@ struct PasteboardTests {
         #expect(host.caretOffset == 0)
     }
 
+    @Test("A drag that scrolls a long field's text keeps the selection's start")
+    func dragKeepsAnchor() throws {
+        struct Long: View {
+            @State var text = String(repeating: "word ", count: 40)
+            var body: some View { TextField("Long", text: $text).frame(width: 120) }
+        }
+        let host = ViewHost(Long(), device: screen)
+        let field = try #require(host.root.allNodes.first { $0.kind == "TextField" })
+        let frame = try #require(field.frame)
+        let y = frame.midY
+        host.pointerDown(at: CGPoint(x: frame.minX + 1, y: y))
+        for step in 1...8 {
+            host.pointerMoved(to: CGPoint(x: frame.minX + CGFloat(step) * 40, y: y))
+        }
+        host.pointerUp(at: CGPoint(x: frame.minX + 320, y: y))
+        #expect(host.selectedRange?.lowerBound == 0)
+    }
+
     @Test("Losing focus ends the selection")
     func focusEnds() throws {
         let host = ViewHost(Fields(), device: screen)

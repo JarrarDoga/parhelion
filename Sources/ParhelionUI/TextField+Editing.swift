@@ -155,13 +155,18 @@ extension ViewHost {
     }
 
     /// Extends a selection that a drag over a field started. The first move
-    /// focuses the field and anchors the selection where the press began.
-    func selectText(in id: NodeID, from start: CGPoint, to point: CGPoint) {
-        guard let field = textFields[id], let anchor = caretOffset(in: id, field, at: start),
+    /// focuses the field and anchors the selection where the press began;
+    /// later moves keep that anchor, even as the field's text scrolls.
+    func selectText(
+        in id: NodeID, from start: CGPoint, to point: CGPoint, anchor: inout Int?
+    ) {
+        guard let field = textFields[id],
+            let fixed = anchor ?? caretOffset(in: id, field, at: start),
             let caret = caretOffset(in: id, field, at: point, clamped: true)
         else { return }
+        anchor = fixed
         focusedNodeID = id
-        setSelection(anchor: anchor, caret: caret)
+        setSelection(anchor: fixed, caret: caret)
     }
 
     /// The caret offset nearest a point on screen in a field, accounting for

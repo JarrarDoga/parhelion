@@ -277,6 +277,7 @@ final class PreviewSession {
             if reply.ok { recorder?.appearance(command) }
             try channel.send(.reply(id: id, reply))
         case .pasteboard(let text):
+            recorder?.pasteboard(text)
             host.pasteboardText = text
         case .paste(let text):
             recorder?.pasteboard(text)
