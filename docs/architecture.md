@@ -1315,6 +1315,22 @@ it does not change node identifiers. `PreviewCommand.setScenePhase` carries a ph
 `set_scene_phase` MCP tool sends it, and `ScenePhaseWindowHook` sends it when the window loses
 focus (`inactive`), is minimized (`background`), or comes back (`active`).
 
+### Media controls
+
+`MPNowPlayingInfoCenter` and `MPRemoteCommandCenter`, in the `MediaPlayer` module, report the
+app's now-playing state and take the desktop's play, pause, next, previous, and seek commands;
+[ADR 0017](adr/0017-mediaplayer-mpris.md) has the decision. The shim turns each change of
+`nowPlayingInfo`, `playbackState`, or a command's `isEnabled` into a `PreviewNowPlaying` and hands it to
+`MediaSessionBridge.shared`. A session that the host welcomed with `PreviewCapability.mediaSession`
+connects the bridge to its channel, so the state travels as `AppMessage.nowPlaying`. The host's
+`AppConnection` gives it to an `MPRISService` (`ParhelionTooling`), which owns the connection to the
+session bus and publishes `org.mpris.MediaPlayer2.parhelion.instance<pid>`. Calls on that player
+return as `HostMessage.remoteCommand`, which the session passes to the bridge and the shim turns
+into the events that the app's targets expect. A command the app did not enable falls back to the
+nearest one it did: `play` and `pause` to `togglePlayPause`, and a relative seek to the skip
+commands. Headless hosts (`parhelion test`, and `parhelion mcp` without frames) do not offer the
+capability, so they never touch the bus.
+
 ## Planned layers
 
 - **Fidelity checks.** A macOS CI job that renders the same views with Apple's SwiftUI and

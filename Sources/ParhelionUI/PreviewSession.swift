@@ -42,6 +42,9 @@ final class PreviewSession {
     /// Writes the flow the window host's input makes, when the app was
     /// started with `PARHELION_RECORD_FLOW`.
     private let recorder: FlowRecorder?
+    /// Where the `MediaPlayer` shim reports what the app plays. Tests give a
+    /// session a bridge of its own.
+    private let mediaBridge: MediaSessionBridge
 
     /// How many frames the shared memory holds: one the host is copying, one
     /// waiting for it, and one to draw the next frame into.
@@ -55,8 +58,10 @@ final class PreviewSession {
 
     init(
         host: ViewHost, channel: PreviewChannel, scale: Double, appName: String,
-        runsMainActorWork: Bool = false, recordingFlowTo recordingPath: String? = nil
+        runsMainActorWork: Bool = false, recordingFlowTo recordingPath: String? = nil,
+        mediaBridge: MediaSessionBridge = .shared
     ) {
+        self.mediaBridge = mediaBridge
         self.host = host
         self.channel = channel
         self.scale = scale
@@ -285,6 +290,18 @@ final class PreviewSession {
             host.paste(text)
         case .welcome(let welcome):
             welcomed = Set(welcome.capabilities)
+            if welcome.capabilities.contains(PreviewCapability.mediaSession) {
+                // The channel locks its sends, so the thread that sets
+                // `nowPlayingInfo` can report it directly.
+                nonisolated(unsafe) let channel = channel
+                mediaBridge.connect { state in
+                    try? channel.send(.nowPlaying(state))
+                }
+            }
+        case .remoteCommand(let command):
+            if !mediaBridge.deliver(command) {
+                debugLog("no MediaPlayer remote command center took \(command)")
+            }
         case .close:
             recorder?.finish()
             saveState()
@@ -504,6 +521,7 @@ extension PreviewSession {
                 recordingFlowTo: recordingPath
             )
             try session.run()
+            MediaSessionBridge.shared.connect(send: nil)
             channel.close()
         } catch {
             FileHandle.standardError.write(Data("parhelion: preview failed: \(error)\n".utf8))

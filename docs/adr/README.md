@@ -22,6 +22,7 @@ marked *Superseded* and links to the record that replaces it.
 | [0014](0014-mediaplayer-and-avfaudio-shims.md) | Provide `MediaPlayer` and `AVFAudio` modules on Linux | Accepted |
 | [0015](0015-gesture-arbitration.md) | Gestures are recognized by the host from the pointer, and arbitrated in one place | Accepted |
 | [0016](0016-lazy-windows.md) | Lazy stacks and lists evaluate a window of rows that layout asks for | Accepted |
+| [0017](0017-mediaplayer-mpris.md) | `MediaPlayer` reaches the desktop through MPRIS, which the window host owns, over the preview socket | Accepted |
 
 To add a record, copy the structure of an existing one, use the next number, and add it to this
 table in the same pull request as the change it describes.

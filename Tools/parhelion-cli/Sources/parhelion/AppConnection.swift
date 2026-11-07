@@ -15,6 +15,10 @@ import ParhelionTooling
 /// it maps the app's shared memory and frames arrive as slot numbers; a
 /// slot goes back to the app with ``release(_:)`` once the window has
 /// copied it, or as soon as a newer frame replaces it.
+///
+/// With ``PreviewCapability/mediaSession``, the app's now-playing state
+/// becomes an MPRIS player on the session bus, and the desktop's controls
+/// reach the app as ``HostMessage/remoteCommand(_:)``.
 final class AppConnection: @unchecked Sendable {
     let hello: PreviewHello
     /// The capabilities this connection welcomed.
@@ -33,6 +37,7 @@ final class AppConnection: @unchecked Sendable {
     private var unanswered: Set<Int> = []
     private var nextRequestID = 1
     private let output: OutputBuffer?
+    private var mediaPlayer: MPRISService?
 
     /// Starts the app and waits for it to connect and introduce itself.
     ///
@@ -106,6 +111,8 @@ final class AppConnection: @unchecked Sendable {
                         disconnected = true
                         lock.broadcast()
                     }
+                    // The app is gone, and so is its player.
+                    lock.withLock { mediaPlayer }?.stop()
                     wake()
                     return
                 }
@@ -166,6 +173,17 @@ final class AppConnection: @unchecked Sendable {
             }
         case .pasteboard(let text):
             ClipboardBridge.shared.copy(text)
+        case .nowPlaying(let state):
+            guard capabilities.contains(PreviewCapability.mediaSession) else { break }
+            let service = lock.withLock {
+                if mediaPlayer == nil {
+                    mediaPlayer = MPRISService(
+                        identity: hello.appName, log: { debugLog($0) },
+                        onCommand: { [weak self] in self?.send(.remoteCommand($0)) })
+                }
+                return mediaPlayer
+            }
+            service?.update(state)
         case .hello:
             break
         }
@@ -276,6 +294,7 @@ final class AppConnection: @unchecked Sendable {
     /// Asks the app to exit, and waits up to two seconds before stopping it.
     /// The app saves its state on the way out.
     func close() {
+        lock.withLock { mediaPlayer }?.stop()
         send(.close)
         let deadline = Date().addingTimeInterval(2)
         while process.isRunning, Date() < deadline {

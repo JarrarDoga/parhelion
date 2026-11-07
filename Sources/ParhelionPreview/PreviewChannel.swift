@@ -1,13 +1,14 @@
 // The preview channel uses Linux's socket API. Parhelion's preview runs on
 // Linux; macOS support is planned.
 #if canImport(Glibc)
+import Foundation
 import Glibc
 
 /// One end of a connection between an app and a window host, over a Unix
 /// domain socket.
 ///
-/// A channel is used from one thread at a time for receiving, and from one
-/// thread at a time for sending. Sending blocks until the whole message is
+/// A channel is used from one thread at a time for receiving. Any thread can
+/// send: a lock keeps messages whole. Sending blocks until the whole message is
 /// written; receiving blocks until a whole message arrives or the timeout
 /// passes.
 ///
@@ -25,6 +26,10 @@ public final class PreviewChannel {
 
     private let descriptor: Int32
     private var isClosed = false
+    /// Keeps the bytes of two messages from interleaving when two threads
+    /// send, such as the session's loop and the thread that reports what the
+    /// app plays.
+    private let sendLock = NSLock()
     /// Descriptors that arrived with messages and have not been decoded yet.
     private var receivedDescriptors: [Int32] = []
 
@@ -91,6 +96,8 @@ public final class PreviewChannel {
     }
 
     private func write(_ message: EncodedMessage) throws {
+        sendLock.lock()
+        defer { sendLock.unlock() }
         let pixels = message.pixels ?? []
         try message.head.withUnsafeBytes { head in
             try pixels.withUnsafeBytes { body in

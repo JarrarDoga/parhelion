@@ -78,11 +78,15 @@ public enum PreviewCapability {
     /// The app takes ``PreviewCommand/setScenePhase(_:)``. A host only needs to
     /// see it in the hello.
     public static let scenePhase = "scenePhase"
+    /// The app reports what it plays with ``AppMessage/nowPlaying(_:)`` and
+    /// takes ``HostMessage/remoteCommand(_:)``. The window host welcomes it
+    /// only when it can show the app to the desktop's media controls.
+    public static let mediaSession = "mediaSession"
     /// Every capability a window host can use. ``manualClock`` is not one:
     /// it replaces the host's clock instead of adding to it.
     public static let all = [
         hostClock, sharedFrames, appearance, accessibilityIdentifiers, flowReplay, pasteboard,
-        accessibilitySettings, scenePhase,
+        accessibilitySettings, scenePhase, mediaSession,
     ]
 }
 
@@ -258,6 +262,9 @@ public enum AppMessage: Equatable, Sendable {
     /// Text the app copied, for the host to put on the system clipboard. Only
     /// sent to a host that welcomed ``PreviewCapability/pasteboard``.
     case pasteboard(String)
+    /// What the app plays now. Only an app that lists
+    /// ``PreviewCapability/mediaSession`` and was welcomed with it sends it.
+    case nowPlaying(PreviewNowPlaying)
 }
 
 /// A request from a tool, such as an agent server, that the app answers
@@ -410,6 +417,9 @@ public enum HostMessage: Codable, Equatable, Sendable {
     /// field. Only apps welcomed with ``PreviewCapability/pasteboard``
     /// receive it.
     case paste(String)
+    /// A command from the desktop's media controls. Only apps welcomed with
+    /// ``PreviewCapability/mediaSession`` receive it.
+    case remoteCommand(PreviewRemoteCommand)
 }
 
 /// The wire format: each message is a 4-byte big-endian length, a 1-byte
@@ -435,6 +445,8 @@ enum WireKind: UInt8 {
     case releaseSlot = 8
     /// The copied text, as UTF-8.
     case pasteboard = 9
+    /// JSON ``PreviewNowPlaying``.
+    case nowPlaying = 10
 }
 
 /// A message ready to write: the bytes up to the pixels, the pixels, which
@@ -486,6 +498,8 @@ enum MessageCoding {
                 head: envelope(.sharedMemory, payload), descriptor: memory.descriptor)
         case .pasteboard(let text):
             return EncodedMessage(head: envelope(.pasteboard, Array(text.utf8)))
+        case .nowPlaying(let state):
+            return EncodedMessage(head: envelope(.nowPlaying, try json(state)))
         case .frameUpdate(let update):
             var prefix: [UInt8] = []
             prefix.reserveCapacity(FrameUpdateHeader.size)
@@ -562,6 +576,8 @@ enum MessageCoding {
                 throw PreviewChannel.ChannelError.malformedMessage
             }
             return .frame(PreviewFrame(width: width, height: height, pixels: body))
+        case .nowPlaying:
+            return .nowPlaying(try JSONDecoder().decode(PreviewNowPlaying.self, from: Data(body)))
         case .sharedMemory:
             let decoded = try JSONDecoder().decode(EncodedSharedMemory.self, from: Data(body))
             guard let received = descriptor() else {
