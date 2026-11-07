@@ -6,6 +6,7 @@ var products: [Product] = [
     .library(name: "ParhelionUI", targets: ["ParhelionUI"]),
     .library(name: "ParhelionRender", targets: ["ParhelionRender"]),
     .library(name: "ParhelionPreview", targets: ["ParhelionPreview"]),
+    .library(name: "ParhelionTesting", targets: ["ParhelionTesting"]),
 ]
 
 // `parhelion run` and `parhelion mcp` set PARHELION_OPTIMIZE_FRAMEWORK=1 so that a
@@ -31,6 +32,13 @@ var targets: [Target] = [
         dependencies: ["ParhelionRender", "ParhelionPreview"],
         swiftSettings: frameworkSettings
     ),
+    // Empty until issue #71 adds snapshot testing. It is declared here so that
+    // only issue #49 changes this manifest.
+    .target(
+        name: "ParhelionTesting",
+        dependencies: ["ParhelionUI", "ParhelionRender", "ParhelionPreview"],
+        swiftSettings: frameworkSettings
+    ),
     .testTarget(name: "ParhelionRenderTests", dependencies: ["ParhelionRender"]),
     .testTarget(name: "ParhelionPreviewTests", dependencies: ["ParhelionPreview"]),
     .testTarget(
@@ -42,12 +50,19 @@ var targets: [Target] = [
 // Apple's SwiftUI does not exist on Linux, so Parhelion ships a module with that
 // name there. App code keeps `import SwiftUI` and builds unchanged. On Apple
 // platforms the shim is omitted so it never shadows the real framework.
-// See docs/adr/0001-swiftui-module-shim.md.
+// See docs/adr/0001-swiftui-module-shim.md. MediaPlayer and AVFAudio follow the
+// same pattern, as stand-ins for Apple's frameworks of those names; see
+// docs/adr/0014-mediaplayer-and-avfaudio-shims.md.
 #if os(Linux)
 products.append(.library(name: "SwiftUI", targets: ["SwiftUI"]))
+products.append(.library(name: "MediaPlayer", targets: ["MediaPlayer"]))
+products.append(.library(name: "AVFAudio", targets: ["AVFAudio"]))
 targets += [
     .target(name: "SwiftUI", dependencies: ["ParhelionUI"], swiftSettings: frameworkSettings),
-    .testTarget(name: "SourceCompatibilityTests", dependencies: ["SwiftUI"]),
+    .target(name: "MediaPlayer", swiftSettings: frameworkSettings),
+    .target(name: "AVFAudio", swiftSettings: frameworkSettings),
+    .testTarget(
+        name: "SourceCompatibilityTests", dependencies: ["SwiftUI", "MediaPlayer", "AVFAudio"]),
     .executableTarget(
         name: "HelloParhelion",
         dependencies: ["SwiftUI"],
