@@ -88,7 +88,8 @@ struct FrameworkOptimizationTests {
 struct BuildCommandTests {
     @Test("A debug build sets the variable and uses its own scratch directory")
     func frameworkOnly() throws {
-        let builder = AppBuilder(plan: try plan(appJSON(parhelion: #"{"branch": ["main"]}"#)))
+        let builder = AppBuilder(
+            plan: try plan(appJSON(parhelion: #"{"branch": ["main"]}"#)), jobs: nil)
         let command = builder.buildCommand()
         #expect(
             command.arguments == [
@@ -99,9 +100,31 @@ struct BuildCommandTests {
         #expect(builder.modeDescription.contains("Parhelion optimized"))
     }
 
+    @Test("A job limit reaches swift build, and only the build")
+    func jobLimit() throws {
+        let json = appJSON(parhelion: #"{"branch": ["main"]}"#)
+        let limited = AppBuilder(plan: try plan(json), jobs: 3)
+        #expect(limited.buildCommand().arguments.suffix(2) == ["--jobs", "3"])
+        #expect(!limited.binPathCommand().arguments.contains("--jobs"))
+        let unlimited = AppBuilder(plan: try plan(json), jobs: nil)
+        #expect(!unlimited.buildCommand().arguments.contains("--jobs"))
+    }
+
+    @Test("The job limit comes from the option, then PARHELION_BUILD_JOBS")
+    func jobSources() {
+        let environment = ["PARHELION_BUILD_JOBS": "4"]
+        #expect(Shell.buildJobs(option: nil, environment: environment) == 4)
+        #expect(Shell.buildJobs(option: 2, environment: environment) == 2)
+        #expect(Shell.buildJobs(option: nil, environment: [:]) == nil)
+        #expect(Shell.buildJobs(option: nil, environment: ["PARHELION_BUILD_JOBS": "0"]) == nil)
+        #expect(Shell.buildJobs(option: nil, environment: ["PARHELION_BUILD_JOBS": "many"]) == nil)
+        #expect(Shell.buildJobs(option: nil, environment: ["PARHELION_BUILD_JOBS": " 6 "]) == 6)
+    }
+
     @Test("Asking for the products' directory uses the same location and environment")
     func binPath() throws {
-        let builder = AppBuilder(plan: try plan(appJSON(parhelion: #"{"branch": ["main"]}"#)))
+        let builder = AppBuilder(
+            plan: try plan(appJSON(parhelion: #"{"branch": ["main"]}"#)), jobs: nil)
         let build = builder.buildCommand()
         let binPath = builder.binPathCommand()
         #expect(binPath.environment == build.environment)
@@ -114,7 +137,7 @@ struct BuildCommandTests {
     @Test("A pinned Parhelion falls back to -O for everything and clears the variable")
     func wholeBuild() throws {
         let range = #"{"exact": ["0.1.0"]}"#
-        let builder = AppBuilder(plan: try plan(appJSON(parhelion: range)))
+        let builder = AppBuilder(plan: try plan(appJSON(parhelion: range)), jobs: nil)
         let command = builder.buildCommand()
         #expect(command.arguments.suffix(2) == ["-Xswiftc", "-O"])
         #expect(command.environment == ["PARHELION_OPTIMIZE_FRAMEWORK": "0"])

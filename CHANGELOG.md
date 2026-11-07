@@ -350,7 +350,9 @@ may contain breaking changes.
   Errors from the command reach `parhelion mcp` like Swift errors. The runner package keeps a
   target's linker settings.
 
-- Placeholder for #51 (many `parhelion mcp` sessions on one PC): the change for that issue replaces this line.
+- `--jobs` for `parhelion mcp` and the `PARHELION_BUILD_JOBS` environment variable, which limit the
+  jobs of `swift build`, so many sessions can share one machine. The README states the memory one
+  session needs and how many to run at once, and `Scripts/measure-mcp-sessions.py` measures it.
 
 - The `compare_image` tool in `parhelion mcp`, which renders the screen at a design board's scale
   and returns the share of pixels that differ, within a tolerance, the area they lie in, and a
