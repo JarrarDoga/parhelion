@@ -198,6 +198,8 @@ final class LazyLayoutState {
         /// The identities as text, for finding the state of a row that was
         /// released.
         private var liveIdentities: Set<String>?
+        /// The identities that are paths, of the slots outside a `ForEach`.
+        private var livePaths: [String]?
 
         init(id: NodeID) {
             self.id = id
@@ -217,6 +219,7 @@ final class LazyLayoutState {
             identities = new
             lengths = new.map { known[$0] ?? .nan }
             liveIdentities = nil
+            livePaths = nil
         }
 
         /// Whether `key` is the state of a view in a slot that still exists.
@@ -227,7 +230,7 @@ final class LazyLayoutState {
                 let marker = key.range(
                     of: "ForEach[",
                     range: key.index(key.startIndex, offsetBy: prefix.count)..<key.endIndex)
-            else { return true }
+            else { return retainsOutsideForEach(key) }
             if liveIdentities == nil {
                 liveIdentities = Set(identities.map { String(describing: $0) })
             }
@@ -238,6 +241,20 @@ final class LazyLayoutState {
                 end = key.index(after: close)
             }
             return false
+        }
+
+        /// Whether `key`, the state of a view outside a `ForEach`, is in a
+        /// slot that still exists. Such a slot's identity is its path, so a
+        /// view that an `if` left out loses its state, as in SwiftUI.
+        private func retainsOutsideForEach(_ key: String) -> Bool {
+            if livePaths == nil {
+                livePaths = identities.compactMap { $0.base as? String }
+            }
+            return livePaths!.contains { path in
+                guard key.hasPrefix(path) else { return false }
+                guard let next = key.dropFirst(path.count).first else { return true }
+                return next == "/" || next == "#" || next == "."
+            }
         }
 
         /// Chooses the slots to create.

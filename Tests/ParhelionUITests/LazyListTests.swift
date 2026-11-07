@@ -56,6 +56,38 @@ struct LazyListTests {
         #expect(abs(content - (5000 * 52 + 35 + 35)) < 100)
     }
 
+    @Test("A long list shows only its window of rows in the outline")
+    func longListOutline() throws {
+        let host = ViewHost(
+            List {
+                Section("Songs") {
+                    ForEach(0..<1000, id: \.self) { Text("Song \($0)") }
+                }
+            },
+            device: Device(
+                name: "Test", screenSize: CGSize(width: 200, height: 160),
+                safeAreaInsets: EdgeInsets()))
+        try host.scroll(try listID(host), to: CGPoint(x: 0, y: 26_000))
+        #expect(
+            host.root.outline() == """
+                Root
+                └─ List contentOffset=0, 26000 contentSize=200 × 51879.5
+                   └─ Section lazyCount=1001 lazyResolved=498..<510
+                      ├─ Text "Song 497" listRow
+                      ├─ Text "Song 498" listRow
+                      ├─ Text "Song 499" listRow
+                      ├─ Text "Song 500" listRow
+                      ├─ Text "Song 501" listRow
+                      ├─ Text "Song 502" listRow
+                      ├─ Text "Song 503" listRow
+                      ├─ Text "Song 504" listRow
+                      ├─ Text "Song 505" listRow
+                      ├─ Text "Song 506" listRow
+                      ├─ Text "Song 507" listRow
+                      └─ Text "Song 508" listRow
+                """)
+    }
+
     @Test("A short list is evaluated in full, as before")
     func shortList() throws {
         let host = ViewHost(List(tracks(30)) { Text($0.title) })

@@ -89,6 +89,36 @@ struct LazyStackTests {
                 """)
     }
 
+    @Test("A long lazy horizontal stack shows only its window in the outline")
+    func horizontalOutline() throws {
+        let host = ViewHost(
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 0) {
+                    ForEach(0..<1000, id: \.self) { Text("C\($0)").frame(width: 100) }
+                }
+            },
+            device: Device(
+                name: "Test", screenSize: CGSize(width: 200, height: 120),
+                safeAreaInsets: EdgeInsets()))
+        try host.scroll(try scrollViewID(host), to: CGPoint(x: 25_000, y: 0))
+        #expect(
+            host.root.outline() == """
+                Root
+                └─ ScrollView axes=horizontal contentOffset=25000, 0 contentSize=100000 × 120
+                   └─ LazyHStack lazyCount=1000 lazyResolved=246..<256 spacing=0
+                      ├─ Text "C246" frame(width: 100)
+                      ├─ Text "C247" frame(width: 100)
+                      ├─ Text "C248" frame(width: 100)
+                      ├─ Text "C249" frame(width: 100)
+                      ├─ Text "C250" frame(width: 100)
+                      ├─ Text "C251" frame(width: 100)
+                      ├─ Text "C252" frame(width: 100)
+                      ├─ Text "C253" frame(width: 100)
+                      ├─ Text "C254" frame(width: 100)
+                      └─ Text "C255" frame(width: 100)
+                """)
+    }
+
     @Test("A lazy stack takes the width it is offered and stacks its views")
     func layout() throws {
         let host = ViewHost(
@@ -187,6 +217,32 @@ struct LazyStackTests {
         try host.tapButton(labeled: "Drop")
         #expect(host.nodes(withText: "Row 1: 1").isEmpty)
         #expect(host.nodes(withText: "Row 2: 0").count == 1)
+    }
+
+    @Test("State goes when an if leaves out the view that held it")
+    func conditionalStateDiscarded() throws {
+        struct Rows: View {
+            @State var shown = true
+            var body: some View {
+                VStack {
+                    Button("Toggle") { shown.toggle() }
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            if shown { CountingRow(id: 0) }
+                            ForEach(1..<100, id: \.self) { CountingRow(id: $0) }
+                        }
+                    }
+                }
+            }
+        }
+        let host = ViewHost(Rows(), device: tall)
+        try host.tapButton(labeled: "Row 0: 0")
+        try host.tapButton(labeled: "Row 1: 0")
+        try host.tapButton(labeled: "Toggle")
+        #expect(host.nodes(withText: "Row 0: 1").isEmpty)
+        try host.tapButton(labeled: "Toggle")
+        #expect(host.nodes(withText: "Row 0: 0").count == 1)
+        #expect(host.nodes(withText: "Row 1: 1").count == 1)
     }
 
     @Test("onAppear runs as a row is created, onDisappear as it is released")

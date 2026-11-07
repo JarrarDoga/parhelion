@@ -300,7 +300,8 @@ extension Section: LazyContentSource {
             if hasHeader {
                 inner.slots.append(
                     LazySegment(
-                        count: 1, role: .header, identity: { _ in AnyHashable("header") },
+                        count: 1, role: .header,
+                        identity: { _ in AnyHashable(headerPath.id.rawValue) },
                         make: { _, evaluator in
                             let nodes = evaluator.withEnvironment({
                                 $0.font = LayoutDefaults.listHeaderFont
@@ -317,7 +318,8 @@ extension Section: LazyContentSource {
             if hasFooter {
                 inner.slots.append(
                     LazySegment(
-                        count: 1, role: .footer, identity: { _ in AnyHashable("footer") },
+                        count: 1, role: .footer,
+                        identity: { _ in AnyHashable(footerPath.id.rawValue) },
                         make: { _, evaluator in
                             let nodes = evaluator.withEnvironment({
                                 $0.font = LayoutDefaults.listFooterFont
