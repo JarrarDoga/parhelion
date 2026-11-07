@@ -127,6 +127,10 @@ final class RenderCache {
     /// The glass surfaces drawn in the previous frame and in this one.
     private var previousGlass: Set<EntryKey> = []
     private var currentGlass: Set<EntryKey> = []
+    /// Checksums of the pixels beneath scroll edge effects, in the previous
+    /// frame and in this one.
+    private var previousStamps: [EntryKey: UInt64] = [:]
+    private var currentStamps: [EntryKey: UInt64] = [:]
     private var frame = 0
 
     /// The number of glass surfaces kept, and how many times one was
@@ -139,6 +143,8 @@ final class RenderCache {
         frame += 1
         previousGlass = currentGlass
         currentGlass = []
+        previousStamps = currentStamps
+        currentStamps = [:]
         layerUsed = false
     }
 
@@ -209,8 +215,10 @@ final class RenderCache {
             clip: canvas.clipRect.map {
                 [Double($0.minX), Double($0.minY), Double($0.width), Double($0.height)]
             })
-        reuse(.edge(key), region: canvas.scrollEdgeRegion(effect, in: rect), into: &canvas) {
-            canvas in
+        reuse(
+            .edge(key), region: canvas.scrollEdgeRegion(effect, in: rect), checksummed: true,
+            into: &canvas
+        ) { canvas in
             canvas.drawScrollEdge(effect, in: rect)
         }
     }
@@ -219,7 +227,7 @@ final class RenderCache {
     /// when the pixels of `region`, which `draw` reads and changes, are the
     /// same as then.
     private func reuse(
-        _ key: EntryKey, region: PixelBox, into canvas: inout Canvas,
+        _ key: EntryKey, region: PixelBox, checksummed: Bool = false, into canvas: inout Canvas,
         draw: (inout Canvas) -> Void
     ) {
         currentGlass.insert(key)
@@ -233,10 +241,19 @@ final class RenderCache {
             return
         }
         // Only a drawing that stays where it was is worth keeping: one that
-        // moves or fades would be kept and dropped every frame.
+        // moves or fades would be kept and dropped every frame. A scroll
+        // edge effect covers a large region, which scrolling content under
+        // it changes in every frame, so it is kept only when the pixels it
+        // reads are the same as in the previous frame, by a checksum.
         let replaced = glass[key].map(Self.bytes(of:)) ?? 0
+        var still = true
+        if checksummed {
+            let sum = canvas.checksum(of: region)
+            still = previousStamps[key] == sum
+            currentStamps[key] = sum
+        }
         let keep =
-            previousGlass.contains(key)
+            previousGlass.contains(key) && still
             && glassBytes - replaced + region.area * 8 <= Self.glassByteLimit
         let before = keep ? canvas.pixels(in: region) : []
         draw(&canvas)

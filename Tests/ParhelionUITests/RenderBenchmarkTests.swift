@@ -156,3 +156,105 @@ func glassAnimationTiming() throws {
         timeAnimation("list scrolling under the toolbar", scale: scale, limit: 120, host: list)
     }
 }
+
+/// A long list under an inline title and a tab bar, scrolled under both.
+private struct EdgeInbox: View {
+    var style: ScrollEdgeEffectStyle?
+    var hidden: Bool
+
+    var body: some View {
+        TabView {
+            Tab("Inbox", systemImage: "tray") {
+                NavigationStack {
+                    List(1..<61, id: \.self) { Text("Message \($0)") }
+                        .navigationTitle("Inbox")
+                        .navigationBarTitleDisplayMode(.inline)
+                }
+                .scrollEdgeEffectStyle(style, for: .all)
+                .scrollEdgeEffectHidden(hidden, for: .all)
+            }
+        }
+    }
+}
+
+/// The CPU time this process has used, which other programs' load on the
+/// machine changes much less than the time on the clock.
+private func cpuSeconds() -> Double {
+    Double(clock()) / Double(CLOCKS_PER_SEC)
+}
+
+@MainActor
+@Test(
+    "Scroll edge effect timing",
+    .enabled(if: ProcessInfo.processInfo.environment["PARHELION_BENCHMARK"] != nil)
+)
+func scrollEdgeTiming() throws {
+    for scale in [2.0, 3.0] {
+        for (name, style, hidden) in [
+            ("hidden", ScrollEdgeEffectStyle?.none, true), ("soft", .soft, false),
+            ("hard", .hard, false),
+        ] {
+            let host = ViewHost(EdgeInbox(style: style, hidden: hidden))
+            let list = try #require(host.root.allNodes.first { $0.kind == "List" })
+            _ = host.render(scale: scale, chrome: .screen)
+            // A fling: a frame for every scrolled position, each drawn
+            // through the cache as the preview draws it.
+            var wall = Duration.zero
+            let cpuStart = cpuSeconds()
+            let clock = ContinuousClock()
+            let frames = 120
+            for frame in 1...frames {
+                try host.scroll(list.id, to: CGPoint(x: 0, y: 3.7 * Double(frame)))
+                wall += clock.measure { _ = host.render(scale: scale, chrome: .screen) }
+            }
+            let cpu = (cpuSeconds() - cpuStart) / Double(frames)
+            print(
+                "BENCH scrolling under both bars, \(name) edge effect at \(Int(scale))×: "
+                    + "\(wall / frames) per frame, \(Int(cpu * 1000 * 100) / 100) ms CPU per frame")
+        }
+    }
+}
+
+@MainActor
+@Test(
+    "Scroll edge effect drawing timing",
+    .enabled(if: ProcessInfo.processInfo.environment["PARHELION_BENCHMARK"] != nil)
+)
+func scrollEdgeDrawingTiming() throws {
+    let clock = ContinuousClock()
+    let rect = CGRect(x: 0, y: 0, width: 393, height: 101)
+    for scale in [2.0, 3.0] {
+        var canvas = Canvas(width: 393, height: 852, scale: scale, background: .white)
+        for y in stride(from: 0, to: 852, by: 28) {
+            canvas.fill(
+                CGRect(x: 0, y: y, width: 393, height: 14), color: RGBA(red: 0, green: 0, blue: 0))
+        }
+        let palette = ColorPalette.appearance(.light)
+        let effects: [(String, ScrollEdgeEffect)] = [
+            (
+                "soft",
+                ScrollEdgeEffect(
+                    kind: .soft(peak: ColorPalette.softScrollEdgePeak),
+                    blurRadius: ColorPalette.softScrollEdgeBlurRadius, atTop: true)
+            ),
+            (
+                "hard",
+                ScrollEdgeEffect(
+                    kind: .hard(
+                        tint: palette.hardScrollEdge.tint, line: palette.hardScrollEdge.line),
+                    blurRadius: ColorPalette.hardScrollEdgeBlurRadius, atTop: true)
+            ),
+        ]
+        for (name, effect) in effects {
+            var copy = canvas
+            let time = clock.measure {
+                for _ in 0..<20 { copy.drawScrollEdge(effect, in: rect) }
+            }
+            let region = canvas.scrollEdgeRegion(effect, in: rect)
+            let sum = clock.measure { for _ in 0..<20 { _ = canvas.checksum(of: region) } }
+            print(
+                "BENCH \(name) scroll edge effect at \(Int(scale))×: \(time / 20) to draw, "
+                    + "\(sum / 20) to checksum its region")
+        }
+    }
+}

@@ -353,8 +353,11 @@ blurs with a radius of 6 under a tint (white at 85% in light, black at 55% in da
 hairline along the inner edge. The top effect runs from the top of the screen to 6 points below
 the bar's row of buttons, or to the bottom of a large title's bar; the bottom effect from 16
 points above the tab bar to the bottom of the screen. Hit testing reaches a navigation bar before
-the screen it covers. `RenderCache` keeps an effect that stays where it was with the pixels it
-read and left, as it does glass, and copies it while the pixels beneath do not change.
+the screen it covers. The effect blurs only the pixels inside its rectangle, on blocks of them
+resampled bilinearly, so its cost follows the rectangle (about 2 to 6 ms at 2× and 3×). `RenderCache`
+keeps an effect that stays where it was with the pixels it read and left, as it does glass, and
+copies it while the pixels beneath do not change; a checksum of those pixels tells whether they
+changed, so a list scrolling under the bar does not pay for copies.
 
 ### Lists
 
