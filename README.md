@@ -321,13 +321,27 @@ Parhelion draws `Image(systemName:)` with Phosphor Icons, because Apple's licens
 Parhelion ship SF Symbols. If you have the SF Symbols app, Parhelion can draw your copy instead,
 in the font's weight. It contains none, and downloads none.
 
-In the SF Symbols app, select the symbols you use (or all of them), choose File > Export Symbol,
-save them as SVG into a folder, and import the folder:
+Export the symbols as SVG on a Mac with the SF Symbols app, either from the app (select the
+symbols, then File > Export Symbol) or all of them at once with the command-line tool inside it,
+which takes a few minutes for about 9,600 symbols:
 
 ```sh
-parhelion symbols import ~/Documents/symbols
+APP="/Applications/SF Symbols.app/Contents"
+plutil -extract symbols json -o - "$APP/Resources/Metadata/name_availability.plist" \
+  | python3 -c 'import json, sys; print("\n".join(sorted(json.load(sys.stdin))))' > names.txt
+"$APP/Executables/sfsymbols" export --names-file names.txt --output-dir ~/symbols \
+  --continue-on-error --quiet
+```
+
+Copy the folder to the Linux machine and import it:
+
+```sh
+parhelion symbols import ~/symbols
 parhelion symbols status
 ```
+
+An export holds the Ultralight, Regular, and Black outlines of each symbol; Parhelion
+interpolates the weights between them.
 
 That copies only the outlines Parhelion draws, to `~/.local/share/parhelion/symbols`, never into a
 repository or a build. Instead of importing, set `PARHELION_SF_SYMBOLS` to the folder of exports.
@@ -433,6 +447,8 @@ order of work.
 - Linux on x86_64. CI tests x86_64 only; arm64 should work but is not tested yet.
 - Swift 6.3 or later
 - SDL3, only for the `parhelion` preview window
+- Optional: your own SF Symbols. They are not in this repository and never will be; without them,
+  `Image(systemName:)` draws Phosphor Icons. See [Your own SF Symbols](#your-own-sf-symbols).
 
 The `SwiftUI` module exists only on Linux, so it never shadows Apple's framework.
 

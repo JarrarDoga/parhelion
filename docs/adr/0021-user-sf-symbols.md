@@ -8,9 +8,9 @@
 [ADR 0007](0007-phosphor-symbol-images.md) draws SF Symbol names with Phosphor Icons because
 Apple's license forbids shipping SF Symbols outside Apple platforms. A person who builds iOS apps
 can have their own copy, and would see their real symbols in the preview. Parhelion must not
-contain, download, or redistribute them, and CI and tests must not need them. No copy was
-available when this was written, so the sources below come from other projects' public notes,
-not from opening Apple's files.
+contain, download, or redistribute them, and CI and tests must not need them. The first draft
+came from other projects' public notes; the findings from a real copy (SF Symbols 27, opened on
+2026-11-08) are at the end.
 
 Candidate sources in a user's copy:
 
@@ -60,3 +60,22 @@ Candidate sources in a user's copy:
 - Layers, hierarchical and palette rendering, and symbol effects are not used: each symbol is one
   outline in the foreground style.
 - The license question stays with the user, and the README says so.
+
+## Findings from a real copy
+
+SF Symbols 27, the DMG from Apple's site, unpacked on Linux with 7z and cpio:
+
+- The app holds `Resources/Fonts/SFSymbolsFallback.otf`, a variable CFF2 font with a weight axis,
+  whose 10,513 symbol glyphs sit at U+100000 and up with names like `uni100000.medium`. The map
+  from symbol names to those code points is in private tables (`symp`, `syls`, `syot`) that are
+  encrypted. `Library/Fonts/SF-Pro.ttf` is TrueType with 8,564 such glyphs and no names either.
+  The metadata plists list the 9,649 names, their releases, and their aliases, but no code points.
+- The app also holds a command-line tool, `Contents/Executables/sfsymbols`, whose `export`
+  subcommand writes the same SVG templates as File > Export Symbol, for a list of names in one run.
+  On an M4 MacBook Air it exported all 9,649 in a few minutes, about 200 MB of SVG.
+- Each template holds three groups, `Ultralight-S`, `Regular-S`, and `Black-S`, with the same
+  points in each, so Apple interpolates the other weights. The reader takes the medium scale when
+  an export has it and otherwise the small scale, enlarged by 1 / 0.78 to medium, and interpolates
+  a missing weight between the nearest two present ones when their outlines match point for point.
+  The import keeps those groups, about 65 MB for all symbols.
+

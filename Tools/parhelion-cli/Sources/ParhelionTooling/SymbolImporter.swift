@@ -35,7 +35,7 @@ public enum SymbolImporter {
                 Symbol, save them as SVG into a folder, and import that folder.
                 """
             case .empty(let path):
-                "\(path) has no SVG exports of SF Symbols (files with Regular-M, Bold-M, and similar groups)."
+                "\(path) has no SVG exports of SF Symbols (files with Regular-S, Regular-M, and similar groups)."
             case .destinationInsideRepository(let path):
                 "\(path) is inside a Git repository. SF Symbols must not be committed, so Parhelion won't write them there."
             }
@@ -86,7 +86,8 @@ public enum SymbolImporter {
             if readable.isEmpty || name.contains("/") || name.hasPrefix(".") {
                 report.skipped.append(name)
             } else {
-                written[name] = SymbolTemplate.trimmedSVG(readable)
+                written[name] = SymbolTemplate.trimmedSVG(
+                    readable, scale: SymbolTemplate.scaleName(inSVG: svg) ?? "M")
             }
         }
         guard !written.isEmpty else { throw Failure.empty(source) }

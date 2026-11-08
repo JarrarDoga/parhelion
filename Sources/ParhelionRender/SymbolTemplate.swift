@@ -9,13 +9,25 @@ import Foundation
 /// exports symbols as SVG templates and points Parhelion at the folder, or
 /// imports it with `parhelion symbols import`. An export has one group per
 /// weight and scale, named `Regular-M`, `Bold-S`, and so on, each holding the
-/// outline as path data. Parhelion reads the medium-scale group of each
-/// weight, because a symbol's frame already has the size of its image scale.
+/// outline as path data. Current exports hold only `Ultralight-S`,
+/// `Regular-S`, and `Black-S`, from which Apple's renderer interpolates the
+/// other weights and scales; older ones hold every weight in every scale.
+/// Parhelion reads one scale, medium if the export has it, and scales the
+/// outlines to medium, because a symbol's frame already has the size of its
+/// image scale. A weight the export lacks is interpolated between the two
+/// nearest ones when their outlines have the same points.
 public enum SymbolTemplate {
     /// The weights of a template, from lightest to heaviest, as the groups
     /// of an export spell them.
     public static let weightNames = [
         "Ultralight", "Thin", "Light", "Regular", "Medium", "Semibold", "Bold", "Heavy", "Black",
+    ]
+
+    /// The scales of a template in the order Parhelion prefers them, and the
+    /// size of each relative to medium. Apple's small and large scales are
+    /// about 0.78 and 1.29 of medium.
+    public static let scales: [(name: String, size: Double)] = [
+        ("M", 1), ("S", 0.78), ("L", 1.29),
     ]
 
     /// The index in ``weightNames`` of the weight closest to a weight on the
@@ -28,20 +40,99 @@ public enum SymbolTemplate {
     /// export's coordinates: x to the right, y down, and the origin at the
     /// symbol's baseline and left edge. A weight the export lacks, or whose
     /// data is malformed, is missing from the result.
+    /// Outlines are at medium scale; the weights between two present ones are
+    /// interpolated where their outlines match point for point.
     public static func outlines(inSVG svg: String) -> [Int: Path] {
+        let scale = scaleName(inSVG: svg) ?? "M"
+        let factor = 1 / (scales.first { $0.name == scale }?.size ?? 1)
+        var data = pathData(inSVG: svg)
+        let present = data.keys.sorted()
+        for index in weightNames.indices where data[index] == nil {
+            guard let below = present.last(where: { $0 < index }),
+                let above = present.first(where: { $0 > index }),
+                let a = data[below], let b = data[above]
+            else { continue }
+            let t = Double(index - below) / Double(above - below)
+            data[index] = interpolate(a, b, t)
+        }
         var result: [Int: Path] = [:]
-        for (index, data) in pathData(inSVG: svg) {
-            if let path = Path(svgPathData: data) { result[index] = path }
+        for (index, text) in data {
+            guard let path = Path(svgPathData: text) else { continue }
+            result[index] =
+                factor == 1
+                ? path : path.applying(scaleX: factor, scaleY: factor, translateX: 0, translateY: 0)
         }
         return result
     }
 
-    /// The path data of each weight's medium-scale group, by index in
-    /// ``weightNames``.
+    /// The scale whose groups ``pathData(inSVG:)`` reads: the first of
+    /// ``scales`` that the export has for any weight.
+    public static func scaleName(inSVG svg: String) -> String? {
+        scales.map(\.name).first { scale in
+            weightNames.contains { groupContents(id: $0 + "-" + scale, in: svg) != nil }
+        }
+    }
+
+    /// The path data between two outlines that have the same commands and
+    /// the same count of numbers, a fraction `t` of the way from `a` to `b`;
+    /// nil if they differ.
+    public static func interpolate(_ a: String, _ b: String, _ t: Double) -> String? {
+        let (skeletonA, numbersA) = split(a)
+        let (skeletonB, numbersB) = split(b)
+        guard skeletonA == skeletonB, numbersA.count == numbersB.count else { return nil }
+        var out = ""
+        var next = 0
+        for part in skeletonA {
+            if part == "#" {
+                let value = numbersA[next] + (numbersB[next] - numbersA[next]) * t
+                out += " " + String((value * 1000).rounded() / 1000) + " "
+                next += 1
+            } else {
+                out.append(part)
+            }
+        }
+        return out
+    }
+
+    /// Path data as its letters with each number replaced by `#`, and the numbers.
+    private static func split(_ data: String) -> (String, [Double]) {
+        var skeleton = ""
+        var numbers: [Double] = []
+        var current = ""
+        func flush() {
+            if !current.isEmpty, let value = Double(current) {
+                numbers.append(value)
+                skeleton.append("#")
+            }
+            current = ""
+        }
+        for character in data {
+            if character.isNumber || character == "." && !current.contains(".")
+                || (character == "-" && current.isEmpty)
+                || ((character == "-" || character == "+") && current.last == "e")
+                || (character == "e" && !current.isEmpty)
+            {
+                current.append(character)
+            } else {
+                flush()
+                if character == "-" || character == "." {
+                    current.append(character)
+                } else if !character.isWhitespace && character != "," {
+                    skeleton.append(character)
+                }
+            }
+        }
+        flush()
+        return (skeleton, numbers)
+    }
+
+    /// The path data of each weight's group in one scale (see
+    /// ``scaleName(inSVG:)``), by index in ``weightNames``.
     public static func pathData(inSVG svg: String) -> [Int: String] {
         var result: [Int: String] = [:]
+        guard let scale = scaleName(inSVG: svg) else { return result }
         for (index, weight) in weightNames.enumerated() {
-            guard let group = groupContents(id: weight + "-M", in: svg) else { continue }
+            guard let group = groupContents(id: weight + "-" + scale, in: svg) else { continue }
             var parts: [String] = []
             var rest = Substring(group)
             while let start = rest.range(of: "<path") {
@@ -56,13 +147,14 @@ public enum SymbolTemplate {
         return result
     }
 
-    /// A small SVG with only the medium-scale outlines that
-    /// ``pathData(inSVG:)`` found, which is what `parhelion symbols import`
-    /// keeps of an export.
-    public static func trimmedSVG(_ data: [Int: String]) -> String {
+    /// A small SVG with only the outlines that ``pathData(inSVG:)`` found,
+    /// in their scale, which is what `parhelion symbols import` keeps of an
+    /// export.
+    public static func trimmedSVG(_ data: [Int: String], scale: String = "M") -> String {
         var svg = "<svg xmlns=\"http://www.w3.org/2000/svg\">\n"
         for index in data.keys.sorted() {
-            svg += "<g id=\"\(weightNames[index])-M\"><path d=\"\(data[index] ?? "")\"/></g>\n"
+            svg +=
+                "<g id=\"\(weightNames[index])-\(scale)\"><path d=\"\(data[index] ?? "")\"/></g>\n"
         }
         return svg + "</svg>\n"
     }

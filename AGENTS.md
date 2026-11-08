@@ -11,6 +11,10 @@ changing anything under `Sources/`.
   or `--json`, or `--png PATH` to draw it. `swift run Counter` is an interactive example.
 - `PARHELION_BENCHMARK=1 swift test --filter "renderTiming|canvasTiming|primitiveTiming|glassTiming"` prints layout and render
   timings. Add `-c release -Xswiftc -enable-testing` for optimized numbers.
+- SF Symbols are never in this repository. A machine may have the owner's copy in
+  `~/.local/share/parhelion/symbols` (see the README); without it, `Image(systemName:)` draws
+  Phosphor. Tests never need SF Symbols, and `Scripts/check-no-sf-symbols.sh` fails CI if any are
+  committed.
 - To check rendering, write a PNG with `--png` and look at it. Never open windows on the user's
   desktop from a shell; the window host is for the user to run.
 - Before you finish, run the same checks as CI:

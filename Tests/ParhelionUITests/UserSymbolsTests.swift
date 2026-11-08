@@ -108,7 +108,7 @@ struct UserSymbolsTests {
         #expect(SymbolLibrary.resolve("star").source == .phosphor)
     }
 
-    @Test("The font weight picks the weight, and the nearest one stands in for a missing one")
+    @Test("The font weight picks the weight; a missing one is interpolated, or the nearest stands in")
     func weights() throws {
         let files = ["test.weighted.svg": export(squares: ["Regular": 40, "Bold": 60])]
         try withUserSymbols(files) {
@@ -119,8 +119,9 @@ struct UserSymbolsTests {
             }
             #expect(abs(width(.regular) - 0.4) < 0.001)
             #expect(abs(width(.bold) - 0.6) < 0.001)
-            // Semibold is closer to bold, light to regular, black to bold.
-            #expect(abs(width(.semibold) - 0.6) < 0.001)
+            // Semibold lies between regular and bold, two thirds of the way.
+            // Outside the two, the nearest stands in.
+            #expect(abs(width(.semibold) - (0.4 + 0.2 * 2 / 3)) < 0.001)
             #expect(abs(width(.light) - 0.4) < 0.001)
             #expect(abs(width(.ultraLight) - 0.4) < 0.001)
             #expect(abs(width(.black) - 0.6) < 0.001)
@@ -173,5 +174,27 @@ struct UserSymbolsTests {
             let outside = frame.color(at: CGPoint(x: 120, y: 100))
             #expect(outside.green > 200)
         }
+    }
+
+    @Test func currentExportsHoldThreeSmallWeights() {
+        // Current templates hold Ultralight, Regular, and Black at small
+        // scale. The others are interpolated, and outlines grow to medium.
+        let svg =
+            "<svg><g id=\"Ultralight-S\"><path d=\"M0 0H10V-10H0Z\"/></g>"
+            + "<g id=\"Regular-S\"><path d=\"M0 0H40V-40H0Z\"/></g>"
+            + "<g id=\"Black-S\"><path d=\"M0 0H90V-90H0Z\"/></g></svg>"
+        #expect(SymbolTemplate.scaleName(inSVG: svg) == "S")
+        let outlines = SymbolTemplate.outlines(inSVG: svg)
+        #expect(outlines.count == SymbolTemplate.weightNames.count)
+        let width = { (index: Int) in Double(outlines[index]?.boundingRect?.width ?? 0) }
+        #expect(abs(width(3) - 40 / 0.78) < 0.01)
+        // Bold (6) is three fifths of the way from Regular (3) to Black (8).
+        #expect(abs(width(6) - 70 / 0.78) < 0.01)
+        #expect(width(1) > width(0) && width(1) < width(3))
+    }
+
+    @Test func outlinesThatDifferAreNotInterpolated() {
+        #expect(SymbolTemplate.interpolate("M0 0H10Z", "M0 0H10V5Z", 0.5) == nil)
+        #expect(SymbolTemplate.interpolate("M0-1L2.5 3", "M2-3L4.5 5", 0.5)?.split(separator: " ").count == 6)
     }
 }
