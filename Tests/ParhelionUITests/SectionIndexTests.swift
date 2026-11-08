@@ -53,7 +53,7 @@ struct SectionIndexTests {
         #expect(
             host.root.outline() == """
                 Root
-                └─ List overlay(alignment: trailing) contentOffset=0, 0 contentSize=300 × 228
+                └─ List overlay(alignment: trailing) contentOffset=0, 0 contentSize=300 × 223
                    ├─ Section sectionIndexLabel=A
                    │  ├─ SectionHeader
                    │  │  └─ Text "One" font=headline
@@ -62,12 +62,12 @@ struct SectionIndexTests {
                    │  ├─ SectionHeader
                    │  │  └─ Text "Two" font=headline
                    │  └─ Text "b" listRow
-                   └─ Overlay
+                   └─ Overlay sectionIndex=true
                       └─ VStack gesture(drag(minimumDistance: 0)) foregroundStyle=tint spacing=0
                          ├─ Button buttonStyle=plain
-                         │  └─ Text "A" frame(width: 28, height: 16) font=system(11).semibold
+                         │  └─ Text "A" frame(width: 15, height: 13.75) frame(width: 28, alignment: trailing) font=system(11).semibold
                          └─ Button buttonStyle=plain
-                            └─ Text "B" frame(width: 28, height: 16) font=system(11).semibold
+                            └─ Text "B" frame(width: 15, height: 13.75) frame(width: 28, alignment: trailing) font=system(11).semibold
                 """)
     }
 
@@ -139,6 +139,17 @@ struct SectionIndexTests {
                 $0.kind == "Section" && $0.attributes["sectionIndexLabel"] == "M"
             }?.frame)
         #expect(abs(section.minY - bar.maxY) < 0.5)
+    }
+
+    @Test("In a navigation stack the index is centered in the list below the bar")
+    func centeredBelowBar() throws {
+        let host = ViewHost(
+            NavigationStack { Browse().navigationTitle("Browse") }, device: .iPhone16)
+        let bar = try #require(host.root.allNodes.first { $0.kind == "NavigationBar" }?.frame)
+        let column = try #require(host.root.allNodes.first { $0.kind == "VStack" }?.frame)
+        let bottom = Device.iPhone16.safeArea.maxY
+        #expect(abs(column.midY - (bar.maxY + bottom) / 2) < 0.5)
+        #expect(column.maxX == Device.iPhone16.screenSize.width)
     }
 
     @Test("A hidden index draws nothing")

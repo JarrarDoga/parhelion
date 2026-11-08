@@ -52,6 +52,13 @@ extension LayoutEngine {
                 .dropFirst(rank).first
         else { return placed }
         var overlay = placed.children[index]
+        var rect = rect
+        // A list's section index is centered in the part of the list that
+        // its content shows in, below a navigation bar.
+        if overlay.attributes["sectionIndex"] == "true", let metrics = scrolling.metrics[node.id] {
+            let top = min(max(metrics.viewport.minY + metrics.topInset, rect.minY), rect.maxY)
+            rect = CGRect(x: rect.minX, y: top, width: rect.width, height: rect.maxY - top)
+        }
         overlay.frame = rect
         overlay.children = overlay.children.map { child in
             let size = sizeThatFits(child, ProposedSize(rect.size), parentAxis: nil)

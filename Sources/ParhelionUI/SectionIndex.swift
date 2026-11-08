@@ -75,14 +75,18 @@ extension SectionIndexLabelView: PrimitiveView {
 
 // MARK: - The index
 
-/// Measurements of the index. Assumed, not measured on a device: iOS's index
-/// is a column of small semibold letters, about 16 points apart, with a
-/// touch area wider than the letters.
+/// Measurements of the index: a column of small semibold letters with a
+/// touch area wider than the letters, centered in the part of the list below
+/// a navigation bar. Measured on an iPhone 18 Pro Max on iOS 27.2, the
+/// letters are 13.75 points apart and centered 7.5 points from the list's
+/// trailing edge; the width of the touch area is assumed.
 enum SectionIndex {
     /// The width of the column, which is also the touch area of a letter.
     static let width: CGFloat = 28
+    /// The width the letters are centered in, at the trailing edge.
+    static let letterWidth: CGFloat = 15
     /// The distance between the centers of two letters.
-    static let pitch: CGFloat = 16
+    static let pitch: CGFloat = 13.75
     /// The size of a letter.
     static let fontSize: CGFloat = 11
 
@@ -120,6 +124,7 @@ enum SectionIndex {
         let overlayPath = ViewPath().appending(listID.rawValue).appending("overlay")
         let index = ViewNode(
             id: overlayPath.appending("SectionIndex").id, kind: "Overlay",
+            attributes: ["sectionIndex": "true"],
             children: evaluator.evaluate(view, at: overlayPath.appending("SectionIndex")))
         list.children.append(index)
         list.modifiers.append(.overlay(alignment: .trailing))
@@ -158,7 +163,8 @@ private struct SectionIndexView: View {
                 } label: {
                     Text(label)
                         .font(.system(size: SectionIndex.fontSize, weight: .semibold))
-                        .frame(width: SectionIndex.width, height: SectionIndex.pitch)
+                        .frame(width: SectionIndex.letterWidth, height: SectionIndex.pitch)
+                        .frame(width: SectionIndex.width, alignment: .trailing)
                 }
                 .buttonStyle(.plain)
             }

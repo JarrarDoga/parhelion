@@ -213,7 +213,12 @@ extension Section: PrimitiveView {
         // set inside them overrides.
         let inList = evaluator.environment.isInList
         func labelFont(_ font: Font) -> (inout EnvironmentValues) -> Void {
-            { if inList { $0.font = font } }
+            {
+                if inList {
+                    $0.font = font
+                    $0.isInSectionLabel = true
+                }
+            }
         }
         let headerNodes = evaluator.withEnvironment(labelFont(LayoutDefaults.listHeaderFont)) {
             evaluator.evaluate(header, at: headerPath)
@@ -249,12 +254,23 @@ struct IsInListKey: EnvironmentKey {
     static var defaultValue: Bool { false }
 }
 
+struct IsInSectionLabelKey: EnvironmentKey {
+    static var defaultValue: Bool { false }
+}
+
 extension EnvironmentValues {
     /// Whether the view is in a ``List``, where sections style their headers
     /// and footers.
     var isInList: Bool {
         get { self[IsInListKey.self] }
         set { self[IsInListKey.self] = newValue }
+    }
+
+    /// Whether the view is in the header or footer of a section of a
+    /// ``List``, rather than in one of its rows.
+    var isInSectionLabel: Bool {
+        get { self[IsInSectionLabelKey.self] }
+        set { self[IsInSectionLabelKey.self] = newValue }
     }
 }
 

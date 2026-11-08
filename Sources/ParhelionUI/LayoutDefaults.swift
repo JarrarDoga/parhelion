@@ -92,18 +92,37 @@ enum LayoutDefaults {
     /// starts right below a large title's bar, so there is no space above.
     static let listContentInsets = EdgeInsets(top: 0, leading: 16, bottom: 20, trailing: 16)
 
-    /// Assumed: the space between the sections of a grouped list, from the
-    /// bottom of one section's footer to the top of the next one's header,
-    /// in the iOS 27 UI Kit.
-    static let listSectionSpacing: CGFloat = 20
+    /// The space between the sections of a grouped list, from the bottom of
+    /// one section's footer to the top of the next one's header. Measured on
+    /// an iPhone 18 Pro Max on iOS 27.2: with one-line headers, the groups
+    /// of rows of two sections are 58 points apart, which this and
+    /// ``listHeaderInsets`` add up to.
+    static let listSectionSpacing: CGFloat = 17
 
     /// Assumed: the corner radius of a section in an inset grouped list, in
     /// the iOS 27 UI Kit, with continuous corners.
     static let listCornerRadius: CGFloat = 26
 
-    /// Assumed: the insets around a section header in a list: one line of
-    /// header text makes a 42-point block in the iOS 27 UI Kit.
-    static let listHeaderInsets = EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16)
+    /// The insets around a section header in a list: one line of header
+    /// text makes a 41-point block. The iOS 27 UI Kit draws a 42-point one,
+    /// but on an iPhone 18 Pro Max on iOS 27.2 the header text sits 1 point
+    /// closer to its rows.
+    static let listHeaderInsets = EdgeInsets(top: 10, leading: 16, bottom: 9, trailing: 16)
+
+    /// The width of the column that holds the icon of a ``Label`` in a list
+    /// row, and the space between it and the title. Measured on an iPhone 18
+    /// Pro Max on iOS 27.2: icons are centered 12 points from the row's
+    /// leading content edge, and titles, and the separators below those
+    /// rows, start 40 points from it.
+    static let listLabelIconWidth: CGFloat = 24
+    static let listLabelSpacing: CGFloat = 16
+
+    /// How much larger the symbol of a ``Label`` in a list row is than the
+    /// same symbol beside text. Measured on an iPhone 18 Pro Max on iOS
+    /// 27.2: `house`, `building.2`, and `figure.run` are 1.2 to 1.26 times
+    /// the size they are in a label outside a list, smaller than the large
+    /// image scale.
+    static let listLabelIconScale: CGFloat = 1.24
 
     /// Assumed: the insets around a section footer in a list: one line of
     /// footer text makes a 30-point block, 8 points below the cells, in the
