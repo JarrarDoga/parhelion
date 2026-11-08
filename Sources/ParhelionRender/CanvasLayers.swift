@@ -387,16 +387,18 @@ extension Canvas {
                                             {
                                                 // The row's pixels are blended in groups of four from
                                                 // its first, and the same pixels must share a group
-                                                // as when none is skipped, which rounds alike.
+                                                // as when none is skipped, which rounds alike. A
+                                                // group that holds a pixel outside the run is not
+                                                // skipped.
                                                 let first = columnRange.lowerBound
                                                 let low =
                                                     first
                                                     + (originX + run.lowerBound - visible.minX
-                                                        - first) / 4 * 4
+                                                        - first + 3) / 4 * 4
                                                 let high =
                                                     first
                                                     + (originX + run.upperBound - visible.minX
-                                                        - first + 3) / 4 * 4
+                                                        - first) / 4 * 4
                                                 let leftEnd = max(
                                                     min(low, columnRange.upperBound), first)
                                                 let rightStart = min(
