@@ -151,13 +151,13 @@ struct TabViewTests {
                    │     └─ Text "Increment"
                    └─ TabBar
                       ├─ Button selected=true
-                      │  ├─ Image font=system(18) symbolVariant=fill systemName=house
+                      │  ├─ Image font=system(23) symbolVariant=fill systemName=house
                       │  └─ Text "Home" font=system(10).semibold
                       ├─ Button
-                      │  ├─ Image font=system(18) symbolVariant=fill systemName=books.vertical
+                      │  ├─ Image font=system(23) symbolVariant=fill systemName=books.vertical
                       │  └─ Text "Library" font=system(10).semibold
                       └─ Button label=Search role=search
-                         └─ Image font=system(17) systemName=magnifyingglass
+                         └─ Image font=system(24) systemName=magnifyingglass
                 """)
     }
 
@@ -221,7 +221,7 @@ struct TabViewTests {
         #expect(
             try node(host, "TabView/bar/1").outline() == """
                 Button selected=true
-                ├─ Image font=system(18) symbolVariant=fill systemName=star
+                ├─ Image font=system(23) symbolVariant=fill systemName=star
                 └─ Text "Second" font=system(10).semibold
                 """)
     }
@@ -239,10 +239,10 @@ struct TabViewTests {
                    │     └─ Text "Increment"
                    └─ TabBar
                       ├─ Button selected=true
-                      │  ├─ Image font=system(18) symbolVariant=fill systemName=number
+                      │  ├─ Image font=system(23) symbolVariant=fill systemName=number
                       │  └─ Text "Count" font=system(10).semibold
                       └─ Button
-                         ├─ Image font=system(18) symbolVariant=fill systemName=star
+                         ├─ Image font=system(23) symbolVariant=fill systemName=star
                          └─ Text "Star" font=system(10).semibold
                 """)
         try host.tapButton(labeled: "Increment")
@@ -286,13 +286,34 @@ struct TabViewTests {
             try node(host, "TabView/bar/1").frame == CGRect(x: 115, y: 421, width: 86, height: 54))
         #expect(
             try node(host, "TabView/bar/2").frame == CGRect(x: 217, y: 417, width: 62, height: 62))
-        // The symbol is centered 21 points below the top of the tab, and the
+        // The symbol is centered 20 points below the top of the tab, and the
         // title starts 36 points below it.
-        #expect(try node(host, "bar/0/Image").frame == CGRect(x: 63, y: 433, width: 18, height: 18))
+        #expect(
+            try node(host, "bar/0/Image").frame
+                == CGRect(x: 60.5, y: 429.5, width: 23, height: 23))
         #expect(try node(host, "bar/0/Text").frame?.minY == 457)
         // Content that does not scroll is centered above the bar.
         let content = try #require(host.root.children[0].children[0].frame)
         #expect(abs(content.midY - (40 + 417) / 2) < 0.01)
+    }
+
+    @Test("A lone tab keeps its width, and the capsule fits around it")
+    func loneTab() throws {
+        struct Lone: View {
+            var body: some View {
+                TabView {
+                    Tab("Home", systemImage: "house") { Text("Home") }
+                    Tab(role: .search) { Text("Search") }
+                }
+            }
+        }
+        let host = ViewHost(Lone(), device: .iPhone18ProMax)
+        // Measured on an iPhone 18 Pro Max: the capsule is 102 points wide,
+        // from 21 to 123, and the search tab's circle is at the trailing end.
+        #expect(
+            try node(host, "TabView/bar/0").frame == CGRect(x: 29, y: 877, width: 86, height: 54))
+        #expect(
+            try node(host, "TabView/bar/1").frame == CGRect(x: 357, y: 873, width: 62, height: 62))
     }
 
     @Test("A list fills the tab and can scroll its last row above the bar")

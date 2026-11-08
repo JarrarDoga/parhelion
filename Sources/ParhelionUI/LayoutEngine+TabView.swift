@@ -88,14 +88,15 @@ extension LayoutEngine {
     /// Whether a view fills the space below a bar and scrolls under it: a
     /// scroll view or list, or a navigation stack whose screen is one.
     private static func scrollsUnderBars(_ node: ViewNode) -> Bool {
-        if node.isScrollContainer { return true }
+        if node.screenScrollView != nil { return true }
         guard node.kind == "NavigationStack" else { return false }
         let screen = node.children.filter { $0.kind != "NavigationBar" }
-        return screen.count == 1 && screen[0].isScrollContainer
+        return screen.count == 1 && screen[0].screenScrollView != nil
     }
 
     /// Places the tabs in the bar's capsule, sharing its width equally, and
-    /// the search tab in its own circle at the trailing end. Each tab's
+    /// the search tab in its own circle at the trailing end. A lone tab keeps
+    /// its own width, and the capsule fits around it. Each tab's
     /// button fills its part of the bar, so the whole bar responds to taps.
     private func placeTabBar(_ bar: ViewNode, in rect: CGRect, minimized: Bool) -> ViewNode {
         var bar = bar
@@ -111,10 +112,20 @@ extension LayoutEngine {
         let tabCount = bar.children.filter { !isSearch($0) }.count
         let hasSearch = tabCount < bar.children.count
         let searchSide = rect.height
-        let capsuleWidth =
+        let insets = LayoutDefaults.tabBarItemInsets
+        var capsuleWidth =
             hasSearch
             ? max(rect.width - searchSide - LayoutDefaults.tabBarSearchSpacing, 0) : rect.width
-        let insets = LayoutDefaults.tabBarItemInsets
+        if tabCount == 1, let tab = bar.children.first(where: { !isSearch($0) }) {
+            // A lone tab does not stretch: the capsule fits around it.
+            let fitting = tab.children.map {
+                sizeThatFits($0, ProposedSize(width: nil, height: nil), parentAxis: nil).width
+            }
+            let width = max(
+                LayoutDefaults.tabBarLoneTabWidth,
+                (fitting.max() ?? 0) + 2 * LayoutDefaults.tabBarSelectionOutset)
+            capsuleWidth = min(capsuleWidth, width + insets.horizontal)
+        }
         let tabWidth = max(capsuleWidth - insets.horizontal, 0) / CGFloat(max(tabCount, 1))
         var x = rect.minX + insets.leading
         bar.children = bar.children.map { item in

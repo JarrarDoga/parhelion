@@ -536,6 +536,17 @@ may contain breaking changes.
 
 ### Changed
 
+- `searchable` in a navigation stack outside a tab view puts its field where iOS 26 and later do:
+  a 48-point glass capsule floating 28 points from the sides and bottom of the screen, as
+  measured on an iPhone 18 Pro Max under iOS 27.2. A list under it fills the screen, starts under
+  the large title, and scrolls under the navigation bar and the field.
+- `searchable` on a `TabView` with a `Tab(role: .search)` gives its field to the search tab: it
+  shows above the tab bar while that tab is selected, and nowhere on the other tabs.
+- A tab bar with one tab, besides a search tab, fits its capsule around the tab (102 points)
+  instead of stretching it across the screen. Tab symbols are 23 points and the search tab's
+  magnifying glass 24 points, as measured on the same iPhone.
+- A `searchable` list in a tab scrolls under the bars: it gets the scroll edge effect, and
+  `tabBarMinimizeBehavior(.onScrollDown)` minimizes the tab bar while it scrolls (#115).
 - A scroll view that reaches the top or bottom of the safe area takes the whole screen height, and
   starts its content at the safe area, so its frame and `contentOffset` count from the top of the
   screen. Scrolling stops with the last row above the bottom inset. A navigation bar draws over

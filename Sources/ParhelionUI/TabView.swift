@@ -475,14 +475,29 @@ extension Evaluator {
 extension Tab: PrimitiveTabContent {
     func makeTabs(in evaluator: Evaluator, at path: ViewPath) -> [EvaluatedTab] {
         let ownPath = path.appending("Tab")
+        let labelNodes = evaluator.evaluate(label, at: ownPath.appending("label"))
+        // A search tab takes the search field of a `searchable` on the tab
+        // view, which then shows no field of its own.
+        let search = role == .search ? evaluator.environment.tabViewSearch : nil
+        search?.isTaken = true
+        let nodes = evaluator.withEnvironment({
+            $0.isInSearchTab = role == .search
+            $0.tabViewSearch = nil
+        }) {
+            if let search {
+                return evaluator.evaluate(
+                    Searchable(
+                        content: content, text: search.text, placement: .automatic,
+                        prompt: search.prompt), at: ownPath)
+            }
+            return evaluator.evaluate(content, at: ownPath)
+        }
         return [
             EvaluatedTab(
                 value: value.map { AnyHashable($0) },
                 role: role,
-                label: evaluator.evaluate(label, at: ownPath.appending("label")),
-                content: evaluator.withEnvironment({ $0.isInSearchTab = role == .search }) {
-                    evaluator.evaluate(content, at: ownPath)
-                })
+                label: labelNodes,
+                content: nodes)
         ]
     }
 }
@@ -523,7 +538,9 @@ extension TabView: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         let ownPath = path.appending("TabView")
         let id = ownPath.id
-        let tabs = evaluateTabs(in: evaluator, at: ownPath)
+        let tabs = evaluator.withEnvironment({ $0.isInTabView = true }) {
+            evaluateTabs(in: evaluator, at: ownPath)
+        }
         guard !tabs.isEmpty else { return [ViewNode(id: id, kind: "TabView")] }
 
         // Without a binding, the tab view keeps the selected tab's position
@@ -588,7 +605,10 @@ extension TabView: PrimitiveView {
         // Each view the content resolves to is a tab,
         // labeled by its `tabItem` and selected by its `tag`.
         let labels = TabItemCollector()
-        let (nodes, tags) = evaluator.withEnvironment({ $0.tabItemCollector = labels }) {
+        let (nodes, tags) = evaluator.withEnvironment({
+            $0.tabItemCollector = labels
+            $0.tabViewSearch = nil
+        }) {
             evaluator.evaluateTagged(content, at: path)
         }
         return nodes.map { node in

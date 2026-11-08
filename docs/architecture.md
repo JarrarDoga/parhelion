@@ -642,8 +642,9 @@ at its path. Tabs come from `Tab` values through `TabContentBuilder`, or, for vi
 tab item and selected by its `tag`, or a `ForEach` element's identifier.
 
 Layout floats the bar over the content, 21 points above the bottom of the screen when the tab view
-reaches the bottom of the safe area, as the iOS 27 UI Kit does. Tabs share the capsule's width
-equally, and a search tab is a circle at the trailing end. A list or scroll view, alone or as a
+reaches the bottom of the safe area, as the iOS 27 UI Kit does. Two or more tabs share the capsule's
+width equally; a lone tab is 86 points wide and the capsule fits around it, 102 points, as measured
+on an iPhone 18 Pro Max under iOS 27.2. A search tab is a circle at the trailing end. A list or scroll view, alone or as a
 navigation stack's screen, fills the tab view and scrolls under the bar: the layout engine records
 the bar's top while it places the tab, and a scroll view that reaches below it gets that much
 extra room at the end of its content, so its last row can scroll above the bar. Other content is
@@ -694,15 +695,28 @@ screen instead of in the root's implicit stack.
 ### Search
 
 `searchable(text:placement:prompt:)` is a primitive view that returns a `Searchable` node: the content's
-nodes, then a `SearchField` node (`Searchable.swift`, registered through the extension seam). Its layout
-stacks the field and the content, the field first, or last for `placement=bottom`, so the field sits under
-the navigation bar of a stack or a sheet, or above the tab bar in a tab with the search role. The field's
+nodes, then a `SearchField` node (`Searchable.swift`, registered through the extension seam). The node's
+`placement` says where the field is. With the automatic or toolbar placement:
+
+- `toolbar`, in a navigation stack outside a tab view: a 48-point glass capsule floating 28 points from
+  the sides and bottom of the screen, measured on an iPhone 18 Pro Max under iOS 27.2. The content fills
+  the space, and a scroll view's content can scroll its end above the field.
+- On a tab view that has a tab with the search role, the `searchable` hands its binding to that tab
+  through the environment (`TabViewSearch`). The tab wraps its content in a `Searchable` of its own, and
+  the outer one adds no node, so the field shows only while the search tab is selected.
+- `bottom`, in a tab with the search role: the field is stacked above the tab bar.
+
+In any other tab, or with another placement, the field is `top`: under the navigation bar. A scroll view
+whose `Searchable` has a `top` or `toolbar` field is still its screen's scroll view (`screenScrollView`), so
+it scrolls under the bars, gets the scroll edge effect, and minimizes the tab bar; under the bar, its
+content starts below the field. Other content is stacked with the field. The field's
 parts are ordinary views, so a `TextField` takes focus, typing, and `type_text`, and the bound text is the
 text field's. `isSearching` is true in the content while the field has focus or the text is not empty; a
 focus change in a search field marks the host as needing an update, because focus is not state.
-`dismissSearch` clears the text and ends editing. Assumed, since no source covers it: the heights of 36
-points at the top and 48 at the bottom, the bottom field's glass capsule, a placement other than the
-automatic or toolbar one in a search tab staying at the top, and a Cancel button only at the top. Selecting
+`dismissSearch` clears the text and ends editing. Assumed, since no source covers it: the height of 36
+points at the top, the field staying at the top in a tab other than the search tab and on a tab view
+without a search tab, a placement other than the automatic or toolbar one in a search tab staying at the
+top, and a Cancel button only at the top. Selecting
 a search tab does not focus its field, as it does on iOS, so an agent focuses the field before `type_text`.
 
 ### The environment

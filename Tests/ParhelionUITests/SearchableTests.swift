@@ -28,13 +28,14 @@ private struct Results: View {
 }
 
 private struct Browse: View {
+    var placement: SearchFieldPlacement = .automatic
     @State private var query = ""
 
     var body: some View {
         NavigationStack {
             Results(query: query)
                 .navigationTitle("Browse")
-                .searchable(text: $query, prompt: "Find fruit")
+                .searchable(text: $query, placement: placement, prompt: "Find fruit")
         }
     }
 }
@@ -90,9 +91,31 @@ private func rows(_ host: ViewHost) -> [String] {
 @MainActor
 @Suite("Searchable")
 struct SearchableTests {
-    @Test("A search field joins the content under the navigation bar")
+    @Test("In a navigation stack, the search field is a glass capsule over the bottom")
     func outline() {
         let host = ViewHost(Browse(), device: screen)
+        #expect(
+            host.root.outline() == """
+                Root
+                └─ NavigationStack
+                   ├─ NavigationBar titleDisplayMode=large
+                   │  └─ Text "Browse" font=largeTitle.bold
+                   └─ Searchable placement=toolbar
+                      ├─ List contentOffset=0, 0 contentSize=300 × 176
+                      │  └─ Section
+                      │     ├─ Text "Apple" listRow
+                      │     ├─ Text "Banana" listRow
+                      │     └─ Text "Cherry" listRow
+                      └─ SearchField placement=toolbar
+                         └─ HStack padding(0, 14, 0, 14) frame(height: 48) glassEffect(regular, in: Capsule) spacing=10
+                            ├─ Image foregroundStyle=primary systemName=magnifyingglass
+                            └─ TextField frame(maxWidth: inf) placeholder=Find fruit value=
+                """)
+    }
+
+    @Test("With the drawer placement, the search field joins the content under the navigation bar")
+    func drawerOutline() {
+        let host = ViewHost(Browse(placement: .navigationBarDrawer), device: screen)
         #expect(
             host.root.outline() == """
                 Root
@@ -113,18 +136,42 @@ struct SearchableTests {
                 """)
     }
 
-    @Test("The field sits under the bar, above the list, and fills the width")
-    func topLayout() throws {
+    @Test("The field floats 28 points from the sides and bottom, over a list that fills the screen")
+    func toolbarLayout() throws {
         let host = ViewHost(Browse(), device: screen)
         let bar = try #require(host.root.allNodes.first { $0.kind == "NavigationBar" }?.frame)
         let search = try #require(host.root.allNodes.first { $0.kind == "SearchField" }?.frame)
-        let list = try #require(host.root.allNodes.first { $0.kind == "List" }?.frame)
+        let list = try #require(host.root.allNodes.first { $0.kind == "List" })
         let text = try #require(try field(host).frame)
-        #expect(search.minY >= bar.maxY)
-        #expect(search.maxY <= list.minY)
-        #expect(search.width == 300)
+        // Measured on an iPhone 18 Pro Max under iOS 27.2.
+        #expect(search == CGRect(x: 28, y: 424, width: 244, height: 48))
+        // The list is the stack's screen: it scrolls under the bar and the
+        // field, and its rows start under the bar.
+        #expect(list.frame == CGRect(x: 0, y: 0, width: 300, height: 500))
+        let firstRow = try #require(host.root.allNodes.first { $0.text == "Apple" }?.frame)
+        #expect(firstRow.minY >= bar.maxY)
+        #expect(text.height == 22)
+        #expect(search.insetBy(dx: 14, dy: 0).contains(text))
+    }
+
+    @Test("With the drawer placement, the field sits under the bar, and the list's rows below it")
+    func topLayout() throws {
+        let host = ViewHost(Browse(placement: .navigationBarDrawer), device: screen)
+        let bar = try #require(host.root.allNodes.first { $0.kind == "NavigationBar" }?.frame)
+        let search = try #require(host.root.allNodes.first { $0.kind == "SearchField" })
+        #expect(search.attributes["placement"] == "top")
+        let searchFrame = try #require(search.frame)
+        let text = try #require(try field(host).frame)
+        #expect(searchFrame.minY == bar.maxY)
+        #expect(searchFrame.width == 300)
+        let firstRow = try #require(host.root.allNodes.first { $0.text == "Apple" }?.frame)
+        #expect(firstRow.minY >= searchFrame.maxY)
         #expect(text.height == 22)
         #expect(text.maxX <= 300 - 16)
+        try host.focus(field(host).id)
+        host.update()
+        try host.tapButton(labeled: "Cancel")
+        #expect(host.focusedNodeID == nil)
     }
 
     @Test("Typing into the field writes the binding and filters the content")
@@ -153,7 +200,7 @@ struct SearchableTests {
 
     @Test("isSearching is true in the content while the field is focused or holds text")
     func isSearching() throws {
-        let host = ViewHost(Browse(), device: screen)
+        let host = ViewHost(Browse(placement: .navigationBarDrawer), device: screen)
         func searching() -> Bool {
             host.root.allNodes.contains { $0.text == "Searching" }
         }
@@ -278,6 +325,114 @@ struct SearchableTests {
         try host.tapButton(labeled: "Done")
         #expect(try field(host).attributes["value"] == "")
         #expect(host.focusedNodeID == nil)
+    }
+
+    // MARK: Tab views (#115)
+
+    @Test("A searchable list in a tab scrolls under the bars and minimizes the tab bar")
+    func listInTab() throws {
+        struct Albums: View {
+            @State var query = ""
+            var body: some View {
+                TabView {
+                    Tab("Library", systemImage: "square.stack") {
+                        NavigationStack {
+                            List(1..<60) { Text("Album \($0)") }
+                                .navigationTitle("Library")
+                                .searchable(text: $query)
+                        }
+                    }
+                    Tab("Radio", systemImage: "dot.radiowaves.left.and.right") { Text("Radio") }
+                }
+                .tabBarMinimizeBehavior(.onScrollDown)
+            }
+        }
+        let host = ViewHost(Albums(), device: .iPhone18ProMax)
+        let tabView = try #require(host.root.allNodes.first { $0.kind == "TabView" })
+        let list = try #require(host.root.allNodes.first { $0.kind == "List" })
+        // The scroll edge effect and the tab bar find the list.
+        #expect(TreeRenderer.scrollView(under: tabView)?.id == list.id)
+        // The list fills the screen; its content starts under the bar and
+        // the field below it.
+        #expect(list.frame == CGRect(x: 0, y: 0, width: 440, height: 956))
+        let bar = try #require(host.root.allNodes.first { $0.kind == "NavigationBar" }?.frame)
+        let search = try #require(host.root.allNodes.first { $0.kind == "SearchField" })
+        #expect(search.attributes["placement"] == "top")
+        let searchFrame = try #require(search.frame)
+        #expect(searchFrame.minY == bar.maxY)
+        let firstRow = try #require(host.root.allNodes.first { $0.text == "Album 1" }?.frame)
+        #expect(firstRow.minY >= searchFrame.maxY)
+
+        try host.scroll(list.id, to: CGPoint(x: 0, y: 300))
+        host.advanceTime(by: 1)
+        let tabBar = try #require(host.root.allNodes.first { $0.kind == "TabBar" })
+        #expect(tabBar.attributes["minimized"] == "true")
+        let scrolled = try #require(host.root.allNodes.first { $0.kind == "List" })
+        #expect(scrolled.attributes["contentUnderBars"] == "top,bottom")
+    }
+
+    private struct SearchOnTabView: View {
+        @State var query = ""
+        var body: some View {
+            TabView {
+                Tab("Home", systemImage: "house") { Text("Home") }
+                Tab(role: .search) {
+                    NavigationStack {
+                        Results(query: query).navigationTitle("Search")
+                    }
+                }
+            }
+            .searchable(text: $query)
+        }
+    }
+
+    @Test("A search field on a tab view belongs to its search tab")
+    func onTabView() throws {
+        let host = ViewHost(SearchOnTabView(), device: screen)
+        // No field while another tab is selected.
+        #expect(
+            host.root.outline() == """
+                Root
+                └─ TabView
+                   ├─ Text "Home"
+                   └─ TabBar
+                      ├─ Button selected=true
+                      │  ├─ Image font=system(23) symbolVariant=fill systemName=house
+                      │  └─ Text "Home" font=system(10).semibold
+                      └─ Button label=Search role=search
+                         └─ Image font=system(24) systemName=magnifyingglass
+                """)
+        try host.tapButton(labeled: "Search")
+        let searchable = try #require(host.root.allNodes.first { $0.kind == "Searchable" })
+        #expect(searchable.attributes["placement"] == "bottom")
+        let search = try #require(host.root.allNodes.first { $0.kind == "SearchField" }?.frame)
+        let tabBar = try #require(host.root.allNodes.first { $0.kind == "TabBar" }?.frame)
+        #expect(search.maxY <= tabBar.minY)
+        #expect(host.execute(.focus(id: try field(host).id.rawValue)).ok)
+        #expect(host.execute(.typeText("ban")).ok)
+        #expect(try field(host).attributes["value"] == "ban")
+        #expect(rows(host) == ["Banana"])
+        // The field keeps its text when the search tab is selected again.
+        try host.tapButton(labeled: "Home")
+        #expect(!host.root.allNodes.contains { $0.kind == "SearchField" })
+        try host.tapButton(labeled: "Search")
+        #expect(try field(host).attributes["value"] == "ban")
+    }
+
+    @Test("A search field on a tab view without a search tab stays at the top")
+    func onTabViewWithoutSearchTab() throws {
+        struct Tabs: View {
+            @State var query = ""
+            var body: some View {
+                TabView {
+                    Tab("Home", systemImage: "house") { Text("Home") }
+                }
+                .searchable(text: $query)
+            }
+        }
+        let host = ViewHost(Tabs(), device: screen)
+        let searchable = try #require(host.root.allNodes.first { $0.kind == "Searchable" })
+        #expect(searchable.attributes["placement"] == "top")
     }
 
     @Test("An agent focuses the field and types through the preview commands")

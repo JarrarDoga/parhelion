@@ -23,10 +23,15 @@ extension TreeRenderer {
             return
         }
         let search = node.children.first { $0.attributes["role"] == "search" }?.frame
+        // The capsule ends the bar's inset past the last tab, so it fits a
+        // lone tab and leaves room for the search tab's circle.
+        let tabsEnd = node.children.filter { $0.attributes["role"] != "search" }
+            .compactMap { $0.frame?.maxX }.max()
         var capsule = frame
-        if let search {
+        if let tabsEnd {
             capsule.size.width = max(
-                search.minX - LayoutDefaults.tabBarSearchSpacing - frame.minX, 0)
+                min(tabsEnd + LayoutDefaults.tabBarItemInsets.trailing, frame.maxX) - frame.minX,
+                0)
         }
         if capsule.width > 0, node.children.count > (search == nil ? 0 : 1) {
             canvas.drawGlass(
