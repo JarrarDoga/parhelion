@@ -57,8 +57,25 @@ extension Canvas {
         into bytes: UnsafeMutableBufferPointer<UInt8>,
         at index: Int
     ) {
-        guard mode == .normal, bytes[index + 3] == 255 else {
+        guard mode == .normal else {
             blend(color, coverage, mode, into: bytes, at: index)
+            return
+        }
+        let destinationAlpha = bytes[index + 3]
+        guard destinationAlpha == 255 else {
+            guard destinationAlpha == 0 else {
+                blend(color, coverage, mode, into: bytes, at: index)
+                return
+            }
+            // Over a clear pixel, the result is the color at the amount's
+            // opacity, with nothing to mix, as `blend` gives it. Layers
+            // for shadows and scaled views start clear.
+            let alpha = byte(min(coverage, 1) * Float(color.alpha))
+            guard alpha > 0 else { return }
+            bytes[index] = color.red
+            bytes[index + 1] = color.green
+            bytes[index + 2] = color.blue
+            bytes[index + 3] = alpha
             return
         }
         let weight = Int(min(coverage, 1) * Float(color.alpha) * (4096 / 255) + 0.5)

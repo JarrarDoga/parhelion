@@ -166,9 +166,9 @@ Pass `--png PATH` to draw the screen to an image, `--frames` to show each node's
 ```console
 $ swift run HelloParhelion --frames
 Root  [0, 0, 393 × 852]
-└─ VStack padding(16)  [146.21, 412.54, 100.57 × 51.93]
+└─ VStack padding(16)  [147.63, 412.54, 97.75 × 51.93]
    ├─ Image foregroundStyle=tint imageScale=large systemName=globe  [185.54, 412.54, 21.93 × 21.93]
-   └─ Text "Hello, world!"  [146.21, 442.47, 100.57 × 22]
+   └─ Text "Hello, world!"  [147.63, 442.47, 97.75 × 22]
 ```
 
 ## Preview window
@@ -398,7 +398,7 @@ $ SDL_VIDEODRIVER=offscreen Scripts/measure-mcp-sessions.py \
 | Rendering | Anti-aliased shapes, gradients, clips, shadows, and Inter text drawn in pure Swift at any scale, with PNG output and PNG decoding; iOS 27's system colors and inset grouped lists, in light and dark; the status bar, Dynamic Island or notch, home indicator, and rounded screen corners; the floating glass tab bar; SF Symbol names drawn with Phosphor Icons, and other names as placeholder rings |
 | App | `App`, `Scene`, `WindowGroup`, with a headless runner |
 
-Not yet available: letter spacing, iOS 27's Liquid Glass toolbar buttons, alerts,
+Not yet available: iOS 27's Liquid Glass toolbar buttons, alerts,
 and sheets, button styles, most built-in environment values, rotation effects, strokes, JPEG, PDF, and HEIF images, repeating animations, animation, and gestures other than tap. Layout constants that Parhelion assumes about
 SwiftUI, such as the default padding, are listed in `LayoutDefaults.swift` until a macOS CI job
 verifies them. The [roadmap](docs/roadmap.md) lists the

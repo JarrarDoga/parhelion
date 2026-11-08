@@ -50,6 +50,13 @@ public struct Canvas: Sendable {
     /// pixels already on the canvas. Overlays ignore it.
     public var blendMode: BlendMode = .normal
 
+    /// Whether drawing has read the pixels around what it drew, as glass,
+    /// blurs, and the scroll edge effect do, since the canvas was made or
+    /// the flag was cleared. Drawing that does not read its surroundings
+    /// can be drawn again over a part of the canvas, and gives the same
+    /// pixels there.
+    package var readsSurroundings = false
+
     /// Creates a canvas of the given size in points, filled with a color.
     public init(width: Double, height: Double, scale: Double, background: RGBA = .white) {
         self.width = max(Int((width * scale).rounded()), 0)
@@ -58,8 +65,14 @@ public struct Canvas: Sendable {
         let count = self.width * self.height
         let word = background.packed
         pixels = [UInt8](unsafeUninitializedCapacity: count * 4) { buffer, initialized in
-            UnsafeMutableRawBufferPointer(buffer).bindMemory(to: UInt32.self)
-                .initialize(repeating: word)
+            let words = UnsafeMutableRawBufferPointer(buffer).bindMemory(to: UInt32.self)
+            let shared = Unshared(words.baseAddress)
+            // A screen's worth of pixels is memory bandwidth: threads share it.
+            forEachRange(of: count, minimum: 400_000) { range in
+                guard let base = shared.value else { return }
+                UnsafeMutableBufferPointer(start: base + range.lowerBound, count: range.count)
+                    .initialize(repeating: word)
+            }
             initialized = count * 4
         }
     }
@@ -337,8 +350,12 @@ public struct Canvas: Sendable {
     }
 
     /// Draws one line of text with its baseline starting at `origin`, in
-    /// points. Each glyph is placed at the advance width of the previous one,
-    /// the same way layout measures text.
+    /// points. Each glyph is placed at the advance width of the previous one
+    /// plus the font's tracking, the same way layout measures text.
+    ///
+    /// A glyph is drawn from coverage that the font kept from an earlier
+    /// draw, at the nearest quarter pixel, so a line costs one blend of each
+    /// glyph's pixels instead of rasterizing its outline again.
     public mutating func drawText(
         _ text: some StringProtocol,
         font: TrueTypeFont,
@@ -346,32 +363,43 @@ public struct Canvas: Sendable {
         origin: CGPoint,
         color: RGBA
     ) {
-        let unitsToPoints = size / Double(font.unitsPerEm)
-        var x = Double(origin.x)
-        var glyphs = Path()
+        guard color.alpha > 0 else { return }
+        let pixelsPerUnit = size * scale / Double(font.unitsPerEm)
+        let pixelSize = size * scale
+        let tracking = font.tracking(size: size) * scale
+        var x = Double(origin.x) * scale
+        let baseline = (Double(origin.y) * scale * 4).rounded()
+        let baselineRow = Int((baseline / 4).rounded(.down))
+        let phaseY = Int(baseline) - baselineRow * 4
         for scalar in text.unicodeScalars {
             let glyph = font.glyph(for: scalar)
-            let outline = font.outline(ofGlyph: glyph)
-            if !outline.isEmpty {
-                // Font units point up; the canvas's y axis points down.
-                glyphs.addPath(
-                    outline.applying(
-                        scaleX: unitsToPoints,
-                        scaleY: -unitsToPoints,
-                        translateX: x,
-                        translateY: Double(origin.y)
-                    )
-                )
+            let quarters = Int((x * 4).rounded())
+            let column = Int((Double(quarters) / 4).rounded(.down))
+            if let coverage = font.coverage(
+                ofGlyph: glyph, pixelSize: pixelSize, phaseX: quarters - column * 4,
+                phaseY: phaseY)
+            {
+                composite(coverage, color: color, shiftX: column, shiftY: baselineRow)
             }
-            x += Double(font.advance(ofGlyph: glyph)) * unitsToPoints
+            x += Double(font.advance(ofGlyph: glyph)) * pixelsPerUnit + tracking
         }
-        fill(glyphs, color: color)
     }
 
     /// Blends a color into the canvas, weighted by coverage.
-    private mutating func composite(_ coverage: Coverage, color: RGBA) {
+    private mutating func composite(
+        _ coverage: Coverage, color: RGBA, shiftX: Int = 0, shiftY: Int = 0
+    ) {
         let width = width
         let mode = blendMode
+        // The coverage of a kept glyph is not clipped to this canvas.
+        let clip = pixelClip
+        let originX = coverage.originX + shiftX
+        let originY = coverage.originY + shiftY
+        let firstRow = max(clip.minY - originY, 0)
+        let lastRow = min(clip.maxY - originY, coverage.height)
+        let firstColumn = max(clip.minX - originX, 0)
+        let lastColumn = min(clip.maxX - originX, coverage.width)
+        guard firstRow < lastRow, firstColumn < lastColumn else { return }
         // A pixel an opaque color covers fully takes the color, which is
         // what blending it gives too.
         let isOpaque = color.alpha == 255 && mode == .normal
@@ -379,16 +407,16 @@ public struct Canvas: Sendable {
         pixels.withUnsafeMutableBufferPointer { bytes in
             let words = UnsafeMutableRawBufferPointer(bytes).bindMemory(to: UInt32.self)
             coverage.values.withUnsafeBufferPointer { values in
-                for row in 0..<coverage.height {
-                    let rowStart = (coverage.originY + row) * width + coverage.originX
+                for row in firstRow..<lastRow {
+                    let rowStart = (originY + row) * width + originX
                     let valueStart = row * coverage.width
-                    for column in 0..<coverage.width {
+                    for column in firstColumn..<lastColumn {
                         let amount = values[valueStart + column]
                         guard amount > 0 else { continue }
                         if isOpaque, amount >= 1 {
                             words[rowStart + column] = word
                         } else {
-                            Self.blend(
+                            Self.blendQuickly(
                                 color, amount, mode, into: bytes, at: (rowStart + column) * 4)
                         }
                     }

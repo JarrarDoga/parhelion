@@ -103,6 +103,16 @@ targets += [
         dependencies: ["SwiftUI"],
         path: "Examples/Library"
     ),
+    .executableTarget(
+        name: "RustleCollection",
+        dependencies: ["SwiftUI"],
+        path: "Examples/RustleCollection"
+    ),
+    .executableTarget(
+        name: "RustleNowPlaying",
+        dependencies: ["SwiftUI"],
+        path: "Examples/RustleNowPlaying"
+    ),
 ]
 #endif
 

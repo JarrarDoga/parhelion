@@ -67,14 +67,111 @@ struct FramePacerTests {
             pacer.noteAnswer(target: target, at: time + duration)
             time = target
         }
-        // 12 ms frames, as with an unoptimized framework: 4 refreshes each.
+        // 12 ms frames, as with an unoptimized framework: 3 refreshes each,
+        // 12.5 ms, since the app draws each frame while the last is shown.
         for _ in 0..<5 { frame(taking: 12_000_000) }
-        #expect(pacer.framesPerTick == 4)
+        #expect(pacer.framesPerTick == 3)
         // One fast frame does not change the cadence.
         frame(taking: 1_000_000)
-        #expect(pacer.framesPerTick == 4)
+        #expect(pacer.framesPerTick == 3)
         for _ in 0..<FramePacer.roundTripWindow { frame(taking: 1_000_000) }
         #expect(pacer.framesPerTick == 1)
+    }
+
+    @Test("An answer is shown at its target, on the grid of the last present, or later if late")
+    func answerRefresh() {
+        let period: UInt64 = 8_333_333
+        var pacer = FramePacer(vsyncEnabled: false)
+        pacer.setRefreshPeriod(period)
+        let last: UInt64 = 1_000_000_000
+        // On time: the target, moved onto the last present's grid.
+        #expect(
+            pacer.refresh(showingAnswerFor: last + period + 3, at: last + 2_000_000, after: last)
+                == last + period)
+        #expect(
+            pacer.refresh(showingAnswerFor: last + 2 * period, at: last, after: last)
+                == last + 2 * period)
+        // Too late to upload before its refresh: the next one.
+        #expect(
+            pacer.refresh(showingAnswerFor: last + period, at: last + period - 100_000, after: last)
+                == last + 2 * period)
+        // Never sooner than the refresh after the last present.
+        #expect(
+            pacer.refresh(showingAnswerFor: 5, at: last - 5_000_000, after: last) == last + period)
+        // The deadline for an answer is shortly before that refresh.
+        pacer.noteTickSent(target: last + period, at: last)
+        let deadline = pacer.answerDeadline(after: last, now: last)
+        #expect(deadline < last + period && deadline > last + period / 2)
+        #expect(pacer.answerDeadline(after: last, now: last + period) > last + period)
+    }
+
+    @Test("The next tick goes out as an answer arrives, at most one refresh before it is shown")
+    func overlappedTicks() {
+        let period: UInt64 = 8_333_333
+        var pacer = FramePacer(vsyncEnabled: false)
+        pacer.setRefreshPeriod(period)
+        let shown: UInt64 = 1_000_000_000
+        let next = pacer.nextTick(afterShowingAt: shown)
+        #expect(next.target == shown + period)
+        #expect(next.earliest == shown - period)
+        pacer.setMaximumFramesPerSecond(60)
+        #expect(pacer.nextTick(afterShowingAt: shown).target == shown + 2 * period)
+        #expect(pacer.nextTick(afterShowingAt: shown).earliest == shown - period)
+    }
+
+    /// Runs the host's overlapped loop for frames that take `durations` to
+    /// draw, and returns the refreshes between the frames shown.
+    private func overlap(_ durations: [UInt64], pacer: inout FramePacer) -> [UInt64] {
+        let period = pacer.refreshPeriod
+        var lastPresent: UInt64 = 1_000_000_000
+        var sentAt = lastPresent
+        var target = pacer.targetTime(afterPresentAt: lastPresent)
+        pacer.noteTickSent(target: target, at: sentAt)
+        var gaps: [UInt64] = []
+        for duration in durations {
+            let arrival = sentAt + duration
+            pacer.noteAnswer(target: target, at: arrival)
+            let refresh = pacer.refresh(showingAnswerFor: target, at: arrival, after: lastPresent)
+            let tick = pacer.nextTick(afterShowingAt: refresh)
+            sentAt = max(arrival, tick.earliest)
+            target = tick.target
+            pacer.noteTickSent(target: target, at: sentAt)
+            gaps.append((refresh - lastPresent) / period)
+            lastPresent = refresh
+        }
+        return gaps
+    }
+
+    @Test("An app that takes most of a refresh for each frame is shown every refresh")
+    func overlappedApp() {
+        var pacer = FramePacer(vsyncEnabled: false)
+        pacer.setRefreshPeriod(8_333_333)
+        // 7.5 ms frames: without the overlap, a frame and its 1 ms upload
+        // would not fit in one refresh.
+        var gaps = overlap(Array(repeating: 7_500_000, count: 60), pacer: &pacer)
+        #expect(gaps.dropFirst().allSatisfy { $0 == 1 })
+        #expect(pacer.framesPerTick == 1)
+        // A few slow frames, as when rows scroll into view, miss a refresh
+        // each, but the frames after them are shown every refresh again.
+        let bumpy = (0..<64).map { $0 % 16 == 5 ? UInt64(20_000_000) : 7_000_000 }
+        gaps = overlap(bumpy, pacer: &pacer)
+        #expect(pacer.framesPerTick == 1)
+        #expect(gaps.filter { $0 == 1 }.count >= 56)
+        // An app slower than a refresh on average is shown every other one.
+        gaps = overlap(Array(repeating: 9_500_000, count: 40), pacer: &pacer)
+        #expect(pacer.framesPerTick == 2)
+        #expect(gaps.suffix(20).allSatisfy { $0 == 2 })
+    }
+
+    @Test("An app a little slower than a refresh on average is shown at most refreshes")
+    func slightlySlowApp() {
+        var pacer = FramePacer(vsyncEnabled: false)
+        pacer.setRefreshPeriod(8_333_333)
+        // 8.8 ms frames: each takes from the one refresh the app draws
+        // ahead, and about every seventeenth misses its refresh.
+        let gaps = overlap(Array(repeating: 8_800_000, count: 120), pacer: &pacer)
+        #expect(pacer.framesPerTick == 1)
+        #expect(gaps.filter { $0 == 1 }.count >= 105)
     }
 
     @Test("Presents that return well before a refresh mean vsync is not real")
@@ -88,6 +185,20 @@ struct FramePacerTests {
         }
         #expect(pacer.hasVSync)
         pacer.notePresented(at: time)
+        #expect(!pacer.hasVSync)
+    }
+
+    @Test("A present that waits now and then does not hide that vsync is not real")
+    func fakeVSyncWithSlowFrames() {
+        var pacer = FramePacer(vsyncEnabled: true)
+        pacer.setRefreshPeriod(4_166_667)
+        var time: UInt64 = 0
+        pacer.notePresented(at: time)
+        // Two short intervals, then one that waited for a slow frame.
+        for index in 0..<(3 * FramePacer.shortIntervalLimit) {
+            time += index % 3 == 2 ? 8_000_000 : 100_000
+            pacer.notePresented(at: time)
+        }
         #expect(!pacer.hasVSync)
     }
 
@@ -166,15 +277,15 @@ struct FramePacerTests {
             time = target
         }
         #expect(pacer.framesPerTick == 2)
-        // A slow app still slows down past the screen's rate, and comes back
-        // to it, not to every refresh.
-        for _ in 0..<3 {
+        // A slow app still slows down past the screen's rate, once more than
+        // a few frames are slow, and comes back to it, not to every refresh.
+        for _ in 0...FramePacer.toleratedSlowFrames {
             let target = pacer.targetTime(afterPresentAt: time)
             pacer.noteTickSent(target: target, at: time)
             pacer.noteAnswer(target: target, at: time + 12_000_000)
             time = target
         }
-        #expect(pacer.framesPerTick == 4)
+        #expect(pacer.framesPerTick == 3)
         for _ in 0..<FramePacer.roundTripWindow {
             let target = pacer.targetTime(afterPresentAt: time)
             pacer.noteTickSent(target: target, at: time)

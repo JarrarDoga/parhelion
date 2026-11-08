@@ -67,6 +67,7 @@ extension Canvas {
     /// Replaces the pixels inside a box with ones `pixels(in:)` returned.
     package mutating func replacePixels(in box: PixelBox, with stored: [UInt32]) {
         precondition(stored.count == box.area, "The pixels must fill the box.")
+        readsSurroundings = true
         guard !stored.isEmpty else { return }
         let rowLength = box.maxX - box.minX
         let width = width

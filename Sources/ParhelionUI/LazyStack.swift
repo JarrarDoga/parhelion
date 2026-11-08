@@ -158,6 +158,38 @@ struct LazyViewport {
 /// the last layout found, and layout measures the slots that exist. When
 /// scrolling moves the demand out of the window, the host evaluates again.
 final class LazyLayoutState {
+    /// A child of a lazy stack as layout placed it, which scrolling moves
+    /// without placing it again: the same node in a rectangle of the same
+    /// size, elsewhere along the stack, is placed the same way, moved.
+    struct PlacedRow {
+        /// The node before it was placed.
+        var node: ViewNode
+        var frame: CGRect
+        var axis: LayoutAxis
+        var placed: ViewNode
+
+        /// The row placed in `frame`, or `nil` when the node or the size of
+        /// its rectangle is not the same, or it moved across the stack.
+        func moved(to frame: CGRect, node: ViewNode, axis: LayoutAxis) -> ViewNode? {
+            guard axis == self.axis, frame.size == self.frame.size, node == self.node else {
+                return nil
+            }
+            let dx = frame.minX - self.frame.minX
+            let dy = frame.minY - self.frame.minY
+            guard axis == .vertical ? dx == 0 : dy == 0 else { return nil }
+            if dx == 0, dy == 0 { return placed }
+            return Self.move(placed, dx: dx, dy: dy)
+        }
+
+        private static func move(_ node: ViewNode, dx: CGFloat, dy: CGFloat) -> ViewNode {
+            var node = node
+            node.frame = node.frame?.offsetBy(dx: dx, dy: dy)
+            node.modifierFrames = node.modifierFrames.map { $0.offsetBy(dx: dx, dy: dy) }
+            node.children = node.children.map { move($0, dx: dx, dy: dy) }
+            return node
+        }
+    }
+
     final class Stack {
         let id: NodeID
         /// The path that the state of the views in the slots starts with.
@@ -173,6 +205,9 @@ final class LazyLayoutState {
         /// The sizes of the stack's children at one length across the stack,
         /// from the last layout of this evaluation.
         var childSizes: (across: CGFloat, spacing: CGFloat, sizes: [CGSize])?
+        /// The children placed in the last layout whose placement can move,
+        /// by their identifiers; see `LayoutEngine.placesAnywhere(_:)`.
+        var placedRows: [NodeID: PlacedRow] = [:]
         /// The slots that exist, in the order of the stack's children.
         var resolved: [Int] = []
         /// The number of nodes in each of the `resolved` slots.

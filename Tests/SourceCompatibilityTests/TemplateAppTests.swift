@@ -40,9 +40,9 @@ struct TemplateAppTests {
         #expect(
             host.root.outline(includeFrames: true) == """
                 Root  [0, 0, 393 × 852]
-                └─ VStack padding(16)  [146.21, 412.54, 100.57 × 51.93]
+                └─ VStack padding(16)  [147.63, 412.54, 97.75 × 51.93]
                    ├─ Image foregroundStyle=tint imageScale=large systemName=globe  [185.54, 412.54, 21.93 × 21.93]
-                   └─ Text "Hello, world!"  [146.21, 442.47, 100.57 × 22]
+                   └─ Text "Hello, world!"  [147.63, 442.47, 97.75 × 22]
                 """
         )
     }

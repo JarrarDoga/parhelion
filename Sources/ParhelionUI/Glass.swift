@@ -58,6 +58,7 @@ extension Canvas {
         material: GlassMaterial, tint: RGBA? = nil, opacity: Double = 1
     ) {
         guard rect.width > 0, rect.height > 0, opacity > 0 else { return }
+        readsSurroundings = true
         let outerBlendMode = blendMode
         defer { blendMode = outerBlendMode }
         blendMode = .normal

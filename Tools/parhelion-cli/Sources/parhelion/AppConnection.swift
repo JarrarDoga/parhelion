@@ -198,6 +198,7 @@ final class AppConnection: @unchecked Sendable {
         let replaced: ReceivedFrame? = lock.withLock {
             animating = isAnimating
             if target != 0 { answer = (target, arrival) }
+            lock.broadcast()
             guard let newFrame else { return nil }
             defer { frame = newFrame }
             return frame
@@ -209,6 +210,18 @@ final class AppConnection: @unchecked Sendable {
     /// ``takeAnswer()``.
     var hasNews: Bool {
         lock.withLock { frame != nil || answer != nil }
+    }
+
+    /// Waits up to `nanoseconds` for a frame, a tick's answer, or the app
+    /// to disconnect. The reader thread ends the wait as the message
+    /// arrives, sooner than a wake through the window's event queue.
+    func waitForNews(upTo nanoseconds: UInt64) {
+        let limit = Date(timeIntervalSinceNow: Double(nanoseconds) / 1_000_000_000)
+        lock.withLock {
+            while frame == nil, answer == nil, !disconnected {
+                if !lock.wait(until: limit) { return }
+            }
+        }
     }
 
     /// The newest frame since the last call, if any. Give it back with

@@ -170,7 +170,7 @@ extension TreeRenderer {
         // `drawShadow` take.
         canvas.drawShadow(
             ofLayer: layer, atPixelX: minX, y: minY, color: color, offset: offset,
-            blur: Double(radius) * 2)
+            blur: Double(radius) * 2, skipsUnderOpaque: true)
         canvas.draw(layer: layer, atPixelX: minX, y: minY)
     }
 

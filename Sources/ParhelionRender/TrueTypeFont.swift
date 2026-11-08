@@ -6,8 +6,11 @@ import Foundation
 ///
 /// Parhelion reads the `head`, `hhea`, `maxp`, `hmtx`, `cmap`, `loca`, and
 /// `glyf` tables, and the cap height from `OS/2`. It does not apply kerning, ligatures, or hinting, so layout
-/// and drawing both place each glyph at its advance width and stay in
-/// agreement.
+/// and drawing both place each glyph at its advance width, plus
+/// ``tracking(size:)``, and stay in agreement.
+///
+/// A font keeps the outlines it has parsed, so that drawing a glyph again
+/// in a later frame does not read the `glyf` table again.
 public struct TrueTypeFont: Sendable {
     public enum ParseError: Error, Equatable {
         case missingTable(String)
@@ -34,6 +37,8 @@ public struct TrueTypeFont: Sendable {
     private let glyphs: [UInt32: UInt16]
     private let glyphOffsets: [Int]
     private let glyfOffset: Int
+    private let outlines = OutlineCache()
+    private let coverages = CoverageCache()
 
     public init(bytes: [UInt8]) throws {
         let reader = ByteReader(bytes: bytes)
@@ -117,11 +122,32 @@ public struct TrueTypeFont: Sendable {
         return Int(advances[min(Int(glyph), advances.count - 1)])
     }
 
-    /// The width of a string at the given point size.
+    /// The width of a string at the given point size, with ``tracking(size:)``
+    /// after every character.
     public func width(of text: some StringProtocol, size: Double) -> Double {
-        let units = text.unicodeScalars.reduce(0) { $0 + advance(ofGlyph: glyph(for: $1)) }
-        return Double(units) * size / Double(unitsPerEm)
+        var units = 0
+        var count = 0
+        for scalar in text.unicodeScalars {
+            units += advance(ofGlyph: glyph(for: scalar))
+            count += 1
+        }
+        return Double(units) * size / Double(unitsPerEm) + Double(count) * tracking(size: size)
     }
+
+    /// The space added after every character at a point size, in points, to
+    /// bring Inter's widths closer to San Francisco's.
+    ///
+    /// Inter's own dynamic metrics: a tracking of
+    /// `-0.0223 + 0.185 * exp(-0.1745 * size)` em, which is nearly none at
+    /// 12 points, about -0.2 points at 17, and -0.02 em from 28 points up.
+    /// See docs/adr/0019-layout-and-glyph-caches-and-letter-spacing.md.
+    public func tracking(size: Double) -> Double {
+        return (Self.trackingA + Self.trackingB * exp(Self.trackingC * size)) * size
+    }
+
+    private static let trackingA = -0.0223
+    private static let trackingB = 0.185
+    private static let trackingC = -0.1745
 
     /// The height of capital letters at the given point size.
     public func capHeight(size: Double) -> Double {
@@ -137,9 +163,94 @@ public struct TrueTypeFont: Sendable {
 
     /// The outline of a glyph in font units, with y pointing up.
     public func outline(ofGlyph glyph: UInt16) -> Path {
+        if let path = outlines[glyph] { return path }
         var path = Path()
         appendOutline(ofGlyph: glyph, to: &path, transform: .identity, depth: 0)
+        outlines[glyph] = path
         return path
+    }
+
+    /// The anti-aliased coverage of a glyph with its origin at a quarter
+    /// pixel, `phaseX` and `phaseY` in `0..<4` quarters right of and below a
+    /// pixel corner, at `pixelSize` pixels per em. Coordinates in the
+    /// result are relative to that corner, with y pointing down. `nil` for a
+    /// glyph with no ink, such as a space.
+    ///
+    /// Kept for the next time the same glyph is drawn at the same size and
+    /// phase, which a line of text does for most of its letters.
+    func coverage(
+        ofGlyph glyph: UInt16, pixelSize: Double, phaseX: Int, phaseY: Int
+    ) -> Coverage? {
+        let key = CoverageCache.Key(
+            glyph: glyph, pixelSize: pixelSize, phaseX: UInt8(phaseX), phaseY: UInt8(phaseY))
+        if let kept = coverages[key] { return kept.coverage }
+        var coverage: Coverage?
+        let outline = outline(ofGlyph: glyph)
+        if !outline.isEmpty {
+            let scale = pixelSize / Double(unitsPerEm)
+            let placed = outline.applying(
+                scaleX: scale, scaleY: -scale, translateX: Double(phaseX) / 4,
+                translateY: Double(phaseY) / 4)
+            // No clip: the coverage is cropped to the canvas when it is drawn.
+            coverage = Rasterizer.coverage(
+                of: placed.polygons(tolerance: 0.2), clip: (-16384, -16384, 16384, 16384))
+        }
+        coverages[key] = CoverageCache.Entry(coverage: coverage)
+        return coverage
+    }
+
+    /// The coverage made so far, by glyph, size, and position in a pixel.
+    private final class CoverageCache: @unchecked Sendable {
+        struct Key: Hashable {
+            var glyph: UInt16
+            var pixelSize: Double
+            var phaseX: UInt8
+            var phaseY: UInt8
+        }
+
+        struct Entry {
+            var coverage: Coverage?
+        }
+
+        /// A cache that fills starts over.
+        static let limit = 24_000
+
+        private let lock = NSLock()
+        private var entries: [Key: Entry] = [:]
+
+        subscript(key: Key) -> Entry? {
+            get {
+                lock.lock()
+                defer { lock.unlock() }
+                return entries[key]
+            }
+            set {
+                lock.lock()
+                defer { lock.unlock() }
+                if entries.count >= Self.limit { entries.removeAll(keepingCapacity: true) }
+                entries[key] = newValue
+            }
+        }
+    }
+
+    /// The outlines parsed so far, by glyph. A reference type so that the
+    /// font stays a value and every copy shares the cache.
+    private final class OutlineCache: @unchecked Sendable {
+        private let lock = NSLock()
+        private var paths: [UInt16: Path] = [:]
+
+        subscript(glyph: UInt16) -> Path? {
+            get {
+                lock.lock()
+                defer { lock.unlock() }
+                return paths[glyph]
+            }
+            set {
+                lock.lock()
+                defer { lock.unlock() }
+                paths[glyph] = newValue
+            }
+        }
     }
 
     private func appendOutline(

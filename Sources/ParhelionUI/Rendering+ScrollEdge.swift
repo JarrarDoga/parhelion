@@ -42,6 +42,7 @@ extension Canvas {
     /// the rectangle, a few operations each, not a full blur of them.
     mutating func drawScrollEdge(_ effect: ScrollEdgeEffect, in rect: CGRect) {
         guard rect.width > 0, rect.height > 0 else { return }
+        readsSurroundings = true
         let box = scrollEdgeRegion(effect, in: rect)
         guard !box.isEmpty else { return }
         let before = pixels(in: box)
@@ -62,19 +63,33 @@ extension Canvas {
                 | 0xFF00_0000
             let cover = (Int(tint.alpha) * 256 + 127) / 255
             result.withUnsafeMutableBufferPointer { result in
-                for index in result.indices { result[index] = Self.mix(result[index], word, cover) }
+                let shared = Unshared(result.baseAddress!)
+                forEachRange(of: rows, minimum: 64) { range in
+                    let result = shared.value
+                    for index in range.lowerBound * columns..<range.upperBound * columns {
+                        result[index] = Self.mix(result[index], word, cover)
+                    }
+                }
             }
         case .soft(let peak):
             // The blur is mixed back with the pixels it replaced by a
             // weight that falls from `peak` at the outer edge to 0 at the
             // inner edge, which is what a gradient mask over the blur does.
+            let atTop = effect.atTop
             result.withUnsafeMutableBufferPointer { result in
-                for row in 0..<rows {
-                    // 0 at the outer edge, 1 at the inner edge.
-                    let along = (Double(row) + 0.5) / Double(rows)
-                    let weight = Int((peak * (effect.atTop ? 1 - along : along) * 256).rounded())
-                    for index in row * columns..<(row + 1) * columns {
-                        result[index] = Self.mix(before[index], result[index], weight)
+                before.withUnsafeBufferPointer { before in
+                    let shared = Unshared((result.baseAddress!, before))
+                    forEachRange(of: rows, minimum: 64) { range in
+                        let (result, before) = shared.value
+                        for row in range {
+                            // 0 at the outer edge, 1 at the inner edge.
+                            let along = (Double(row) + 0.5) / Double(rows)
+                            let weight = Int(
+                                (peak * (atTop ? 1 - along : along) * 256).rounded())
+                            for index in row * columns..<(row + 1) * columns {
+                                result[index] = Self.mix(before[index], result[index], weight)
+                            }
+                        }
                     }
                 }
             }
@@ -150,41 +165,52 @@ extension Canvas {
 
         // Resample bilinearly, with each block's center at its middle: each
         // row first between two rows of blocks, then along the row.
-        var result = [UInt32](repeating: 0, count: columns * rows)
-        var table: [(left: Int, right: Int, weight: Int)] = []
-        table.reserveCapacity(columns)
+        var lefts = [Int32](repeating: 0, count: columns)
+        var rights = [Int32](repeating: 0, count: columns)
+        var weights = [Int](repeating: 0, count: columns)
         for column in 0..<columns {
             let x = (Double(column) + 0.5) / Double(factor) - 0.5
             let left = min(max(Int(x.rounded(.down)), 0), smallColumns - 1)
-            table.append(
-                (
-                    left, min(left + 1, smallColumns - 1),
-                    Int((min(max(x - Double(left), 0), 1) * 256).rounded())
-                ))
+            lefts[column] = Int32(left)
+            rights[column] = Int32(min(left + 1, smallColumns - 1))
+            weights[column] = Int((min(max(x - Double(left), 0), 1) * 256).rounded())
         }
-        var line = [UInt32](repeating: 0, count: smallColumns)
-        small.withUnsafeBufferPointer { small in
-            result.withUnsafeMutableBufferPointer { result in
-                line.withUnsafeMutableBufferPointer { line in
-                    for row in 0..<rows {
-                        let y = (Double(row) + 0.5) / Double(factor) - 0.5
-                        let top = min(max(Int(y.rounded(.down)), 0), smallRows - 1)
-                        let bottom = min(top + 1, smallRows - 1)
-                        let lower = Int((min(max(y - Double(top), 0), 1) * 256).rounded())
-                        for index in 0..<smallColumns {
-                            line[index] = Self.mix(
-                                small[top * smallColumns + index],
-                                small[bottom * smallColumns + index], lower)
-                        }
-                        let base = row * columns
-                        for column in 0..<columns {
-                            let entry = table[column]
-                            result[base + column] = Self.mix(
-                                line[entry.left], line[entry.right], entry.weight)
+        let result = [UInt32](unsafeUninitializedCapacity: columns * rows) { result, count in
+            small.withUnsafeBufferPointer { small in
+                lefts.withUnsafeBufferPointer { lefts in
+                    rights.withUnsafeBufferPointer { rights in
+                        weights.withUnsafeBufferPointer { weights in
+                            let shared = Unshared(
+                                (small, lefts, rights, weights, result.baseAddress!))
+                            forEachRange(of: rows, minimum: 32) { range in
+                                let (small, lefts, rights, weights, result) = shared.value
+                                var line = [UInt32](repeating: 0, count: smallColumns)
+                                line.withUnsafeMutableBufferPointer { line in
+                                    for row in range {
+                                        let y = (Double(row) + 0.5) / Double(factor) - 0.5
+                                        let top = min(max(Int(y.rounded(.down)), 0), smallRows - 1)
+                                        let bottom = min(top + 1, smallRows - 1)
+                                        let lower = Int(
+                                            (min(max(y - Double(top), 0), 1) * 256).rounded())
+                                        for index in 0..<smallColumns {
+                                            line[index] = Self.mix(
+                                                small[top * smallColumns + index],
+                                                small[bottom * smallColumns + index], lower)
+                                        }
+                                        let output = result + row * columns
+                                        for column in 0..<columns {
+                                            output[column] = Self.mix(
+                                                line[Int(lefts[column])],
+                                                line[Int(rights[column])], weights[column])
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
+            count = columns * rows
         }
         return result
     }

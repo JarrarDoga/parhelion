@@ -739,7 +739,7 @@ public final class ViewHost {
                 momentum[id] = speed < LayoutDefaults.momentumStopSpeed ? nil : velocity
             }
         }
-        relayout()
+        relayout(fromScroll: true)
     }
 
     private func applyScroll(_ id: NodeID, by delta: CGSize) {
@@ -752,7 +752,7 @@ public final class ViewHost {
             x: current.x + (axes.horizontal ? delta.width : 0),
             y: current.y + (axes.vertical ? delta.height : 0)
         )
-        relayout()
+        relayout(fromScroll: true)
     }
 
     private func startMomentum(
@@ -1098,11 +1098,18 @@ public final class ViewHost {
     }
 
     /// Lays out the evaluated tree again, for example after scrolling.
-    func relayout() {
+    ///
+    /// A layout that only moves a scroll view's content passes `fromScroll`.
+    /// With nothing animating and no animation asked for, no view can start
+    /// to animate, so the animations are not compared with the new tree.
+    func relayout(fromScroll: Bool = false) {
         let previous = presentedRoot
         layoutAgain()
         applyScrollRequests()
-        if hasLaidOut {
+        let nothingToAnimate =
+            fromScroll && pendingAnimation == nil && implicitAnimations.isEmpty
+            && transitions.isEmpty && navigationChanges.isEmpty && animations.isIdle
+        if hasLaidOut && !nothingToAnimate {
             animations.update(
                 from: previous,
                 to: root,

@@ -117,6 +117,10 @@ extension LayoutEngine {
         var placed = node.children
         var pinnedChildren: [Int] = []
         var child = 0
+        // The rows placed in the last layout, of which this one keeps those it
+        // places again.
+        let lastRows = stack?.placedRows ?? [:]
+        var rows: [NodeID: LazyLayoutState.PlacedRow] = [:]
         for (index, slot) in arrangement.resolved.enumerated() {
             let shift = pinnedShift[slot] ?? 0
             var main = origin + offsets[slot] + shift
@@ -142,17 +146,49 @@ extension LayoutEngine {
                     frame = CGRect(x: main, y: y, width: size.width, height: size.height)
                     main += size.width + spacing
                 }
-                placed[child] = place(placed[child], in: frame, parentAxis: axis)
+                let row = placed[child]
+                if let last = lastRows[row.id],
+                    let moved = last.moved(to: frame, node: row, axis: axis)
+                {
+                    placed[child] = moved
+                    rows[row.id] = last
+                } else {
+                    placed[child] = place(row, in: frame, parentAxis: axis)
+                    if stack != nil, Self.placesAnywhere(row) {
+                        rows[row.id] = LazyLayoutState.PlacedRow(
+                            node: row, frame: frame, axis: axis, placed: placed[child])
+                    }
+                }
                 if shift != 0 { pinnedChildren.append(child) }
                 child += 1
             }
         }
+        stack?.placedRows = rows
         // A pinned view is in front of the views that scroll under it.
         guard !pinnedChildren.isEmpty else { return placed }
         let pinnedSet = Set(pinnedChildren)
         return placed.indices.filter { !pinnedSet.contains($0) }.map { placed[$0] }
             + pinnedChildren.map { placed[$0] }
     }
+
+    /// Whether a node's placement depends only on the size of its rectangle,
+    /// so that it can be moved elsewhere unchanged: whether it is made only of
+    /// views whose placement neither reads where they are on screen nor
+    /// records anything, unlike scroll views, navigation and tab views, lazy
+    /// stacks, and views that ignore the safe area.
+    static func placesAnywhere(_ node: ViewNode) -> Bool {
+        guard movableKinds.contains(node.kind), node.attributes["ignoresSafeArea"] == nil,
+            NodeExtensions.behavior(for: node.kind)?.place == nil
+        else { return false }
+        return node.children.allSatisfy(placesAnywhere)
+    }
+
+    /// The kinds of view whose placement depends only on their rectangle.
+    private static let movableKinds: Set<String> = [
+        "HStack", "VStack", "ZStack", "Text", "Image", "Spacer", "Divider", "Color",
+        "Rectangle", "RoundedRectangle", "UnevenRoundedRectangle", "Circle", "Ellipse",
+        "Capsule", "Label", "Group",
+    ]
 
     /// The slots that overlap the range from `low` to `high`.
     private static func lazyDemand(
@@ -208,6 +244,8 @@ extension LayoutEngine {
     ) -> LazyArrangement {
         let axis: LayoutAxis = vertical ? .vertical : .horizontal
         let across = across.flatMap { $0.isFinite ? $0 : nil }
+        // The lengths the stack has measured are not in its node.
+        sizes.noteStateRead()
         var stack = scrolling.lazy.stacks[node.id]
         var resolved: [Int]
         var counts: [Int]

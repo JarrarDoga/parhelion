@@ -106,7 +106,7 @@ struct RefreshableTests {
         #expect(
             scroll.root.outline() == """
                 Root
-                └─ ScrollView axes=vertical contentOffset=0, 0 contentSize=32.95 × 22 \
+                └─ ScrollView axes=vertical contentOffset=0, 0 contentSize=32.3 × 22 \
                 refreshable=true
                    └─ Text "One"
                 """)

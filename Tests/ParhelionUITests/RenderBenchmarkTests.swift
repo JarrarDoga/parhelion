@@ -8,7 +8,7 @@ import Testing
 @Test(
     "Render timing", .enabled(if: ProcessInfo.processInfo.environment["PARHELION_BENCHMARK"] != nil)
 )
-func renderTiming() {
+func renderTiming() throws {
     struct Rows: View {
         var body: some View {
             ScrollView {
@@ -30,6 +30,7 @@ func renderTiming() {
         render += clock.measure { _ = host.render(scale: 1) }
     }
     print("BENCH layout per frame: \(layout / 20), render per frame: \(render / 20)")
+    try rustleTiming()
 }
 
 @Test(

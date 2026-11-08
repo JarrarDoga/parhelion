@@ -147,7 +147,14 @@ the child. A `nil` dimension in a proposal asks for the child's ideal size.
 - **Text** is measured with the advance widths of the bundled Inter typeface and wraps at spaces.
   The four weights in `Fonts/` (Regular, Medium, SemiBold, and Bold) are generated into source,
   because Parhelion cannot ship SwiftPM resources ([ADR 0003](adr/0003-no-swiftpm-resources.md)).
-  There is no kerning, shaping, or tracking yet.
+  There is no kerning or shaping. Every character is followed by a letter spacing that depends on
+  the size, from Inter's dynamic metrics, which brings Inter's widths toward San Francisco's
+  ([ADR 0019](adr/0019-layout-and-glyph-caches-and-letter-spacing.md)).
+  Layout keeps the sizes it chose and the lines text wrapped into between frames, and a font keeps
+  its glyph outlines and each glyph's coverage by size and quarter pixel, so a scrolled list or an
+  animation frame measures and draws only what changed. A cached size is used only for a node
+  equal to the one it was measured for, and a size that read a lazy stack's measured lengths is
+  not kept.
 - **Fonts** flow down through the environment: `font(_:)`, `fontWeight(_:)`, and `bold(_:)` set
   them for their content, and `Text.font(_:)` overrides them. Each `Text` resolves its font when
   it is evaluated and records it as an attribute, such as `font=headline` or
@@ -426,7 +433,16 @@ the screen it covers. The effect blurs only the pixels inside its rectangle, on 
 resampled bilinearly, so its cost follows the rectangle (about 2 to 6 ms at 2× and 3×). `RenderCache`
 keeps an effect that stays where it was with the pixels it read and left, as it does glass, and
 copies it while the pixels beneath do not change; a checksum of those pixels tells whether they
-changed, so a list scrolling under the bar does not pay for copies.
+changed, so a list scrolling under the bar does not pay for copies. While a scroll moves the
+content under the effect, nothing is kept: the pixels differ in every frame, and a frame skips the
+checksum.
+
+A scroll view's content is drawn from the last frame when only its position changed
+(`Rendering+ScrollShift.swift`, ADR 0019). `RenderCache` keeps the pixels the content drew; the next
+frame copies them shifted by the scroll and draws again the rows that came into view and the nodes
+whose description changed. This needs the content's position on whole pixels, which the renderer
+rounds it to, a flat color beneath the content, and content that does not read the pixels around
+what it draws (`Canvas.readsSurroundings`); otherwise the content is drawn in full.
 
 ### Progress views
 
@@ -951,13 +967,16 @@ hosts from before a capability keep working with newer ones
 
 - **`hostClock`: the host owns the clock.** The window host turns on vsync and reads the
   display's refresh rate, again when the window moves to another display. While the app reports
-  that something moves, the host presents once per refresh and, after each present, sends a
-  `tick` whose target is the moment the next frame will be on screen. Times are nanoseconds of
+  that something moves, the host presents once per refresh and sends `tick`s whose target is the
+  moment the frame will be on screen. Times are nanoseconds of
   `CLOCK_MONOTONIC`, which both processes share (`PreviewClock`). The app advances its clock to
   the target and draws once; input that arrives in between changes state and is drawn on the next
   tick. The host waits for that frame until shortly before the refresh, so a frame that misses
-  it is shown one refresh later and the previous frame stays up meanwhile. An app too slow for
-  every refresh is shown every second, third, or later refresh, evenly (`FramePacer`). The app is
+  it is shown one refresh later and the previous frame stays up meanwhile. As soon as an answer
+  arrives, the host sends the next tick, so the app draws the next frame while the host uploads
+  and presents this one, at most two frames ahead of the screen
+  ([ADR 0020](adr/0020-overlapped-frames.md)). An app too slow on average for every refresh is
+  shown every second, third, or later refresh, evenly (`FramePacer`). The app is
   also shown no faster than the simulated screen's `maximumFramesPerSecond`, which the hello
   carries: on a 240 Hz display, each frame of a 120 Hz iPhone stays up for two refreshes, and a
   frame that arrives early waits until shortly before the refresh it is due at. On a display

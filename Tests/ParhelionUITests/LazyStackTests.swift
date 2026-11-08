@@ -418,3 +418,41 @@ struct LazyStackTests {
         #expect(row?.frame.map { $0.maxY > 0 && $0.minY < 400 } == true)
     }
 }
+
+@Suite("Lazy stack rows that scrolling moves")
+@MainActor
+struct LazyMovedRowTests {
+    @Test("Rows moved by scrolling are where laying them out again puts them")
+    func movedRowsMatchLayout() throws {
+        let stepped = ViewHost(CollectionFixture(count: 200), device: .iPhone18ProMax)
+        for _ in 0..<40 {
+            #expect(stepped.scroll(by: CGSize(width: 0, height: 7.5), at: CGPoint(x: 200, y: 500)))
+        }
+        let direct = ViewHost(CollectionFixture(count: 200), device: .iPhone18ProMax)
+        try direct.scroll(try scrollViewID(direct), to: CGPoint(x: 0, y: 300))
+        #expect(
+            stepped.root.outline(includeFrames: true) == direct.root.outline(includeFrames: true))
+        // The rows are the kind whose placement moves.
+        let stack = try #require(stepped.root.allNodes.first { $0.kind == "LazyVStack" })
+        let row = try #require(stack.children.first)
+        #expect(LayoutEngine.placesAnywhere(row))
+    }
+
+    @Test("Rows with scroll views, buttons, or views that ignore the safe area are placed again")
+    func stickyRows() {
+        func node(
+            _ kind: String, _ children: [ViewNode] = [], ignoresSafeArea: Bool = false
+        )
+            -> ViewNode
+        {
+            ViewNode(
+                id: NodeID(kind), kind: kind,
+                attributes: ignoresSafeArea ? ["ignoresSafeArea": "all"] : [:],
+                children: children)
+        }
+        #expect(LayoutEngine.placesAnywhere(node("HStack", [node("Text"), node("Spacer")])))
+        #expect(!LayoutEngine.placesAnywhere(node("HStack", [node("ScrollView")])))
+        #expect(!LayoutEngine.placesAnywhere(node("VStack", [node("Button")])))
+        #expect(!LayoutEngine.placesAnywhere(node("Color", ignoresSafeArea: true)))
+    }
+}

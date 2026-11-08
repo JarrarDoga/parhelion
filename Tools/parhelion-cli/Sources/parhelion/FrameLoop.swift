@@ -133,9 +133,10 @@ final class AppearanceState: @unchecked Sendable {
 ///
 /// Each ``step(app:idleTimeout:)`` is one pass. While the app animates and
 /// draws for the host's clock, a pass waits for the app's answer to the last
-/// tick until shortly before the next refresh, uploads it, presents (which
-/// waits for the refresh), and sends the next tick. Otherwise a pass blocks
-/// until input, a frame, or `idleTimeout`, so an idle preview uses no CPU.
+/// tick until shortly before its refresh, sends the next tick so that the app
+/// draws the next frame meanwhile, uploads the answer, and presents it at its
+/// refresh. Otherwise a pass blocks until input, a frame, or `idleTimeout`,
+/// so an idle preview uses no CPU.
 /// ``FramePacer`` holds the timing rules, including the simulated screen's
 /// frame rate.
 final class FrameLoop {
@@ -190,14 +191,17 @@ final class FrameLoop {
         var events: [SurfaceEvent] = []
         if let app, ticking {
             // Wait for the app's answer until the frame deadline, handling
-            // input as it arrives. The reader thread wakes the wait.
-            let deadline = pacer.frameDeadline(afterPresentAt: lastPresent)
+            // input every millisecond. The answer ends the wait as it
+            // arrives: the window's event queue would take about a
+            // millisecond longer to wake, and while the app draws the next
+            // frame meanwhile, that millisecond would come out of every
+            // frame.
+            let deadline = pacer.answerDeadline(after: lastPresent, now: PreviewClock.now())
             while !app.hasNews, !app.isDisconnected {
                 let now = PreviewClock.now()
-                guard deadline > now + 1_000_000 else { break }
-                // Whole milliseconds, rounded down, so the wait ends before
-                // the deadline.
-                events += surface.events(waitingUpTo: Double((deadline - now) / 1_000_000) / 1000)
+                guard deadline > now else { break }
+                app.waitForNews(upTo: min(deadline - now, 1_000_000))
+                events += surface.events(waitingUpTo: 0)
                 if events.contains(where: { if case .close = $0 { true } else { false } }) { break }
             }
             events += surface.events(waitingUpTo: 0)
@@ -213,13 +217,29 @@ final class FrameLoop {
         }
 
         let answer = app?.takeAnswer()
+        // The refresh the answered frame is shown at, and the tick for the
+        // frame after it, which the app draws while this one is shown.
+        var answeredRefresh: UInt64?
+        var nextTick: (target: UInt64, earliest: UInt64)?
         if let answer {
-            pacer.noteAnswer(target: answer.target, at: answer.arrival)
+            let sentAt = lastTickSent
+            if pacer.noteAnswer(target: answer.target, at: answer.arrival) {
+                let refresh = pacer.refresh(
+                    showingAnswerFor: answer.target, at: PreviewClock.now(), after: lastPresent)
+                answeredRefresh = refresh
+                if let app = live, app.usesHostClock, app.isAnimating {
+                    nextTick = pacer.nextTick(afterShowingAt: refresh)
+                }
+            }
+            if let tick = nextTick, let app = live, PreviewClock.now() >= tick.earliest {
+                send(tick: tick.target, to: app)
+                nextTick = nil
+            }
             if isDebugLogging {
                 debugLog(
                     String(
                         format: "answer after %.3f ms, %d refreshes per frame",
-                        PreviewClock.milliseconds(answer.arrival - lastTickSent),
+                        PreviewClock.milliseconds(answer.arrival - min(sentAt, answer.arrival)),
                         pacer.framesPerTick))
             }
         }
@@ -248,12 +268,17 @@ final class FrameLoop {
             announcedSoftwarePacing = true
             debugLog("presenting does not wait for the display; pacing with a timer")
         }
-        if ticking, presentedFrame {
-            // A fast app answers long before its frame is due when each frame
-            // stays up for more than one refresh, to match the simulated
-            // screen. The frame waits, so the app runs no faster.
+        if ticking, let refresh = answeredRefresh ?? (presentedFrame ? lastPresent : nil) {
+            // The answer waits for its refresh: it was drawn for that moment,
+            // and a fast app answers long before it, more so when each frame
+            // stays up for more than one refresh to match the simulated
+            // screen. The app runs no faster than the screen shows its frames.
+            let refresh = max(refresh, pacer.earliestRefresh(after: lastPresent))
+            if let tick = nextTick, let app = live {
+                if wait(until: tick.earliest, app: app) { return .close }
+                send(tick: tick.target, to: app)
+            }
             let start = PreviewClock.now()
-            let refresh = pacer.earliestRefresh(after: lastPresent)
             let time = pacer.presentTime(forRefreshAt: refresh, now: start)
             if time > start { heldRefresh = refresh }
             if wait(until: time, app: app) { return .close }
@@ -280,13 +305,25 @@ final class FrameLoop {
         if ticking { pacer.notePresented(at: now, heldFor: heldRefresh) }
         lastPresent = now
 
+        // The first tick of an animation, or one to replace an overdue tick.
         if let app = live, app.usesHostClock, app.isAnimating, pacer.shouldTick(now: now) {
-            let target = pacer.targetTime(afterPresentAt: now)
-            app.send(.tick(PreviewTick(targetTime: target, refreshPeriod: pacer.refreshPeriod)))
-            pacer.noteTickSent(target: target, at: now)
-            lastTickSent = now
+            send(tick: pacer.targetTime(afterPresentAt: now), to: app)
         }
         return .running(presentedFrame: presentedFrame)
+    }
+
+    /// Asks the app to draw a frame for `target`.
+    private func send(tick target: UInt64, to app: AppConnection) {
+        let now = PreviewClock.now()
+        app.send(.tick(PreviewTick(targetTime: target, refreshPeriod: pacer.refreshPeriod)))
+        pacer.noteTickSent(target: target, at: now)
+        lastTickSent = now
+        if isDebugLogging {
+            debugLog(
+                String(
+                    format: "tick at %.3f ms for %.3f ms", PreviewClock.milliseconds(now),
+                    PreviewClock.milliseconds(target)))
+        }
     }
 
     /// Forwards input to the app and notes redraws. Returns whether the user
