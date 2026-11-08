@@ -223,11 +223,26 @@ public enum SymbolTemplate {
     }
 
     /// The folder Parhelion reads the user's symbols from: the one the
-    /// environment variable names, or ``defaultDirectory``.
+    /// environment variable names, or ``defaultDirectory``. The value `none`
+    /// turns the user's copy off. A test process (`swift test`) reads only a
+    /// folder the variable names, so tests draw the same on every machine,
+    /// whether or not it has a copy installed.
     public static var activeDirectory: String? {
-        if let named = environment(environmentVariable), !named.isEmpty { return named }
-        return defaultDirectory
+        if let named = environment(environmentVariable), !named.isEmpty {
+            return named == "none" ? nil : named
+        }
+        return isTestProcess ? nil : defaultDirectory
     }
+
+    /// Whether this process runs a package's tests.
+    static let isTestProcess: Bool = {
+        // SwiftPM names the runner `<Package>PackageTests.xctest`, or
+        // `<Target>-test-runner` with its newer build system.
+        let program = CommandLine.arguments.first ?? ""
+        return program.hasSuffix(".xctest") || program.contains("PackageTests")
+            || program.hasSuffix("-test-runner")
+            || CommandLine.arguments.contains("--testing-library")
+    }()
 
     private static func environment(_ name: String) -> String? {
         #if canImport(Foundation)

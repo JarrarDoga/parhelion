@@ -176,6 +176,14 @@ struct UserSymbolsTests {
         }
     }
 
+    @Test func testsIgnoreAnInstalledCopy() {
+        unsetenv(SymbolTemplate.environmentVariable)
+        #expect(SymbolTemplate.activeDirectory == nil)
+        setenv(SymbolTemplate.environmentVariable, "none", 1)
+        defer { unsetenv(SymbolTemplate.environmentVariable) }
+        #expect(SymbolTemplate.activeDirectory == nil)
+    }
+
     @Test func currentExportsHoldThreeSmallWeights() {
         // Current templates hold Ultralight, Regular, and Black at small
         // scale. The others are interpolated, and outlines grow to medium.

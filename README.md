@@ -344,7 +344,8 @@ An export holds the Ultralight, Regular, and Black outlines of each symbol; Parh
 interpolates the weights between them.
 
 That copies only the outlines Parhelion draws, to `~/.local/share/parhelion/symbols`, never into a
-repository or a build. Instead of importing, set `PARHELION_SF_SYMBOLS` to the folder of exports.
+repository or a build. Instead of importing, set `PARHELION_SF_SYMBOLS` to the folder of exports, or to `none` to
+turn your copy off. `swift test` never reads an installed copy, so tests draw the same everywhere.
 A name your copy lacks falls back to Phosphor, then to a ring. In the view tree and in
 `parhelion mcp`, a symbol drawn from your copy has `symbolSource=sfSymbols`.
 
