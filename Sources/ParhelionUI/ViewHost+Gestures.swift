@@ -9,7 +9,9 @@ import Foundation
 @MainActor
 final class GestureRegistration {
     let nodeID: NodeID
-    /// Which of the gesture modifiers on the node this is, innermost first.
+    /// Which of the gesture modifiers on the node this is, innermost first,
+    /// or a negative number for a gesture with no modifier, such as a
+    /// context menu's long press. Its area is then the node's frame.
     let ordinal: Int
     let priority: GesturePriority
     let mask: GestureMask
@@ -52,6 +54,12 @@ struct GestureHostState {
 
     mutating func register(_ registration: GestureRegistration) {
         collecting[registration.nodeID, default: []].append(registration)
+    }
+
+    /// The ordinal for a gesture on a node that has no modifier of its own:
+    /// -1 for the first, -2 for the next.
+    func nextUnmarkedOrdinal(for id: NodeID) -> Int {
+        -1 - (collecting[id] ?? []).count { $0.ordinal < 0 }
     }
 
     /// Replaces the gestures with the ones just evaluated. A press in

@@ -877,8 +877,12 @@ renderer call for the kinds they do not handle themselves.
   apply; the node kind `Menu` is already the open menu picker's panel, which is why the button does
   not use it. Opening it registers a `MenuPopover` presentation holding a `MenuPanel`: the content's
   `Button`s, `Section`s, `Divider`s (`MenuSeparator`), and `ControlGroup`s, with a separator
-  inserted around each section and group. `contextMenu` puts a long press handler on its content's
-  nodes; the long press registers a `ContextMenu` presentation with a `ContextMenuPreview`, a copy
+  inserted around each section and group. `contextMenu` puts a long press on its content's nodes,
+  twice: a long press handler, which `ViewHost.longPress(at:duration:)` calls, and a
+  `LongPressGesture` registered with `Evaluator.registerLongPress(for:perform:)`, which a pointer
+  held in the window reaches through gesture arbitration (ADR 0015) and which leaves no modifier
+  in the outline. A `Menu` with a `primaryAction` does the same on its button. Either long press
+  registers a `ContextMenu` presentation with a `ContextMenuPreview`, a copy
   of the view (or its `preview`) scaled to 1.03 over a blur of the screen, and a `MenuPanel`.
   All of these register through `NodeExtensions` in `Rendering+Menu.swift`. A tap on an item runs
   its action, then closes the menu; a tap outside closes it. Menus fade in like sheets, so a test

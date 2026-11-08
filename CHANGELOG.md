@@ -632,6 +632,11 @@ may contain breaking changes.
 
 ### Fixed
 
+- Holding the pointer for half a second on a view with `contextMenu`, or on a `Menu` with a
+  `primaryAction`, in the window host opens its menu, as holding a finger does on iOS. The long
+  press takes part in gesture arbitration, so it does not also run the view's button action or
+  tap gesture, and a press that is released early or turns into a scroll opens nothing. Before,
+  only `ViewHost.longPress(at:duration:)` and the `long_press` MCP tool opened these menus.
 - The first click on an unfocused preview window reaches the app. Before, SDL used the click only
   to focus the window.
 - `parhelion mcp --window` opens its window instead of stopping with an argument parser error.
