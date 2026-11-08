@@ -31,6 +31,12 @@ extension View {
     public func sectionIndexLabel(_ label: Text?) -> some View {
         SectionIndexLabelView(content: self, label: label?.content)
     }
+
+    /// Sets the label that stands for this section in the section index of
+    /// its list, from a string.
+    public func sectionIndexLabel(_ label: some StringProtocol) -> some View {
+        SectionIndexLabelView(content: self, label: String(label))
+    }
 }
 
 struct ListSectionIndexVisibilityKey: EnvironmentKey {

@@ -690,6 +690,12 @@ screen instead of in the root's implicit stack.
   scroll view under the pointer can take moves the sheet, and a release beyond 100 points
   dismisses it. An alert's buttons dismiss it after their actions run. When a sheet leaves the
   tree, the host runs its `onDismiss`.
+- **Confirmation dialogs.** As on iOS 26 and later, `confirmationDialog` presents a
+  `ConfirmationDialog` node holding a `ConfirmationDialogPanel`: a popover above the view the
+  modifier is attached to (its `anchor`), or below it when there is no room, with an arrow whose
+  tip the panel records in `arrow`. The cancel action is not in the panel; a tap outside the
+  panel runs it and dismisses the dialog. ConfirmationDialog.swift registers both kinds through
+  the extension seam.
 
 ### Search
 

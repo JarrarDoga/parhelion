@@ -461,9 +461,14 @@ struct LayoutEngine {
                 let line =
                     (metrics.fontSize == LayoutDefaults.bodyFontSize ? Font.body : .subheadline)
                     .resolved().lineHeight
-                return CGSize(
-                    width: label.width + 2 * metrics.padding,
-                    height: max(label.height + metrics.height - line, metrics.height))
+                let height = max(label.height + metrics.height - line, metrics.height)
+                let width = label.width + 2 * metrics.padding
+                // A circle is a square around the capsule.
+                if node.attributes["buttonBorderShape"] == "circle" {
+                    let side = max(width, height)
+                    return CGSize(width: side, height: side)
+                }
+                return CGSize(width: width, height: height)
             }
             return labelSize(node, proposal)
         default:
@@ -757,7 +762,12 @@ struct LayoutEngine {
             let barRect = CGRect(
                 x: rect.minX, y: rect.minY, width: rect.width,
                 height: min(Self.navigationBarHeight(bar), rect.height))
-            let content = node.children.filter { $0.kind != "NavigationBar" }
+            let bottomBar = node.children.first(where: Self.isBottomBar).map {
+                placeBottomBar($0, in: rect)
+            }
+            let content = node.children.filter {
+                $0.kind != "NavigationBar" && !Self.isBottomBar($0)
+            }
             // A scroll view as the screen fills the stack and scrolls under
             // the bar, starting its content below it. Other content is
             // centered below the bar.
@@ -766,18 +776,26 @@ struct LayoutEngine {
             let scrollsUnderBar =
                 bar != nil && bar?.attributes["presentation"] != "sheet" && content.count == 1
                 && content[0].isScrollContainer
-            let contentRect =
+            var contentRect =
                 scrollsUnderBar
                 ? rect
                 : CGRect(
                     x: rect.minX, y: barRect.maxY, width: rect.width,
                     height: rect.height - barRect.height)
+            // Content that does not scroll under the bars ends above the
+            // bottom bar.
+            if !scrollsUnderBar, let bottom = bottomBar?.frame {
+                contentRect.size.height = max(
+                    min(contentRect.maxY, bottom.minY - LayoutDefaults.bottomBarContentGap)
+                        - contentRect.minY, 0)
+            }
             let outer = scrolling.obscuredTop
             scrolling.obscuredTop = scrollsUnderBar ? barRect.maxY : nil
             let placedContent = placeCentered(content, id: node.id, in: contentRect)
             scrolling.obscuredTop = outer
             node.children =
                 (bar.map { [place($0, in: barRect, parentAxis: nil)] } ?? []) + placedContent
+                + (bottomBar.map { [$0] } ?? [])
         case "TabView":
             node.children = placeTabView(node, in: rect)
         case "NavigationBar":
@@ -790,7 +808,14 @@ struct LayoutEngine {
             // Each item fills its part of the group's capsule, so the whole
             // capsule responds to taps.
             var x = rect.minX
-            for (index, width) in toolbarItemWidths(node).enumerated() {
+            var widths = toolbarItemWidths(node)
+            if node.attributes["placement"] == "bottom", !widths.isEmpty {
+                // The bottom bar's capsule is taller than the items' cells,
+                // and they share its extra width.
+                let extra = (rect.width - widths.reduce(0, +)) / CGFloat(widths.count)
+                widths = widths.map { $0 + extra }
+            }
+            for (index, width) in widths.enumerated() {
                 let child = node.children[index]
                 let cell = CGRect(x: x, y: rect.minY, width: width, height: rect.height)
                 if child.kind == "Button" || child.kind == "NavigationLink" {

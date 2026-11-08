@@ -254,3 +254,77 @@ extension View {
         attributeModifier("tint", tint?.styleName ?? "accentColor")
     }
 }
+
+// MARK: - Border shape
+
+/// The shape that a bordered or glass button draws behind its label,
+/// mirroring SwiftUI's `ButtonBorderShape`.
+///
+/// A button records a shape other than ``automatic`` in its
+/// `buttonBorderShape` attribute: `capsule`, `circle`, `roundedRectangle`,
+/// or `roundedRectangle(12)` for a radius of 12 points.
+public struct ButtonBorderShape: Equatable, Sendable {
+    let name: String
+    let radius: CGFloat?
+
+    /// The shape the style chooses: a capsule on iOS 26 and later.
+    public static let automatic = ButtonBorderShape(name: "automatic", radius: nil)
+    /// A capsule.
+    public static let capsule = ButtonBorderShape(name: "capsule", radius: nil)
+    /// A circle. The button is a square around what its capsule would be.
+    public static let circle = ButtonBorderShape(name: "circle", radius: nil)
+    /// A rectangle with the system's corner radius.
+    public static let roundedRectangle = ButtonBorderShape(name: "roundedRectangle", radius: nil)
+
+    /// A rectangle with corners of the given radius.
+    public static func roundedRectangle(radius: CGFloat) -> ButtonBorderShape {
+        ButtonBorderShape(name: "roundedRectangle", radius: radius)
+    }
+
+    /// The value of a button's `buttonBorderShape` attribute, or `nil` for
+    /// the automatic shape.
+    var attribute: String? {
+        guard self != .automatic else { return nil }
+        return radius.map { "\(name)(\(formatPoints($0)))" } ?? name
+    }
+
+    /// Assumed: the corner radius of `roundedRectangle` without a radius, as
+    /// in UIKit's medium corner style.
+    static let defaultCornerRadius: CGFloat = 8
+
+    /// The corner radius of a button's shape in `frame`, from its
+    /// `buttonBorderShape` attribute: half the shorter side, except for a
+    /// rounded rectangle.
+    static func cornerRadius(attribute: String?, in frame: CGRect) -> CGFloat {
+        let half = min(frame.width, frame.height) / 2
+        guard let attribute, attribute.hasPrefix("roundedRectangle") else { return half }
+        let prefix = "roundedRectangle("
+        var radius = defaultCornerRadius
+        if attribute.hasPrefix(prefix),
+            let value = Double(attribute.dropFirst(prefix.count).dropLast())
+        {
+            radius = CGFloat(value)
+        }
+        return min(radius, half)
+    }
+}
+
+struct ButtonBorderShapeKey: EnvironmentKey {
+    static var defaultValue: ButtonBorderShape { .automatic }
+}
+
+extension EnvironmentValues {
+    /// The shape that bordered and glass buttons in the view draw.
+    var buttonBorderShape: ButtonBorderShape {
+        get { self[ButtonBorderShapeKey.self] }
+        set { self[ButtonBorderShapeKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Sets the shape that bordered and glass buttons in this view draw
+    /// behind their labels.
+    public func buttonBorderShape(_ shape: ButtonBorderShape) -> some View {
+        environment(\.buttonBorderShape, shape)
+    }
+}

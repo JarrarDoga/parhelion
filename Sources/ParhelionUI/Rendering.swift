@@ -472,7 +472,8 @@ struct TreeRenderer {
         let palette = ColorPalette.appearance(scheme)
         let own = node.attributes["foregroundStyle"]
         let isDestructive = node.attributes["role"] == "destructive"
-        let radius = min(frame.width, frame.height) / 2
+        let radius = ButtonBorderShape.cornerRadius(
+            attribute: node.attributes["buttonBorderShape"], in: frame)
         switch container {
         case .navigationBar where node.id.rawValue.hasSuffix("/bar/back"):
             // The back button is a glass circle.

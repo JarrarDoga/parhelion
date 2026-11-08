@@ -176,6 +176,9 @@ public final class ViewHost {
     /// The feedback views asked for. See SensoryFeedback.swift.
     var sensoryFeedbackLog = SensoryFeedbackLog()
 
+    /// The URLs the system `openURL` action opened. See Link.swift.
+    var openedURLLog = OpenedURLLog()
+
     /// A number that increases whenever anything on screen changes: the
     /// tree, the layout, a scroll position, or the pressed button. Clients
     /// compare it to decide whether to draw a new frame.
@@ -1006,6 +1009,7 @@ public final class ViewHost {
         evaluator.environment.dynamicTypeSize = dynamicTypeSize
         evaluator.environment.accessibilityReduceMotion = reduceMotion
         evaluator.environment.scenePhase = scenePhase
+        evaluator.environment.openURL = systemOpenURLAction
         var preferences: [NodeID: ColorScheme] = [:]
         var presented: [NodeID: Presentation] = [:]
         // A change to an observable property that a view reads marks the
@@ -1044,6 +1048,9 @@ public final class ViewHost {
         if reduceMotion { rootAttributes["reduceMotion"] = "true" }
         if let feedback = sensoryFeedbackLog.rootValue {
             rootAttributes[SensoryFeedbackKey.attribute] = feedback
+        }
+        if let url = openedURLLog.urls.last {
+            rootAttributes[OpenedURLLog.attribute] = url.absoluteString
         }
         if scenePhase != .active { rootAttributes["scenePhase"] = scenePhase.name }
         resolvedRoot = ViewNode(
