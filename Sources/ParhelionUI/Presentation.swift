@@ -374,9 +374,14 @@ extension AlertView: PrimitiveView {
                     let titleNode = ViewNode(
                         id: ownPath.appending("title").id, kind: "Text",
                         attributes: titleAttributes)
+                    // The message is regular 15 points, `subheadline`, as
+                    // on an iPhone with iOS 27.2.
                     let messageNodes =
-                        message.map { evaluator.evaluate($0, at: ownPath.appending("message")) }
-                        ?? []
+                        message.map { message in
+                            evaluator.withEnvironment({ $0.font = .subheadline }) {
+                                evaluator.evaluate(message, at: ownPath.appending("message"))
+                            }
+                        } ?? []
                     return ViewNode(
                         id: ownPath.id, kind: "Alert",
                         children: [titleNode] + messageNodes + fields + buttons)

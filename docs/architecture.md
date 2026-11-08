@@ -226,7 +226,9 @@ device for the system interface it draws over the tree.
 - **Glass** is drawn by `Canvas.drawGlass` in ParhelionUI, with the materials in `ColorPalette`:
   a drop shadow, a blur of what is already drawn behind, a tint, a bright line inside the edge,
   and a faint ring outside it. Small glass is for toolbar items, the back button, and `.glass`
-  buttons; large glass for alerts and partial-height sheets. Before blurring, it checks whether
+  buttons; large glass for alerts and partial-height sheets. Prominent glass mixes its tint
+  color toward black (light) or white (dark) and draws it translucent over the blurred backdrop,
+  as an iPhone with iOS 27.2 does. Before blurring, it checks whether
   the pixels the blur would read are one flat color, every row at one pixel per point, and then
   skips the blur and fills the shape with the tint blended over that color once.
 - **`glassEffect`** plugs in through the extension seam (Rendering+GlassEffect.swift). The modifier
@@ -617,8 +619,9 @@ only a chevron, and its `label` attribute is the previous screen's title, or "Ba
 Each group of leading or trailing items is one glass capsule, 44 points tall: an item that is
 only a symbol is a 44-point circle on its own and 52 points wide among others, and other items
 are padded by 12 points at each end. Buttons fill their part of the capsule. A
-`.confirmationAction` gives its buttons the `glassProminent` style, and prominent buttons get a
-capsule of their own nearer the edge, marked `glass=prominent`. Items are evaluated with medium
+`.confirmationAction` keeps the plain glass of the other items, as on an iPhone with iOS 27.2;
+buttons with the `glassProminent` style get a capsule of their own nearer the edge, marked
+`glass=prominent`. Items are evaluated with medium
 labels, and the renderer draws them near-black on glass.
 
 The stack fills the space it is offered: the bar takes the top 54 points with an inline title,
@@ -681,12 +684,16 @@ screen instead of in the root's implicit stack.
   view's and is discarded when it is dismissed.
 - **Input.** The last presentation is in front. `interactiveRoot` is that node, or the whole tree
   when nothing is presented, and every kind of input searches only there.
-- **Layout.** A sheet's top is at the top of the safe area, or at its smallest detent; below
-  the large detent it is inset 8 points from the sides and the bottom. Its node records
-  `detents` and `dragIndicator` when they are set. An alert is 300 points wide, with its title
-  and message at the leading edge above capsule buttons: two side by side, and otherwise one
-  above another with a cancel button last. Alert actions are evaluated with medium labels and
-  draw as gray capsules whatever button style surrounds them.
+- **Layout.** A sheet's top is at the top of the safe area, or at its smallest detent; the
+  medium detent's top is (screen height − safe-area top + 8) / 2, 451 of 956 points on an iPhone
+  18 Pro Max with iOS 27.2. Below the large detent it is inset 8 points from the sides and the
+  bottom, floats as glass that a grouped list's background lets show through, and its bottom
+  corners follow the screen's, inset with it; a scroll view inside ends at the sheet's bottom.
+  Its node records `detents` and `dragIndicator` when they are set, and the grabber draws in
+  front of the sheet's content. An alert is 320 points wide, with its title and its message, in
+  `subheadline` and a secondary gray, at the leading edge above capsule buttons: two side by
+  side, and otherwise one above another with a cancel button last. Alert actions are evaluated
+  with medium labels and draw as gray capsules whatever button style surrounds them.
 - **Dismissal.** Dismissing sets the presenting binding back. A drag down on a sheet that no
   scroll view under the pointer can take moves the sheet, and a release beyond 100 points
   dismisses it. An alert's buttons dismiss it after their actions run. When a sheet leaves the

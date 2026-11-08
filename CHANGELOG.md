@@ -573,6 +573,13 @@ may contain breaking changes.
   magnifying glass 24 points, as measured on the same iPhone.
 - A `searchable` list in a tab scrolls under the bars: it gets the scroll edge effect, and
   `tabBarMinimizeBehavior(.onScrollDown)` minimizes the tab bar while it scrolls (#115).
+- Sheets, alerts, and prominent glass match an iPhone 18 Pro Max with iOS 27.2. A medium sheet
+  rests higher (451 points down a 956-point screen, not 478), floats as glass with a grabber in
+  front of its content and bottom corners that follow the screen's, and its list shows the glass
+  through. A `.confirmationAction` toolbar button is plain glass, not blue. Alerts are 320
+  points wide, with a 15-point secondary-gray message and 47⅓-point buttons. `.glassProminent`
+  is a darker, translucent tint over the blurred backdrop.
+
 - A scroll view that reaches the top or bottom of the safe area takes the whole screen height, and
   starts its content at the safe area, so its frame and `contentOffset` count from the top of the
   screen. Scrolling stops with the last row above the bottom inset. A navigation bar draws over

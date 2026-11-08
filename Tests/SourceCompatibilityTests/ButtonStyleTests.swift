@@ -54,7 +54,7 @@ struct ButtonStyleTests {
         }
         #expect(
             styles == [
-                "Done: glassProminent",
+                "Done: -",
                 "Plain: plain",
                 "Borderless: borderless",
                 "Automatic: -",

@@ -10,6 +10,19 @@ private let screen = Device(
     safeAreaInsets: EdgeInsets(top: 20, leading: 0, bottom: 20, trailing: 0)
 )
 
+/// The height of an alert button's capsule, 142 pixels at 3×.
+private let alertButtonHeight: CGFloat = 142.0 / 3
+
+/// The height of an alert with a one-line title and message and one row of
+/// buttons.
+private let alertHeight: CGFloat = 21 + 22 + 6 + 20 + 20 + alertButtonHeight + 16
+
+/// Whether two rectangles are the same to within a hundredth of a point.
+private func close(_ a: CGRect, _ b: CGRect) -> Bool {
+    abs(a.minX - b.minX) < 0.01 && abs(a.minY - b.minY) < 0.01
+        && abs(a.width - b.width) < 0.01 && abs(a.height - b.height) < 0.01
+}
+
 /// The width of a medium 17-point label.
 private func mediumWidth(_ text: String) -> CGFloat {
     FontTextMeasurer().size(of: text, font: Font.body.weight(.medium).resolved(), width: nil).width
@@ -135,8 +148,8 @@ struct GlassControlsTests {
         #expect(try frame(host, "toolbar/2/Button") == CGRect(x: 232, y: 20, width: 52, height: 44))
     }
 
-    @Test("A confirmation action is prominent, in its own capsule at the trailing edge")
-    func prominentItem() throws {
+    @Test("A confirmation action shares the plain glass of the other items")
+    func confirmationItem() throws {
         let host = ViewHost(
             NavigationStack {
                 Text("Content")
@@ -145,6 +158,33 @@ struct GlassControlsTests {
                             Button(action: {}) { Image(systemName: "plus") }
                         }
                         ToolbarItem(placement: .confirmationAction) { Button("Done") {} }
+                    }
+            },
+            device: screen
+        )
+        #expect(
+            bar(host).outline() == """
+                NavigationBar titleDisplayMode=inline
+                └─ ToolbarItemGroup placement=trailing
+                   ├─ Button
+                   │  └─ Image systemName=plus
+                   └─ Button
+                      └─ Text "Done" font=body.medium
+                """)
+    }
+
+    @Test("A prominent button is in its own capsule at the trailing edge")
+    func prominentItem() throws {
+        let host = ViewHost(
+            NavigationStack {
+                Text("Content")
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(action: {}) { Image(systemName: "plus") }
+                        }
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Done") {}.buttonStyle(.glassProminent)
+                        }
                     }
             },
             device: screen
@@ -163,12 +203,10 @@ struct GlassControlsTests {
         #expect(done.maxX == 284)
         let plus = try #require(bar(host).children[0].frame)
         #expect(plus.maxX == done.minX - 12 && plus.width == 44)
-        // Blue glass with a white label.
+        // Translucent blue glass, darkened, over the white screen.
         let rendered = host.render(scale: 2)
-        #expect(
-            components(rendered.color(at: CGPoint(x: done.minX + 4, y: done.midY))) == [
-                0, 136, 255,
-            ])
+        let blue = components(rendered.color(at: CGPoint(x: done.minX + 4, y: done.midY)))
+        #expect(zip(blue, [54, 150, 235]).allSatisfy { abs(Int($0) - $1) <= 1 })
     }
 
     @Test("A principal button draws without glass, in the tint color")
@@ -261,17 +299,19 @@ struct GlassControlsTests {
         return host.root.children[1]
     }
 
-    @Test("An alert is 300 wide, with left-aligned text 22 points in")
+    @Test("An alert is 320 wide, with left-aligned text 30 points in")
     func alertLayout() throws {
         let alert = try alert(buttons: 2)
         let frame = try #require(alert.frame)
-        // 22 + title 22 + 10 + message 22 + 24 + button 48 + 14.
-        #expect(frame.size == CGSize(width: 300, height: 162))
-        #expect(frame.midX == 150 && frame.midY == 200)
+        // 21 + title 22 + 6 + message 20 + 20 + button 47⅓ + 16.
+        #expect(frame.width == 320)
+        #expect(abs(frame.height - alertHeight) < 0.01)
+        #expect(frame.midX == 150 && abs(frame.midY - 200) < 0.01)
         let title = try #require(alert.children[0].frame)
-        #expect(title.origin == CGPoint(x: frame.minX + 22, y: frame.minY + 22))
+        #expect(title.minX == frame.minX + 30 && abs(title.minY - (frame.minY + 21)) < 0.01)
         let message = try #require(alert.children[1].frame)
-        #expect(message.minX == frame.minX + 22 && message.minY == title.maxY + 10)
+        #expect(message.minX == frame.minX + 30 && abs(message.minY - (title.maxY + 6)) < 0.01)
+        #expect(message.height == 20)
     }
 
     @Test("Two alert buttons sit side by side, cancel first")
@@ -281,29 +321,42 @@ struct GlassControlsTests {
         let cancel = try #require(alert.children[2].frame)
         let delete = try #require(alert.children[3].frame)
         #expect(alert.children[2].attributes["role"] == "cancel")
-        #expect(cancel == CGRect(x: frame.minX + 14, y: frame.maxY - 62, width: 132, height: 48))
-        #expect(delete == CGRect(x: frame.minX + 154, y: frame.maxY - 62, width: 132, height: 48))
+        let top = frame.maxY - 16 - alertButtonHeight
+        #expect(
+            close(
+                cancel,
+                CGRect(x: frame.minX + 20, y: top, width: 132, height: alertButtonHeight)))
+        #expect(
+            close(
+                delete,
+                CGRect(x: frame.minX + 168, y: top, width: 132, height: alertButtonHeight)))
     }
 
     @Test("One alert button spans the alert; three stack, cancel last")
     func oneAndThreeButtons() throws {
         let one = try alert(buttons: 1)
         let oneFrame = try #require(one.frame)
-        #expect(oneFrame.height == 162)
+        #expect(abs(oneFrame.height - alertHeight) < 0.01)
+        let only = try #require(one.children[2].frame)
         #expect(
-            one.children[2].frame
-                == CGRect(x: oneFrame.minX + 14, y: oneFrame.maxY - 62, width: 272, height: 48))
+            close(
+                only,
+                CGRect(
+                    x: oneFrame.minX + 20, y: oneFrame.maxY - 16 - alertButtonHeight, width: 280,
+                    height: alertButtonHeight)))
 
         let three = try alert(buttons: 3)
         let frame = try #require(three.frame)
-        // Three 48-point rows, 12 apart.
-        #expect(abs(frame.height - (162 + 2 * 60)) < 0.01)
+        // Three rows, 12 apart.
+        let row = alertButtonHeight + 12
+        #expect(abs(frame.height - (alertHeight + 2 * row)) < 0.01)
         let buttons = three.children.filter { $0.kind == "Button" }
         #expect(buttons.map(\.label) == ["Delete", "Archive", "Cancel"])
         let tops = buttons.compactMap { $0.frame?.minY }
-        let expected = [frame.maxY - 182, frame.maxY - 122, frame.maxY - 62]
+        let last = frame.maxY - 16 - alertButtonHeight
+        let expected = [last - 2 * row, last - row, last]
         #expect(zip(tops, expected).allSatisfy { abs($0 - $1) < 0.01 })
-        #expect(buttons.allSatisfy { $0.frame?.width == 272 })
+        #expect(buttons.allSatisfy { $0.frame?.width == 280 })
     }
 
     @Test("Alert buttons are gray capsules, with a red label for a destructive one")
@@ -376,10 +429,28 @@ struct GlassControlsTests {
             device: screen
         )
         let sheet = host.root.children[1]
-        #expect(sheet.frame == CGRect(x: 8, y: 200, width: 284, height: 192))
+        // Half of what is left of the screen above the safe area's top less
+        // the inset: (400 - 20 + 8) / 2.
+        #expect(sheet.frame == CGRect(x: 8, y: 194, width: 284, height: 198))
         let rendered = host.render(scale: 2)
-        #expect(components(rendered.color(at: CGPoint(x: 150, y: 207))) == [207, 207, 207])
-        #expect(components(rendered.color(at: CGPoint(x: 150, y: 212)))[0] > 220)
+        #expect(components(rendered.color(at: CGPoint(x: 150, y: 201.5))) == [168, 168, 170])
+        #expect(components(rendered.color(at: CGPoint(x: 150, y: 206)))[0] > 200)
+    }
+
+    @Test("A list in a medium sheet ends at the sheet and shows its glass")
+    func listInMediumSheet() throws {
+        let host = ViewHost(
+            Text("Content").sheet(isPresented: .constant(true)) {
+                List { Text("Row") }.presentationDetents([.medium, .large])
+            },
+            device: screen
+        )
+        let sheet = try #require(host.root.children[1].frame)
+        let list = try #require(host.root.allNodes.first { $0.kind == "List" }?.frame)
+        #expect(list.maxY == sheet.maxY)
+        // Below the row, the sheet's glass, not the grouped background.
+        let rendered = host.render(scale: 2)
+        #expect(components(rendered.color(at: CGPoint(x: 150, y: sheet.maxY - 40)))[0] < 235)
     }
 
     @Test("presentationDragIndicator shows or hides the grabber")
@@ -401,10 +472,10 @@ struct GlassControlsTests {
                 └─ Text "Sheet"
                 """)
         #expect(
-            components(visible.render(scale: 2).color(at: CGPoint(x: 150, y: 27)))
-                == [207, 207, 207])
+            components(visible.render(scale: 2).color(at: CGPoint(x: 150, y: 27.5)))
+                == [168, 168, 170])
         let hidden = sheet(.hidden, detents: [.medium, .large])
         #expect(
-            components(hidden.render(scale: 2).color(at: CGPoint(x: 150, y: 207)))[0] > 220)
+            components(hidden.render(scale: 2).color(at: CGPoint(x: 150, y: 201.5)))[0] > 200)
     }
 }

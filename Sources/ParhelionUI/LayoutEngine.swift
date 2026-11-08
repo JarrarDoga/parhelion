@@ -110,7 +110,10 @@ struct LayoutEngine {
             let content = CGRect(
                 x: frame.minX, y: frame.minY, width: frame.width,
                 height: max(frame.height - max(device.safeAreaInsets.bottom - inset, 0), 0))
+            let outerSheetBottom = scrolling.sheetBottom
+            scrolling.sheetBottom = frame.maxY
             node.children = placeCentered(node.children, id: node.id, in: content)
+            scrolling.sheetBottom = outerSheetBottom
         case "Menu":
             node = placeMenu(node, over: below)
         default:
@@ -122,11 +125,18 @@ struct LayoutEngine {
 
     /// Where a sheet's top edge rests: at its smallest detent, or below the
     /// status bar.
+    ///
+    /// The medium detent's top is half of the screen's height less the part
+    /// of the safe area's top that is not the partial sheet's inset: 451
+    /// points of 956 on an iPhone 18 Pro Max with iOS 27.2, the one device
+    /// it was measured on. Other devices are extrapolated.
     private func sheetTop(detents: String?) -> CGFloat {
         let screenHeight = device.screenSize.height
         let largeTop = device.safeArea.minY + LayoutDefaults.sheetTopInset
         let tops = (detents ?? "").split(separator: ",").map { detent -> CGFloat in
-            if detent == "medium" { return screenHeight / 2 }
+            if detent == "medium" {
+                return (screenHeight - device.safeArea.minY + LayoutDefaults.partialSheetInset) / 2
+            }
             if detent.hasPrefix("fraction:"), let fraction = Double(detent.dropFirst(9)) {
                 return screenHeight * (1 - CGFloat(fraction))
             }
@@ -183,7 +193,8 @@ struct LayoutEngine {
             buttonHeight * rows
             + LayoutDefaults.alertStackedButtonSpacing * max(rows - 1, 0)
         let height =
-            insets.vertical + contentHeight + buttonsHeight + LayoutDefaults.alertButtonInset
+            insets.vertical + contentHeight + buttonsHeight
+            + LayoutDefaults.alertButtonBottomInset
         return AlertLayout(
             size: CGSize(width: width, height: height),
             content: content,
@@ -210,7 +221,7 @@ struct LayoutEngine {
         let inset = LayoutDefaults.alertButtonInset
         let height = layout.buttonHeight
         let width = frame.width - 2 * inset
-        var top = frame.maxY - inset - layout.buttonsHeight
+        var top = frame.maxY - LayoutDefaults.alertButtonBottomInset - layout.buttonsHeight
         for (index, button) in layout.buttons.enumerated() {
             let cell: CGRect
             if layout.buttonsInRow {
@@ -1082,7 +1093,9 @@ struct LayoutEngine {
                 rect.size.height += rect.minY
                 rect.origin.y = 0
             }
-            if abs(space.maxY - safeArea.maxY) < 0.5 { rect.size.height = screenHeight - rect.minY }
+            if abs(space.maxY - safeArea.maxY) < 0.5 {
+                rect.size.height = (scrolling.sheetBottom ?? screenHeight) - rect.minY
+            }
         }
         let topBar = vertical ? scrolling.obscuredTop : nil
         let bottomBar = vertical ? scrolling.obscuredBottom : nil
@@ -1269,6 +1282,10 @@ final class ScrollLayout {
     /// The bottom of a bar that floats over the top of the scroll view
     /// being placed, such as the navigation bar, in screen points.
     var obscuredTop: CGFloat?
+    /// The bottom edge of the sheet being placed, which a scroll view that
+    /// reaches the bottom of the safe area extends to instead of the
+    /// screen's, in screen points.
+    var sheetBottom: CGFloat?
     /// What lazy stacks keep between evaluating and laying out. See
     /// LayoutEngine+Lazy.swift.
     let lazy = LazyLayoutState()

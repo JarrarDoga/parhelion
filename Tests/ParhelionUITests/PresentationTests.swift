@@ -167,7 +167,7 @@ struct PresentationTests {
         #expect(texts(host.root.children[1]) == ["Item a"])
     }
 
-    @Test("A medium detent shows the sheet over half of the screen")
+    @Test("A medium detent shows the sheet over about half of the screen")
     func detents() throws {
         var isShowing = true
         let host = ViewHost(
@@ -180,7 +180,7 @@ struct PresentationTests {
         )
         let sheet = host.root.children[1]
         #expect(sheet.attributes["detents"] == "large,medium")
-        #expect(sheet.frame?.minY == 200)
+        #expect(sheet.frame?.minY == 194)
     }
 
     @Test("A full-screen cover covers the screen")
@@ -203,17 +203,17 @@ struct PresentationTests {
             alert.outline() == """
                 Alert
                 ├─ Text "Delete the file?" font=headline
-                ├─ Text "You cannot undo this."
+                ├─ Text "You cannot undo this." font=subheadline
                 ├─ Button role=cancel
                 │  └─ Text "Cancel" font=body.medium
                 └─ Button role=destructive
                    └─ Text "Delete" font=body.medium
                 """)
         let frame = try #require(alert.frame)
-        #expect(frame.width == 300)
+        #expect(frame.width == 320)
         #expect(abs(frame.midY - 200) < 0.01)
         let cancel = try #require(alert.children[2].frame)
-        #expect(cancel.width == 132 && cancel.height == 48)
+        #expect(cancel.width == 132 && abs(cancel.height - 142.0 / 3) < 0.01)
     }
 
     @Test("An alert's button runs its action, then dismisses the alert")

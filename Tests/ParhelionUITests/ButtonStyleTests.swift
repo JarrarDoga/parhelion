@@ -162,11 +162,11 @@ struct ButtonStyleTests {
 
         let glassProminent = host(Button("MMM") {}.buttonStyle(.glassProminent).tint(.green))
         let glassProminentFrame = try frame(glassProminent)
-        #expect(
-            components(
-                glassProminent.render(scale: 2).color(
-                    at: CGPoint(x: glassProminentFrame.minX + 4, y: glassProminentFrame.midY)))
-                == [52, 199, 89])
+        // The green darkened by black at 10%, at 79% over white.
+        let green = components(
+            glassProminent.render(scale: 2).color(
+                at: CGPoint(x: glassProminentFrame.minX + 4, y: glassProminentFrame.midY)))
+        #expect(zip(green, [90, 195, 117]).allSatisfy { abs(Int($0) - $1) <= 1 })
 
         // A plain button's label is primary, a borderless one's the tint.
         let plain = host(Button("MMM") {}.buttonStyle(.plain))

@@ -66,21 +66,28 @@ struct GlassTests {
         #expect(gray(canvas, 200, 250) < 190)
     }
 
-    @Test("Tinted glass fills with the tint color")
+    @Test("Tinted glass fills with the tint color, darkened and translucent")
     func tintedGlass() {
         var canvas = Canvas(width: 124, height: 124, scale: 2)
         let blue = RGBA(red: 0, green: 136, blue: 255)
         canvas.drawGlass(rect, cornerRadius: 22, material: ColorPalette.prominentGlass, tint: blue)
-        #expect(canvas.pixel(x: 124, y: 124) == blue)
+        // The blue darkened by black at 10%, at 79% over white.
+        let pixel = canvas.pixel(x: 124, y: 124)
+        let expected = [54, 150, 235]
+        #expect(
+            zip([pixel.red, pixel.green, pixel.blue].map(Int.init), expected).allSatisfy {
+                abs($0 - $1) <= 1
+            })
     }
 
     @Test("Opacity fades every layer")
     func opacity() {
         var canvas = Canvas(
             width: 124, height: 124, scale: 2, background: RGBA(red: 0, green: 0, blue: 0))
-        canvas.drawGlass(
-            rect, cornerRadius: 22, material: ColorPalette.prominentGlass,
-            tint: .white, opacity: 0.5)
+        var material = ColorPalette.prominentGlass
+        material.tintMixAmount = 0
+        material.tintOpacity = 1
+        canvas.drawGlass(rect, cornerRadius: 22, material: material, tint: .white, opacity: 0.5)
         #expect(abs(gray(canvas, 62, 62) - 128) <= 1)
     }
 
