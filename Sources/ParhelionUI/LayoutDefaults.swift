@@ -78,10 +78,27 @@ enum LayoutDefaults {
     /// `Color`, when the parent proposes no size.
     static let flexibleIdealSize: CGFloat = 10
 
+    /// The system's side layout margin, which lists, their headers and
+    /// footers, and navigation bars inset their content by. As UIKit's
+    /// layout and readable margins on iPhone, it is 16 points on phones
+    /// narrower than 414 points, and 20 on wider ones, such as the Plus, Pro
+    /// Max, and Air. Measured on an iPhone 18 Pro Max (440 points) on iOS
+    /// 27.2: inset grouped cards span x 20 to 420, row text starts at 40,
+    /// and navigation bar buttons are 20 points from the edges, also in a
+    /// sheet at its medium detent.
+    ///
+    /// The default length of `padding()` is not a layout margin, and stays
+    /// 16 points on every device.
+    static func systemMargin(screenWidth: CGFloat) -> CGFloat {
+        screenWidth >= 414 ? 20 : 16
+    }
+
     /// Assumed: the insets around a list row's content, from the iOS 27 UI
     /// Kit: a line of body text sits 15 points from the top and bottom of a
-    /// 52-point row, and 16 points from its sides.
-    static let listRowInsets = EdgeInsets(top: 15, leading: 16, bottom: 15, trailing: 16)
+    /// 52-point row, and the system margin from its sides.
+    static func listRowInsets(margin: CGFloat) -> EdgeInsets {
+        EdgeInsets(top: 15, leading: margin, bottom: 15, trailing: margin)
+    }
 
     /// Assumed: the minimum height of a list row, 52 points in the iOS 27 UI
     /// Kit.
@@ -90,13 +107,16 @@ enum LayoutDefaults {
     /// Assumed: the space around the sections of an inset grouped list. In a
     /// real iOS 26 SwiftUI screenshot, a first section without a header
     /// starts right below a large title's bar, so there is no space above.
-    static let listContentInsets = EdgeInsets(top: 0, leading: 16, bottom: 20, trailing: 16)
+    /// The sides are the system margin.
+    static func listContentInsets(margin: CGFloat) -> EdgeInsets {
+        EdgeInsets(top: 0, leading: margin, bottom: 20, trailing: margin)
+    }
 
     /// The space between the sections of a grouped list, from the bottom of
     /// one section's footer to the top of the next one's header. Measured on
     /// an iPhone 18 Pro Max on iOS 27.2: with one-line headers, the groups
     /// of rows of two sections are 58 points apart, which this and
-    /// ``listHeaderInsets`` add up to.
+    /// ``listHeaderInsets(margin:)`` add up to.
     static let listSectionSpacing: CGFloat = 17
 
     /// Assumed: the corner radius of a section in an inset grouped list, in
@@ -106,8 +126,11 @@ enum LayoutDefaults {
     /// The insets around a section header in a list: one line of header
     /// text makes a 41-point block. The iOS 27 UI Kit draws a 42-point one,
     /// but on an iPhone 18 Pro Max on iOS 27.2 the header text sits 1 point
-    /// closer to its rows.
-    static let listHeaderInsets = EdgeInsets(top: 10, leading: 16, bottom: 9, trailing: 16)
+    /// closer to its rows. The sides are the system margin, which lines the
+    /// header up with its rows' text.
+    static func listHeaderInsets(margin: CGFloat) -> EdgeInsets {
+        EdgeInsets(top: 10, leading: margin, bottom: 9, trailing: margin)
+    }
 
     /// The width of the column that holds the icon of a ``Label`` in a list
     /// row, and the space between it and the title. Measured on an iPhone 18
@@ -126,8 +149,10 @@ enum LayoutDefaults {
 
     /// Assumed: the insets around a section footer in a list: one line of
     /// footer text makes a 30-point block, 8 points below the cells, in the
-    /// iOS 27 UI Kit.
-    static let listFooterInsets = EdgeInsets(top: 8, leading: 16, bottom: 6, trailing: 16)
+    /// iOS 27 UI Kit, and the system margin from its sides.
+    static func listFooterInsets(margin: CGFloat) -> EdgeInsets {
+        EdgeInsets(top: 8, leading: margin, bottom: 6, trailing: margin)
+    }
 
     /// Assumed: the font of a list's section headers, semibold 17 points on
     /// a 22-point line in the iOS 27 UI Kit, which is `headline`. Headers are
@@ -183,10 +208,6 @@ enum LayoutDefaults {
     /// Assumed: the font of an inline navigation title, semibold 17 points
     /// on a 22-point line in the iOS 27 UI Kit, which is `headline`.
     static let inlineTitleFont = Font.headline
-
-    /// Assumed: the space between the navigation bar's items and the edges
-    /// of the screen.
-    static let navigationBarMargin: CGFloat = 16
 
     /// Assumed: the side of a glass toolbar button: a 44-point circle for a
     /// symbol, or the height of a capsule for text, in the iOS 27 UI Kit's

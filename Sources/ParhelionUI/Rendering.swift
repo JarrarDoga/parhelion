@@ -564,7 +564,8 @@ struct TreeRenderer {
         paint: (RGBA) -> RGBA,
         into canvas: inout Canvas
     ) {
-        let style = ListStyleMetrics(styleName: node.attributes["listStyle"])
+        let style = ListStyleMetrics(
+            styleName: node.attributes["listStyle"], margin: device.layoutMargin)
         if style.isGrouped, background {
             // A list that reaches the safe area extends its background to the
             // edge of the screen, as in SwiftUI.
@@ -607,7 +608,7 @@ struct TreeRenderer {
                 if row.kind == "NavigationLink" {
                     let size = LayoutDefaults.disclosureIndicatorSize
                     let indicator = CGRect(
-                        x: cell.maxX - LayoutDefaults.listRowInsets.trailing - size.width,
+                        x: cell.maxX - device.layoutMargin - size.width,
                         y: cell.midY - size.height / 2,
                         width: size.width,
                         height: size.height
@@ -632,7 +633,7 @@ struct TreeRenderer {
                     CGRect(
                         x: start,
                         y: cell.maxY - thickness,
-                        width: max(cell.maxX - LayoutDefaults.listRowInsets.trailing - start, 0),
+                        width: max(cell.maxX - device.layoutMargin - start, 0),
                         height: thickness
                     ),
                     color: paint(palette.separator)
@@ -879,7 +880,9 @@ struct TreeRenderer {
             let bar = barNode.frame,
             let content = node.children.first(where: { $0.kind != "NavigationBar" }),
             content.kind == "List",
-            ListStyleMetrics(styleName: content.attributes["listStyle"]).isGrouped
+            ListStyleMetrics(
+                styleName: content.attributes["listStyle"], margin: device.layoutMargin
+            ).isGrouped
         else { return }
         if barNode.attributes["presentation"] != "sheet" {
             let area = CGRect(x: bar.minX, y: 0, width: bar.width, height: bar.maxY)

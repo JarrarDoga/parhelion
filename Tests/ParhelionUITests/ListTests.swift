@@ -329,7 +329,7 @@ struct ListTests {
         let images = host.root.allNodes.filter { $0.kind == "Image" }
         let texts = host.root.allNodes.filter { $0.kind == "Text" }
         let cell = try #require(host.root.allNodes.first { $0.kind == "Label" }?.listRowFrame)
-        let content = cell.minX + LayoutDefaults.listRowInsets.leading
+        let content = cell.minX + LayoutDefaults.listRowInsets(margin: 16).leading
         for (image, text) in zip(images, texts) {
             let icon = try #require(image.frame)
             #expect(abs(icon.midX - (content + 12)) < 0.01)

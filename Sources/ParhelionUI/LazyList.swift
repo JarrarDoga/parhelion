@@ -33,6 +33,7 @@ extension List {
             }
         }
 
+        let margin = evaluator.host.device.layoutMargin
         var budget = LazyDefaults.initialSlots
         var sections: [ViewNode] = []
         evaluator.withEnvironment({ $0.isInList = true }) {
@@ -41,7 +42,7 @@ extension List {
                     id: run.id, statePrefix: run.statePrefix, run.slots, vertical: true, pinned: [],
                     budget: &budget
                 ) { nodes, role in
-                    role == .row ? nodes.map { $0.asListRow() } : nodes
+                    role == .row ? nodes.map { $0.asListRow(margin: margin) } : nodes
                 }
                 sections.append(
                     ViewNode(

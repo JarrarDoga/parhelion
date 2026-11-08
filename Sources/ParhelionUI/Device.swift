@@ -176,6 +176,10 @@ extension Device {
         )
     }
 
+    /// The system's side layout margin on this device: see
+    /// ``LayoutDefaults/systemMargin(screenWidth:)``.
+    var layoutMargin: CGFloat { LayoutDefaults.systemMargin(screenWidth: screenSize.width) }
+
     /// Every device preset, in the order `parhelion` lists them.
     public static let all: [Device] = [
         .iPhone16, .iPhone16Plus, .iPhone16Pro, .iPhone16ProMax, .iPhone16e, .iPhone17,

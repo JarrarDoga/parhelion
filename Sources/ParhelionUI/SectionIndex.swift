@@ -143,7 +143,8 @@ enum SectionIndex {
             let start = host.root.node(withID: section)?.frame,
             let offset = host.scrollOffset(of: list)
         else { return }
-        let style = ListStyleMetrics(styleName: listNode.attributes["listStyle"])
+        let style = ListStyleMetrics(
+            styleName: listNode.attributes["listStyle"], margin: host.device.layoutMargin)
         let target = start.minY - first.minY + style.contentInsets.top
         try? host.scroll(list, to: CGPoint(x: offset.x, y: target))
     }
