@@ -305,8 +305,10 @@ device for the system interface it draws over the tree.
   names to Phosphor icons, and `Scripts/embed-symbols.sh` generates their SVG path data, regular
   and fill weights, into source. A name with a `.fill` suffix draws the fill weight. Every lookup
   goes through `SymbolLibrary.resolve`, which returns an outline in a unit square and the source
-  that drew it: the back button's chevrons are Parhelion's own, and a name no source has is a
-  ring, whose node records `missingSymbol=true`. A symbol is a square as wide as its font's size,
+  that drew it: the back button's chevrons are Parhelion's own, the user's own SF Symbols come
+  next when they have imported them ([ADR 0021](adr/0021-user-sf-symbols.md)), then Phosphor, and a
+  name no source has is a ring, whose node records `missingSymbol=true`. A name drawn from the
+  user's symbols records `symbolSource=sfSymbols`. A symbol is a square as wide as its font's size,
   scaled by its image scale, and Phosphor's 256-unit grid spans 4/3 of that side.
 - **Rectangles**, most of what an interface draws, skip the general rasterizer: each pixel's
   coverage is its exact overlap with the rectangle, and fully covered runs are written as whole

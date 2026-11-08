@@ -315,6 +315,45 @@ so you can edit one by hand or have an agent write it:
 From a Swift Testing test, `ViewHost.replay(_:)` plays a `Flow` against a `ViewHost`; there a
 `Task.sleep` in the app still takes real time.
 
+## Your own SF Symbols
+
+Parhelion draws `Image(systemName:)` with Phosphor Icons, because Apple's license does not let
+Parhelion ship SF Symbols. If you have the SF Symbols app, Parhelion can draw your copy instead,
+in the font's weight. It contains none, and downloads none.
+
+Export the symbols as SVG on a Mac with the SF Symbols app, either from the app (select the
+symbols, then File > Export Symbol) or all of them at once with the command-line tool inside it,
+which takes a few minutes for about 9,600 symbols:
+
+```sh
+APP="/Applications/SF Symbols.app/Contents"
+plutil -extract symbols json -o - "$APP/Resources/Metadata/name_availability.plist" \
+  | python3 -c 'import json, sys; print("\n".join(sorted(json.load(sys.stdin))))' > names.txt
+"$APP/Executables/sfsymbols" export --names-file names.txt --output-dir ~/symbols \
+  --continue-on-error --quiet
+```
+
+Copy the folder to the Linux machine and import it:
+
+```sh
+parhelion symbols import ~/symbols
+parhelion symbols status
+```
+
+An export holds the Ultralight, Regular, and Black outlines of each symbol; Parhelion
+interpolates the weights between them.
+
+That copies only the outlines Parhelion draws, to `~/.local/share/parhelion/symbols`, never into a
+repository or a build. Instead of importing, set `PARHELION_SF_SYMBOLS` to the folder of exports, or to `none` to
+turn your copy off. `swift test` never reads an installed copy, so tests draw the same everywhere.
+A name your copy lacks falls back to Phosphor, then to a ring. In the view tree and in
+`parhelion mcp`, a symbol drawn from your copy has `symbolSource=sfSymbols`.
+
+**The license is yours to check.** Apple allows SF Symbols only for designing and developing apps
+for Apple platforms, and forbids redistributing them. Whether using your copy on Linux to preview
+an iOS app is within that license is your responsibility; Parhelion does not claim it is
+permitted. Never commit exports: CI fails if SF Symbols data appears in the repository.
+
 ## Agents
 
 `parhelion mcp` serves your app to a coding agent over the Model Context Protocol. Register it
@@ -409,6 +448,8 @@ order of work.
 - Linux on x86_64. CI tests x86_64 only; arm64 should work but is not tested yet.
 - Swift 6.3 or later
 - SDL3, only for the `parhelion` preview window
+- Optional: your own SF Symbols. They are not in this repository and never will be; without them,
+  `Image(systemName:)` draws Phosphor Icons. See [Your own SF Symbols](#your-own-sf-symbols).
 
 The `SwiftUI` module exists only on Linux, so it never shadows Apple's framework.
 

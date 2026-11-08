@@ -8,6 +8,9 @@ import Foundation
 enum SymbolSource: String, Sendable {
     /// Parhelion's own drawing: the chevrons of back buttons.
     case builtIn
+    /// The user's own copy of SF Symbols, exported as SVG files; see
+    /// ``UserSymbols``.
+    case sfSymbols
     /// Phosphor Icons, for the SF Symbol names in `Symbols/symbols.txt`.
     case phosphor
     /// A ring, for a name that no source has.
@@ -24,14 +27,15 @@ struct ResolvedSymbol: Sendable {
 /// Finds the outline that each `Image(systemName:)` draws.
 ///
 /// Apple's license does not allow shipping SF Symbols outside Apple
-/// platforms, so Parhelion draws the common SF Symbol names with Phosphor
+/// platforms, so Parhelion draws a name with the user's own SF Symbols when
+/// they have exported a copy for Parhelion, and otherwise with Phosphor
 /// Icons, in its regular weight, or its fill weight for a name that ends in
 /// `.fill`. A name Parhelion cannot draw is a ring, and the image's node
 /// records `missingSymbol=true`.
 ///
 /// Every lookup goes through ``resolve(_:weight:scale:fill:)``, so another
-/// source can go in front of Phosphor later without changes to `Image` or
-/// the renderer.
+/// source can go in front of these without changes to `Image` or the
+/// renderer.
 enum SymbolLibrary {
     /// The symbols drawn as chevrons, the way the back button's is.
     static let chevrons: Set<String> = [
@@ -41,14 +45,16 @@ enum SymbolLibrary {
     /// Where the outline of a name comes from, without building it.
     static func source(of name: String) -> SymbolSource {
         if chevrons.contains(name) { return .builtIn }
+        if UserSymbols.has(name) { return .sfSymbols }
         return phosphorIcon(for: name) == nil ? .placeholder : .phosphor
     }
 
     /// The outline of a symbol.
     ///
     /// - Parameters:
-    ///   - weight: The weight of the font around the symbol. Phosphor's
-    ///     regular weight draws every weight.
+    ///   - weight: The weight of the font around the symbol. The user's
+    ///     SF Symbols have every weight; Phosphor's regular weight draws
+    ///     every weight.
     ///   - scale: The image scale. The symbol's frame already has the
     ///     scale's size, so the outline does not change with it.
     ///   - fill: Whether to prefer the fill weight, as the tab bar does,
@@ -61,6 +67,9 @@ enum SymbolLibrary {
             return ResolvedSymbol(
                 path: chevron(pointingLeft: name.hasSuffix("backward") || name.hasSuffix("left")),
                 source: .builtIn)
+        }
+        if let path = UserSymbols.outline(name, weight: weight, fill: fill) {
+            return ResolvedSymbol(path: path, source: .sfSymbols)
         }
         if let icon = phosphorIcon(for: name),
             let path = cache.path(icon.name, fill: icon.fill || fill)
@@ -77,6 +86,17 @@ enum SymbolLibrary {
         guard name.hasSuffix(".fill"), let icon = phosphorIconNames[String(name.dropLast(5))]
         else { return nil }
         return (icon, true)
+    }
+
+    /// The attributes that tell which source draws a name: `missingSymbol`
+    /// for a ring, and `symbolSource=sfSymbols` when the user's own SF
+    /// Symbols draw it. Phosphor, the usual source, adds none.
+    static func sourceAttributes(of name: String) -> [String: String] {
+        switch source(of: name) {
+        case .placeholder: ["missingSymbol": "true"]
+        case .sfSymbols: ["symbolSource": "sfSymbols"]
+        case .builtIn, .phosphor: [:]
+        }
     }
 
     /// A chevron in the proportions of the back button's, a 17-point symbol,
@@ -153,8 +173,8 @@ extension Image {
     func symbolAttributes(_ name: String, in environment: EnvironmentValues) -> [String: String] {
         var attributes = ["systemName": name]
         // A symbol takes the size of the font around it, and scales with
-        // Dynamic Type as its font does. Phosphor has one weight for every
-        // font weight, so only the font's size is recorded.
+        // Dynamic Type as its font does. The font's name and size are
+        // recorded; the weight is part of the name when it is not the style's.
         let font = (environment.font ?? .body).resolved(
             dynamicTypeSize: environment.dynamicTypeSize)
         if font.name != ResolvedFont.body.name { attributes["font"] = font.name }
@@ -162,7 +182,7 @@ extension Image {
         if environment.imageScale != .medium {
             attributes["imageScale"] = environment.imageScale.rawValue
         }
-        if SymbolLibrary.source(of: name) == .placeholder { attributes["missingSymbol"] = "true" }
+        attributes.merge(SymbolLibrary.sourceAttributes(of: name)) { $1 }
         return attributes
     }
 
@@ -183,7 +203,8 @@ extension TreeRenderer {
         let side = min(frame.width, frame.height)
         let scale = node.attributes["imageScale"].flatMap(Image.Scale.init) ?? .medium
         let symbol = SymbolLibrary.resolve(
-            name, scale: scale, fill: node.attributes["symbolVariant"] == "fill")
+            name, weight: ResolvedFont(node: node).weight, scale: scale,
+            fill: node.attributes["symbolVariant"] == "fill")
         canvas.fill(
             symbol.path.applying(
                 scaleX: Double(side), scaleY: Double(side),

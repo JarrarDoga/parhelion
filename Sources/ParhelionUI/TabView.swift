@@ -623,9 +623,7 @@ extension TabView: PrimitiveView {
                     .resolved().name,
             ]
             if !isSearch { symbolAttributes["symbolVariant"] = "fill" }
-            if SymbolLibrary.source(of: symbol) == .placeholder {
-                symbolAttributes["missingSymbol"] = "true"
-            }
+            symbolAttributes.merge(SymbolLibrary.sourceAttributes(of: symbol)) { $1 }
             children.append(
                 ViewNode(
                     id: path.appending("Image").id, kind: "Image", attributes: symbolAttributes))
