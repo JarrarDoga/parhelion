@@ -10,6 +10,7 @@ may contain breaking changes.
 
 ### Added
 
+- `Scripts/run-on-iphone.sh EXAMPLE` builds an example for iOS with Apple's SwiftUI, installs it on a connected iPhone with xtool, and starts it.
 - `ParhelionUI`, a headless implementation of the SwiftUI view model: `View`, `ViewBuilder`,
   `Text`, `Image`, `Button`, `VStack`, `HStack`, `ZStack`, `Spacer`, `Color`, and `EmptyView`.
 - `@State` and `@Binding`, with storage keyed by structural identity.
