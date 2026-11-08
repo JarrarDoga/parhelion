@@ -330,7 +330,7 @@ extension TreeRenderer {
                 && $0.kind != "TabViewBottomAccessory"
         }
         guard screens.count == 1 else { return nil }
-        if screens[0].isScrollContainer { return screens[0] }
+        if let scrollView = screens[0].screenScrollView { return scrollView }
         if screens[0].kind == "NavigationStack" { return scrollView(under: screens[0]) }
         return nil
     }

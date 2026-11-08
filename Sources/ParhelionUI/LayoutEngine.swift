@@ -775,7 +775,7 @@ struct LayoutEngine {
             // sheet's rounded top would have to clip the effect.
             let scrollsUnderBar =
                 bar != nil && bar?.attributes["presentation"] != "sheet" && content.count == 1
-                && content[0].isScrollContainer
+                && content[0].screenScrollView != nil
             var contentRect =
                 scrollsUnderBar
                 ? rect

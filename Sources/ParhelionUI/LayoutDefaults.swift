@@ -377,21 +377,29 @@ enum LayoutDefaults {
     /// points in the iOS 27 UI Kit. The circle is as tall as the bar.
     static let tabBarSearchSpacing: CGFloat = 8
 
-    /// The distance from the top of a tab to the middle of its symbol: the
-    /// kit's symbol is on a 28-point line 7 points from the top of the tab.
-    /// Assumed: the symbol is centered on that line.
-    static let tabBarSymbolCenter: CGFloat = 21
+    /// The width of a tab that is alone in the tab bar's capsule. Measured on
+    /// an iPhone 18 Pro Max under iOS 27.2: with one tab and a search tab,
+    /// the capsule is 102 points wide and fits around the tab, where two
+    /// tabs share the whole width.
+    static let tabBarLoneTabWidth: CGFloat = 86
+
+    /// The distance from the top of a tab to the middle of its symbol, 20
+    /// points, as measured on an iPhone 18 Pro Max under iOS 27.2.
+    static let tabBarSymbolCenter: CGFloat = 20
 
     /// The distance from the top of a tab to the top of its title, 36 points
     /// in the iOS 27 UI Kit.
     static let tabBarTitleTop: CGFloat = 36
 
-    /// The font of a tab's symbol, semibold 18 points in the iOS 27 UI Kit.
-    static let tabBarSymbolFont = Font.system(size: 18, weight: .semibold)
+    /// The font of a tab's symbol: semibold 23 points, so that the house is
+    /// 27 points wide and the radio waves 20 points tall, as measured on an
+    /// iPhone 18 Pro Max under iOS 27.2. The iOS 27 UI Kit draws them at 18.
+    static let tabBarSymbolFont = Font.system(size: 23, weight: .semibold)
 
-    /// The font of the search tab's symbol, semibold 17 points in the iOS 27
-    /// UI Kit.
-    static let tabBarSearchSymbolFont = Font.system(size: 17, weight: .semibold)
+    /// The font of the search tab's symbol: semibold 24 points, so that the
+    /// magnifying glass is 23 points across, as measured on an iPhone 18 Pro
+    /// Max under iOS 27.2. The iOS 27 UI Kit draws it at 17 points.
+    static let tabBarSearchSymbolFont = Font.system(size: 24, weight: .semibold)
 
     /// The font of a tab's title, semibold 10 points in the iOS 27 UI Kit.
     static let tabBarTitleFont = Font.system(size: 10, weight: .semibold)
