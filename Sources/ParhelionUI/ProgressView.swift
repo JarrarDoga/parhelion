@@ -5,25 +5,29 @@ import Foundation
 #endif
 
 /// A view that shows progress: a spinner when the amount is unknown, or a
-/// ring or a bar when it is, mirroring SwiftUI's `ProgressView`.
+/// bar when it is, mirroring SwiftUI's `ProgressView`.
 ///
 /// The default style draws a spinner for an unknown amount and a bar for a
 /// known one; ``View/progressViewStyle(_:)`` picks ``CircularProgressViewStyle``
-/// or ``LinearProgressViewStyle``. The node is a `ProgressView` that records
-/// its `style`, and for a known amount its `value` and `total`. Its children
-/// are the label views and a `ProgressIndicator` node with the `shape`
-/// (`spinner`, `ring`, or `bar`) and, for a known amount, the `fraction`
-/// completed. A spinner and an indeterminate bar also record a `phase`, the
-/// fraction of the current turn that the host's clock has reached, so they
-/// animate with ``ViewHost/advanceTime(by:)`` and follow the host's frames
-/// like a `TimelineView` with an `.animation` schedule.
+/// or ``LinearProgressViewStyle``. As on iOS, the circular style draws a
+/// spinner whether or not the amount is known. The node is a `ProgressView`
+/// that records its `style`, and for a known amount its `value` and `total`.
+/// Its children are the label views and a `ProgressIndicator` node with the
+/// `shape` (`spinner` or `bar`) and, for a bar with a known amount, the
+/// `fraction` completed. A spinner and an indeterminate bar also record a
+/// `phase`, the fraction of the current turn that the host's clock has
+/// reached, so they animate with ``ViewHost/advanceTime(by:)`` and follow the
+/// host's frames like a `TimelineView` with an `.animation` schedule. A
+/// spinner under ``View/controlSize(_:)`` `.large` records its `controlSize`.
 ///
 /// Assumed, from iOS 26: the spinner is 20 points across with eight spokes
-/// and turns once a second, in steps of one spoke; the ring is 20 points
-/// across and 2.5 points thick; the bar is 4 points thick, as wide as it is
-/// offered, with its label above it at the leading edge and its current
-/// value label below it. A spinner's or a ring's label sits below it. Labels
-/// draw in the secondary color.
+/// and turns once a second, in steps of one spoke; the bar is 4 points thick,
+/// as wide as it is offered, with its label above it at the leading edge and
+/// its current value label below it. A spinner's label sits below it.
+/// Measured on an iPhone 18 Pro Max on iOS 27.2: a large spinner is 35
+/// points across; a spinner's label starts 5 points below it and is in the
+/// secondary color; a bar's label ends 3 points above it and is in the
+/// primary color. A bar's current value label is in the secondary color.
 public struct ProgressView<Label: View, CurrentValueLabel: View>: View {
     public typealias Body = Never
 
@@ -319,7 +323,7 @@ extension ProgressView: PrimitiveView {
             if let tint { attributes["tint"] = tint }
             shape =
                 switch style {
-                case .circular: fraction == nil ? .spinner : .ring
+                case .circular: .spinner
                 case .linear: .bar
                 case .automatic: fraction == nil ? .spinner : .bar
                 }
@@ -327,7 +331,10 @@ extension ProgressView: PrimitiveView {
         }
 
         var indicatorAttributes = ["shape": shape.rawValue]
-        if let fraction {
+        if shape == .spinner, [.large, .extraLarge].contains(evaluator.environment.controlSize) {
+            indicatorAttributes["controlSize"] = ControlSize.large.rawValue
+        }
+        if shape == .bar, let fraction {
             indicatorAttributes["fraction"] = ProgressViewBehavior.format(fraction)
         } else {
             // The turn of the animation, from the host's clock.
@@ -345,10 +352,17 @@ extension ProgressView: PrimitiveView {
             attributes: indicatorAttributes)
 
         let labelNodes = hasLabel ? evaluator.evaluate(label, at: ownPath.appending("label")) : []
-        let valueNodes =
+        var valueNodes =
             hasCurrentValueLabel
             ? evaluator.evaluate(currentValueLabel, at: ownPath.appending("currentValueLabel"))
             : []
+        // A bar's label is primary text and its current value label
+        // secondary; a spinner's labels are all secondary.
+        if shape == .bar {
+            for index in valueNodes.indices {
+                valueNodes[index].attributes["defaultForegroundStyle"] = "secondary"
+            }
+        }
         // A bar has its label above it, a spinner or a ring below.
         children =
             shape == .bar
@@ -374,13 +388,12 @@ extension ProgressView: PrimitiveView {
 /// The sizes, layout, and drawing of progress views.
 enum ProgressViewBehavior {
     enum Shape: String {
-        case spinner, ring, bar
+        case spinner, bar
     }
 
-    /// The width and height of a spinner or a ring.
+    /// The width and height of a spinner, and of a large one.
     static let circleSize: CGFloat = 20
-    /// The thickness of a ring.
-    static let ringThickness: CGFloat = 2.5
+    static let largeCircleSize: CGFloat = 35
     /// The thickness of a bar.
     static let barThickness: CGFloat = 4
     /// Assumed: the width of a bar that is offered no width.
@@ -398,8 +411,8 @@ enum ProgressViewBehavior {
     /// The width of that highlight, as a fraction of the bar.
     static let highlightWidth: CGFloat = 0.35
     /// The space between a label and the indicator.
-    static let barSpacing: CGFloat = 6
-    static let circleSpacing: CGFloat = 8
+    static let barSpacing: CGFloat = 3
+    static let circleSpacing: CGFloat = 5
 
     static func register() {
         NodeExtensions.registerOnce(kind: "ProgressView") { containerBehavior }
@@ -418,7 +431,7 @@ enum ProgressViewBehavior {
     }
 
     /// The labels and the indicator, stacked: a bar's at the leading edge,
-    /// a spinner's and a ring's in the middle.
+    /// a spinner's in the middle.
     static func stack(_ node: ViewNode) -> ViewNode {
         let isLinear = node.attributes["style"] == "linear"
         return ViewNode(
@@ -437,8 +450,10 @@ enum ProgressViewBehavior {
             engine.place(stack(node), in: rect, parentAxis: nil).children
         },
         draw: { _, node, drawing, _ in
-            // Labels are secondary text.
-            drawing.foreground = drawing.foreground ?? "secondary"
+            // A spinner's labels are secondary text.
+            if node.attributes["style"] != "linear" {
+                drawing.foreground = drawing.foreground ?? "secondary"
+            }
         })
 
     static let indicatorBehavior = NodeBehavior(
@@ -447,7 +462,8 @@ enum ProgressViewBehavior {
             case .bar:
                 return CGSize(width: proposal.width ?? idealBarWidth, height: barThickness)
             default:
-                return CGSize(width: circleSize, height: circleSize)
+                let side = node.attributes["controlSize"] == nil ? circleSize : largeCircleSize
+                return CGSize(width: side, height: side)
             }
         },
         draw: { _, node, drawing, canvas in
@@ -456,8 +472,6 @@ enum ProgressViewBehavior {
             switch Shape(rawValue: node.attributes["shape"] ?? "") {
             case .spinner:
                 drawSpinner(phase: phase, drawing: drawing, into: &canvas)
-            case .ring:
-                drawRing(fraction: fraction ?? 0, drawing: drawing, into: &canvas)
             case .bar:
                 drawBar(fraction: fraction, phase: phase, drawing: drawing, into: &canvas)
             case nil:
@@ -481,12 +495,15 @@ enum ProgressViewBehavior {
     }
 
     /// Eight spokes; the leading one is the darkest and the ones behind it
-    /// fade, and the leading spoke steps around once per turn.
+    /// fade, and the leading spoke steps around once per turn. The spokes
+    /// scale with the spinner.
     static func drawSpinner(phase: Double, drawing: NodeDrawing, into canvas: inout Canvas) {
         let frame = drawing.frame
         let center = CGPoint(x: frame.midX, y: frame.midY)
-        let outer = min(frame.width, frame.height) / 2 - spokeThickness / 2
-        let inner = outer - spokeLength
+        let scale = min(frame.width, frame.height) / circleSize
+        let thickness = spokeThickness * scale
+        let outer = min(frame.width, frame.height) / 2 - thickness / 2
+        let inner = outer - spokeLength * scale
         let leading = Int(phase * Double(spokeCount)) % spokeCount
         for spoke in 0..<spokeCount {
             let angle = -Double.pi / 2 + Double(spoke) * 2 * .pi / Double(spokeCount)
@@ -500,51 +517,8 @@ enum ProgressViewBehavior {
             var color = drawing.color(drawing.foreground ?? "secondary")
             color.alpha = UInt8((Double(color.alpha) * opacity).rounded())
             canvas.fill(
-                capsule(from: point(inner), to: point(outer), thickness: spokeThickness),
+                capsule(from: point(inner), to: point(outer), thickness: thickness),
                 color: color)
-        }
-    }
-
-    /// A ring in the track color with an arc of the tint on it, clockwise
-    /// from the top.
-    static func drawRing(fraction: Double, drawing: NodeDrawing, into canvas: inout Canvas) {
-        let size = min(drawing.frame.width, drawing.frame.height)
-        let square = CGRect(
-            x: drawing.frame.midX - size / 2, y: drawing.frame.midY - size / 2, width: size,
-            height: size)
-        canvas.fill(
-            Path(
-                ringAround: square, cornerRadius: size / 2, lineWidth: ringThickness,
-                alignment: .inside), color: drawing.palette.sliderTrack.faded(by: drawing.opacity))
-        guard fraction > 0 else { return }
-        let center = CGPoint(x: square.midX, y: square.midY)
-        let outer = size / 2
-        let inner = outer - ringThickness
-        let start = -Double.pi / 2
-        let end = start + 2 * .pi * fraction
-        var arc = Path()
-        arc.addArc(
-            center: center, radius: outer, startAngle: Angle(radians: start),
-            endAngle: Angle(radians: end), clockwise: false)
-        arc.addArc(
-            center: center, radius: inner, startAngle: Angle(radians: end),
-            endAngle: Angle(radians: start), clockwise: true)
-        arc.closeSubpath()
-        let color = drawing.color("tint")
-        canvas.fill(arc, color: color)
-        if fraction < 1 {
-            // Round ends.
-            let middle = (outer + inner) / 2
-            for angle in [start, end] {
-                let cap = CGPoint(
-                    x: center.x + middle * CGFloat(cos(angle)),
-                    y: center.y + middle * CGFloat(sin(angle)))
-                canvas.fill(
-                    Path(
-                        ellipseIn: CGRect(
-                            x: cap.x - ringThickness / 2, y: cap.y - ringThickness / 2,
-                            width: ringThickness, height: ringThickness)), color: color)
-            }
         }
     }
 

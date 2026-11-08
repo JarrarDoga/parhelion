@@ -119,11 +119,11 @@ struct ProgressViewTests {
                    └─ ProgressView style=linear total=1535 value=640
                       ├─ Text "Songs"
                       ├─ ProgressIndicator fraction=0.42 shape=bar
-                      └─ Text "640 of 1,535"
+                      └─ Text "640 of 1,535" defaultForegroundStyle=secondary
                 """)
     }
 
-    @Test("The styles choose a spinner, a ring, or a bar")
+    @Test("The styles choose a spinner or a bar, and circular is a spinner with a value too")
     func styleOutline() {
         struct Content: View {
             var body: some View {
@@ -145,13 +145,13 @@ struct ProgressViewTests {
                 Root
                 └─ VStack
                    ├─ ProgressView style=circular total=1 value=0.4
-                   │  └─ ProgressIndicator fraction=0.4 shape=ring
+                   │  └─ ProgressIndicator phase=0.000 shape=spinner
                    ├─ ProgressView style=linear
                    │  └─ ProgressIndicator phase=0.000 shape=bar
                    ├─ ProgressView style=linear total=1 value=0.4
                    │  └─ ProgressIndicator fraction=0.4 shape=bar
                    ├─ ProgressView style=circular tint=red total=1 value=0.4
-                   │  └─ ProgressIndicator fraction=0.4 shape=ring
+                   │  └─ ProgressIndicator phase=0.000 shape=spinner
                    └─ VStack
                       └─ ProgressView style=linear tint=green total=1 value=0.4
                          └─ ProgressIndicator fraction=0.4 shape=bar
@@ -317,34 +317,65 @@ struct ProgressViewTests {
         #expect(top.red < left.red)
     }
 
-    @Test("A ring at 40 percent has the tint from the top, clockwise, over a gray track")
-    func ringPixels() throws {
+    @Test("A large spinner is 35 points across, with spokes as long as the side allows")
+    func largeSpinner() throws {
         struct Content: View {
             var body: some View {
-                ProgressView(value: 0.4).progressViewStyle(.circular)
+                VStack {
+                    ProgressView().controlSize(.large)
+                    ProgressView(value: 0.4).controlSize(.large)
+                }
             }
         }
         let host = ViewHost(Content(), device: screen)
-        let ring = try frameOf(host, kind: "ProgressIndicator")
+        #expect(
+            host.root.outline() == """
+                Root
+                └─ VStack
+                   ├─ ProgressView style=circular
+                   │  └─ ProgressIndicator controlSize=large phase=0.000 shape=spinner
+                   └─ ProgressView style=linear total=1 value=0.4
+                      └─ ProgressIndicator fraction=0.4 shape=bar
+                """)
+        let spinner = try frameOf(host, kind: "ProgressIndicator")
+        #expect(spinner.size == CGSize(width: 35, height: 35))
+        // The leading spoke reaches the top of the frame.
         let frame = host.render(scale: 4)
-        func color(angle degrees: Double) -> [Int] {
-            let radians = (degrees - 90) * .pi / 180
-            let radius = 10 - 1.25
-            return rgb(
-                frame.color(
-                    at: CGPoint(
-                        x: ring.midX + radius * cos(radians), y: ring.midY + radius * sin(radians)))
-            )
+        let top = rgb(frame.color(at: CGPoint(x: spinner.midX, y: spinner.minY + 2)))
+        #expect(top != [255, 255, 255])
+    }
+
+    @Test("A bar's label is primary and 3 points above it; a spinner's is secondary, 5 below")
+    func labelColorsAndSpacing() throws {
+        struct Content: View {
+            var body: some View {
+                VStack(spacing: 40) {
+                    ProgressView("Downloading", value: 0.6)
+                    ProgressView("Loading")
+                }
+                .padding(20)
+            }
         }
-        // 40 percent of a turn is 144 degrees.
-        #expect(color(angle: 5) == [0, 136, 255])
-        #expect(color(angle: 90) == [0, 136, 255])
-        #expect(color(angle: 135) == [0, 136, 255])
-        #expect(color(angle: 160) != [0, 136, 255])
-        #expect(color(angle: 270) != [0, 136, 255])
-        #expect(color(angle: 270) != [255, 255, 255])
-        // The middle of the ring is empty.
-        #expect(rgb(frame.color(at: CGPoint(x: ring.midX, y: ring.midY))) == [255, 255, 255])
+        let host = ViewHost(Content(), device: tall)
+        let bar = try frameOf(host, kind: "ProgressIndicator", at: 0)
+        let spinner = try frameOf(host, kind: "ProgressIndicator", at: 1)
+        let downloading = try frameOf(host, kind: "Text", at: 0)
+        let loading = try frameOf(host, kind: "Text", at: 1)
+        #expect(bar.minY - downloading.maxY == 3)
+        #expect(loading.minY - spinner.maxY == 5)
+        let frame = host.render(scale: 3)
+        func darkest(in rect: CGRect) -> Int {
+            var value = 255
+            for y in stride(from: rect.minY, to: rect.maxY, by: 1.0 / 3) {
+                for x in stride(from: rect.minX, to: rect.maxX, by: 1.0 / 3) {
+                    value = min(value, Int(frame.color(at: CGPoint(x: x, y: y)).red))
+                }
+            }
+            return value
+        }
+        // Primary text is black; secondary text is gray.
+        #expect(darkest(in: downloading) < 30)
+        #expect(darkest(in: loading) > 80)
     }
 
     @Test("The progress bar draws in dark mode")
@@ -452,7 +483,7 @@ struct ProgressViewTests {
 
     /// Writes a picture of the spinner and the bars to a directory, when
     /// `PARHELION_PROGRESS_PNG_DIR` names one, for a person to look at.
-    @Test("The spinner, the ring, and the bars draw together")
+    @Test("The spinners and the bars draw together")
     func gallery() throws {
         struct Content: View {
             var body: some View {

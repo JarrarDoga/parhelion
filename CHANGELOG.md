@@ -536,6 +536,17 @@ may contain breaking changes.
 
 ### Changed
 
+- Lists, section indexes, and progress views match an iPhone 18 Pro Max on iOS 27.2:
+  - A `Label` in a list row draws its icon in the tint color and 1.24 times larger, centered in a
+    24-point column, with its title 16 points after the column. The separator below the row starts
+    at the title. Outside lists, a label's icon keeps the foreground color.
+  - Sections of an inset grouped list are 4 points closer together: 17 points of spacing, and a
+    header 1 point closer to its rows.
+  - A list's section index is centered in the part of the list below the navigation bar, with its
+    letters 13.75 points apart, centered 7.5 points from the trailing edge.
+  - `ProgressView` with `.progressViewStyle(.circular)` draws a spinner even when it has a value,
+    as on iOS. `.controlSize(.large)` makes a spinner 35 points across. A bar's label is primary
+    text, 3 points above the bar; a spinner's label is 5 points below it.
 - A scroll view that reaches the top or bottom of the safe area takes the whole screen height, and
   starts its content at the safe area, so its frame and `contentOffset` count from the top of the
   screen. Scrolling stops with the last row above the bottom inset. A navigation bar draws over

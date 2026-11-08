@@ -8,7 +8,9 @@ import Foundation
 /// laid out side by side, or only one of them under the ``IconOnlyLabelStyle``
 /// and ``TitleOnlyLabelStyle`` styles. Its `labelStyle` attribute records a
 /// style other than the default. In a toolbar, the default style shows only
-/// the icon, as on iOS.
+/// the icon, as on iOS. In a list row, as on iOS, the icon is larger and in
+/// the tint color, centered in a column of fixed width so that the titles of
+/// the rows line up; the icon records `listIcon`.
 public struct Label<Title: View, Icon: View>: View {
     public typealias Body = Never
 
@@ -56,9 +58,18 @@ extension Label: PrimitiveView {
                 style == .automatic
                 ? (evaluator.environment.buttonContext == .toolbar ? .iconOnly : .titleAndIcon)
                 : style
+            let inListRow =
+                resolved == .titleAndIcon && evaluator.environment.isInList
+                && !evaluator.environment.isInSectionLabel
             var nodes: [ViewNode] = []
             if resolved != .titleOnly {
-                nodes += evaluator.evaluate(icon, at: ownPath.appending("icon"))
+                let iconNodes = evaluator.evaluate(icon, at: ownPath.appending("icon"))
+                if inListRow {
+                    nodes += iconNodes.map(Self.listRowIcon)
+                    attributes["spacing"] = formatPoints(LayoutDefaults.listLabelSpacing)
+                } else {
+                    nodes += iconNodes
+                }
             }
             if resolved != .iconOnly {
                 nodes += evaluator.evaluate(title, at: ownPath.appending("title"))
@@ -66,6 +77,18 @@ extension Label: PrimitiveView {
             children = nodes
         }
         return [ViewNode(id: ownPath.id, kind: "Label", attributes: attributes, children: children)]
+    }
+
+    /// The icon of a label in a list row, as iOS draws it: in the tint
+    /// color unless a foreground style is set, larger than beside text, and
+    /// centered in a column of fixed width so that the titles of the rows
+    /// line up. The `listIcon` attribute records the first two.
+    private static func listRowIcon(_ node: ViewNode) -> ViewNode {
+        var node = node
+        node.attributes["listIcon"] = "true"
+        node.modifiers.append(
+            .frame(width: LayoutDefaults.listLabelIconWidth, height: nil, alignment: .center))
+        return node
     }
 
     private func customBody<S: LabelStyle>(_ style: S) -> any View {

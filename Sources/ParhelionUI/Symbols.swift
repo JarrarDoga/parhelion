@@ -191,7 +191,9 @@ extension Image {
     nonisolated static func symbolSide(of node: ViewNode) -> CGFloat {
         let font = ResolvedFont(node: node)
         let scale = node.attributes["imageScale"].flatMap(Image.Scale.init) ?? .medium
-        return LayoutDefaults.symbolSide(for: scale) * font.size / LayoutDefaults.bodyFontSize
+        let side = LayoutDefaults.symbolSide(for: scale) * font.size / LayoutDefaults.bodyFontSize
+        // The icon of a label in a list row is larger.
+        return node.attributes["listIcon"] != nil ? side * LayoutDefaults.listLabelIconScale : side
     }
 }
 

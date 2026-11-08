@@ -265,6 +265,13 @@ struct TreeRenderer {
         // Clips, shadows, and scales draw in Rendering+Effects.swift.
         if drawEffects(node, inherited: inherited, into: &canvas) { return }
         var foreground = node.attributes["foregroundStyle"] ?? inherited.foreground
+        // The icon of a label in a list row is in the tint color, unless a
+        // foreground style is set.
+        if node.attributes["listIcon"] != nil { foreground = foreground ?? "tint" }
+        // Some parts of controls have a style of their own unless one is set.
+        if let fallback = node.attributes["defaultForegroundStyle"] {
+            foreground = foreground ?? fallback
+        }
         let tint = node.attributes["tint"] ?? inherited.tint
         var container = inherited.container
         var opacity = inherited.opacity
@@ -389,9 +396,10 @@ struct TreeRenderer {
             container = .alert
 
         case "NavigationLink":
-            // Assumed: in a list, a link's label uses the primary color;
+            // Assumed: in a list, a link's label keeps its own colors, so
+            // its text is primary and a label's icon is in the tint color;
             // elsewhere it takes the tint color, like a button.
-            foreground = foreground ?? (node.listRowFrame == nil ? "tint" : "primary")
+            if node.listRowFrame == nil { foreground = foreground ?? "tint" }
 
         case "NavigationStack":
             drawNavigationBarBackground(node, palette: palette, paint: paint, into: &canvas)
@@ -600,19 +608,35 @@ struct TreeRenderer {
                 // sides, as in the iOS 27 UI Kit. A navigation link's trailing
                 // inset includes its disclosure indicator, so the trailing
                 // end uses the list's own inset.
+                // Below a label with an icon, the separator starts at the
+                // label's title, as on iOS.
                 let thickness = LayoutDefaults.listSeparatorThickness
+                let start = Self.listLabelTitleX(row) ?? cell.minX + insets.leading
                 canvas.fill(
                     CGRect(
-                        x: cell.minX + insets.leading,
+                        x: start,
                         y: cell.maxY - thickness,
-                        width: max(
-                            cell.width - insets.leading - LayoutDefaults.listRowInsets.trailing, 0),
+                        width: max(cell.maxX - LayoutDefaults.listRowInsets.trailing - start, 0),
                         height: thickness
                     ),
                     color: paint(palette.separator)
                 )
             }
         }
+    }
+
+    /// Where the title of a list row's label with an icon starts: the row's
+    /// own label, or the label of a button or navigation link row.
+    static func listLabelTitleX(_ row: ViewNode) -> CGFloat? {
+        let label =
+            row.kind == "Label"
+            ? row
+            : (row.kind == "Button" || row.kind == "NavigationLink") && row.children.count == 1
+                ? row.children[0] : nil
+        guard let label, label.kind == "Label", label.children.count == 2,
+            label.children[0].attributes["listIcon"] != nil
+        else { return nil }
+        return label.children[1].frame?.minX
     }
 
     /// Draws text wrapped the same way layout measured it, one line per

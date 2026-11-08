@@ -71,7 +71,7 @@ struct LazyListTests {
         #expect(
             host.root.outline() == """
                 Root
-                └─ List contentOffset=0, 26000 contentSize=200 × 51879.5
+                └─ List contentOffset=0, 26000 contentSize=200 × 51860.25
                    └─ Section lazyCount=1001 lazyResolved=498..<510
                       ├─ Text "Song 497" listRow
                       ├─ Text "Song 498" listRow

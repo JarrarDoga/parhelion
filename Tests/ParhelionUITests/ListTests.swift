@@ -36,7 +36,7 @@ struct ListTests {
         #expect(
             host.root.outline() == """
                 Root
-                └─ List contentOffset=0, 0 contentSize=300 × 258
+                └─ List contentOffset=0, 0 contentSize=300 × 251
                    ├─ Section
                    │  └─ Text "One" listRow
                    ├─ Section
@@ -194,7 +194,7 @@ struct ListTests {
         #expect(
             host.root.outline() == """
                 Root
-                └─ List contentOffset=0, 0 contentSize=300 × 252
+                └─ List contentOffset=0, 0 contentSize=300 × 247
                    ├─ Section
                    │  ├─ SectionHeader
                    │  │  └─ Text "Header" font=headline
@@ -208,7 +208,7 @@ struct ListTests {
                 """)
     }
 
-    @Test("Headers, footers, and sections are spaced as in the iOS 27 UI Kit")
+    @Test("Headers, footers, and sections are spaced as on an iPhone on iOS 27")
     func headerAndFooterLayout() throws {
         let host = ViewHost(
             List {
@@ -228,19 +228,19 @@ struct ListTests {
         let sections = host.root.children[0].children
         let header = sections[0].children[0]
         let headerText = try #require(header.children[0].frame)
-        // A 42-point header block: 10 above a 22-point line and 10 below.
+        // A 41-point header block: 10 above a 22-point line and 9 below.
         let headerFrame = try #require(header.frame)
-        #expect(headerFrame.origin == CGPoint(x: 16, y: 0) && headerFrame.height == 42)
+        #expect(headerFrame.origin == CGPoint(x: 16, y: 0) && headerFrame.height == 41)
         #expect(headerText.origin == CGPoint(x: 32, y: 10))
         let cell = try #require(sections[0].children[1].listRowFrame)
-        #expect(cell.minY == 42)
+        #expect(cell.minY == 41)
         // A 30-point footer block: 8 below the cells, a 16-point line, and 6.
         let footer = sections[0].children[2]
         let footerFrame = try #require(footer.frame)
-        #expect(footerFrame.origin == CGPoint(x: 16, y: 94) && footerFrame.height == 30)
-        #expect(try #require(footer.children[0].frame).origin == CGPoint(x: 32, y: 102))
-        // 20 points from the footer to the next section's header.
-        #expect(try #require(sections[1].children[0].frame).minY == 144)
+        #expect(footerFrame.origin == CGPoint(x: 16, y: 93) && footerFrame.height == 30)
+        #expect(try #require(footer.children[0].frame).origin == CGPoint(x: 32, y: 101))
+        // 17 points from the footer to the next section's header.
+        #expect(try #require(sections[1].children[0].frame).minY == 140)
     }
 
     @Test("Sections are rounded with radius 26, and separators are inset on both sides")
@@ -279,6 +279,76 @@ struct ListTests {
         }
         let rightmost = try #require(inkXs.max())
         #expect(abs(rightmost - (cell.maxX - 16)) < 1)
+    }
+
+    @Test("A label in a row has a larger icon in a column, unlike one in a header")
+    func labelRowOutline() {
+        let host = ViewHost(
+            List {
+                Section {
+                    Label("Home", systemImage: "house")
+                    NavigationLink {
+                        Text("Gym")
+                    } label: {
+                        Label("Gym", systemImage: "figure.run")
+                    }
+                } header: {
+                    Label("Places", systemImage: "map")
+                }
+            },
+            device: screen
+        )
+        #expect(
+            host.root.outline() == """
+                Root
+                └─ List contentOffset=0, 0 contentSize=300 × 165
+                   └─ Section
+                      ├─ SectionHeader
+                      │  └─ Label
+                      │     ├─ Image font=headline systemName=map
+                      │     └─ Text "Places" font=headline
+                      ├─ Label listRow spacing=16
+                      │  ├─ Image frame(width: 24) listIcon=true systemName=house
+                      │  └─ Text "Home"
+                      └─ NavigationLink listRow
+                         └─ Label spacing=16
+                            ├─ Image frame(width: 24) listIcon=true systemName=figure.run
+                            └─ Text "Gym"
+                """)
+    }
+
+    @Test("A label in a row lines its title up 40 points in, with the separator")
+    func labelRowLayout() throws {
+        let host = ViewHost(
+            List {
+                Label("Home", systemImage: "house")
+                Label("Work", systemImage: "building.2")
+            },
+            device: screen
+        )
+        let images = host.root.allNodes.filter { $0.kind == "Image" }
+        let texts = host.root.allNodes.filter { $0.kind == "Text" }
+        let cell = try #require(host.root.allNodes.first { $0.kind == "Label" }?.listRowFrame)
+        let content = cell.minX + LayoutDefaults.listRowInsets.leading
+        for (image, text) in zip(images, texts) {
+            let icon = try #require(image.frame)
+            #expect(abs(icon.midX - (content + 12)) < 0.01)
+            #expect(abs(icon.width - LayoutDefaults.bodyFontSize * 1.24) < 0.01)
+            #expect(try #require(text.frame).minX == content + 40)
+        }
+        // The icon is in the tint color, and the separator starts at the
+        // title.
+        let frame = host.render(scale: 3)
+        let icon = try #require(images[0].frame)
+        var tinted = false
+        for y in stride(from: icon.minY, to: icon.maxY, by: 1.0 / 3) {
+            let color = frame.color(at: CGPoint(x: icon.midX, y: y))
+            if color.blue > 200, color.red < 100 { tinted = true }
+        }
+        #expect(tinted)
+        let separatorY = cell.maxY - 0.1
+        #expect(frame.color(at: CGPoint(x: content + 41, y: separatorY)).red == 224)
+        #expect(frame.color(at: CGPoint(x: content + 39, y: separatorY)).red == 255)
     }
 
     @Test("Outside a list, a section stacks its parts vertically")
