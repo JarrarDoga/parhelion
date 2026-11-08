@@ -303,7 +303,7 @@ extension NavigationOptionView: PrimitiveView {
 /// ``PrimitiveButtonStyle/glassProminent`` style, as on iOS 26 and later.
 public struct ToolbarItemPlacement: Sendable, Equatable {
     enum Position: Sendable {
-        case leading, principal, trailing
+        case leading, principal, trailing, bottom
     }
 
     let position: Position
@@ -320,6 +320,10 @@ public struct ToolbarItemPlacement: Sendable, Equatable {
         position: .trailing, isProminent: true)
     public static let destructiveAction = ToolbarItemPlacement(position: .trailing)
     public static let cancellationAction = ToolbarItemPlacement(position: .leading)
+    /// At the bottom of the screen, above the home indicator. On iOS 26 and
+    /// later, the items share a glass capsule centered at the bottom: a
+    /// single symbol is a glass circle.
+    public static let bottomBar = ToolbarItemPlacement(position: .bottom)
 }
 
 /// Content for a toolbar, mirroring SwiftUI's `ToolbarContent`.
@@ -492,6 +496,9 @@ extension ToolbarView: PrimitiveView {
                 // confirmation action's buttons are prominent.
                 if placement.position != .principal { environment.buttonContext = .toolbar }
                 if placement.isProminent { environment.buttonStyle = .builtIn(.glassProminent) }
+                // Measured on an iPhone on iOS 27: a bottom bar's symbol is
+                // about 1.3 times the size of body text, a large symbol.
+                if placement.position == .bottom { environment.imageScale = .large }
                 // Assumed: bar items keep their size at every Dynamic Type
                 // size, as tab bar buttons do; iOS shows them in the large
                 // content viewer instead.
@@ -675,7 +682,20 @@ extension NavigationStack: PrimitiveView {
         let bar = ViewNode(
             id: barPath.id, kind: "NavigationBar", attributes: barAttributes,
             children: barChildren)
-        return [ViewNode(id: id, kind: "NavigationStack", children: [bar] + top.nodes)]
+        // Bottom bar items share a glass capsule at the bottom of the
+        // screen, in front of the content.
+        let bottom = items(.bottom)
+        let bottomBar =
+            bottom.isEmpty
+            ? []
+            : [
+                ViewNode(
+                    id: ownPath.appending("bottomBar").id, kind: "ToolbarItemGroup",
+                    attributes: ["placement": "bottom"], children: bottom)
+            ]
+        return [
+            ViewNode(id: id, kind: "NavigationStack", children: [bar] + top.nodes + bottomBar)
+        ]
     }
 }
 

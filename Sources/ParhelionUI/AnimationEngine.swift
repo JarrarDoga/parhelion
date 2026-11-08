@@ -123,8 +123,11 @@ final class AnimationEngine {
             if let implicit = request.implicit[id] { return implicit }
             if let transaction = request.transaction { return transaction }
             if let kind,
-                ["Sheet", "FullScreenCover", "Alert", "Menu", "MenuPopover", "ContextMenu"]
-                    .contains(kind)
+                [
+                    "Sheet", "FullScreenCover", "Alert", "Menu", "MenuPopover", "ContextMenu",
+                    "ConfirmationDialog",
+                ]
+                .contains(kind)
             {
                 return LayoutDefaults.presentationAnimation
             }

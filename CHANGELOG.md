@@ -10,6 +10,21 @@ may contain breaking changes.
 
 ### Added
 
+- `confirmationDialog(_:isPresented:titleVisibility:actions:)`, with `message:` and
+  `presenting:` variants. As on iOS 26 and later, the dialog is a popover above the view it is
+  attached to, with an arrow pointing at the view; each action is a full-width capsule, and a
+  tap outside the popover runs the cancel action, which the popover does not show.
+- `Link(_:destination:)` and `Link(destination:label:)`, `OpenURLAction`, and the `openURL`
+  environment value. Linux opens nothing: `ViewHost.openedURLs` lists the URLs opened, and the
+  root node's `openedURL` attribute is the newest.
+- `Button(_:systemImage:action:)` and `Button(_:systemImage:role:action:)`.
+- `textFieldStyle(_:)` with `.automatic`, `.plain`, and `.roundedBorder`, which draws a 34-point
+  field in a hairline rounded border, as measured on an iPhone.
+- `buttonBorderShape(_:)` with `.automatic`, `.capsule`, `.roundedRectangle`,
+  `.roundedRectangle(radius:)`, and `.circle`, for bordered and glass buttons.
+- `ToolbarItemPlacement.bottomBar`: the items share a glass capsule centered above the home
+  indicator, a glass circle for a single symbol, as on iOS 26 and later.
+- `sectionIndexLabel(_:)` with a string.
 - `Scripts/run-on-iphone.sh EXAMPLE` builds an example for iOS with Apple's SwiftUI, installs it on a connected iPhone with xtool, and starts it.
 - `ParhelionUI`, a headless implementation of the SwiftUI view model: `View`, `ViewBuilder`,
   `Text`, `Image`, `Button`, `VStack`, `HStack`, `ZStack`, `Spacer`, `Color`, and `EmptyView`.

@@ -196,6 +196,28 @@ extension Button where Label == Text {
     }
 }
 
+extension Button where Label == ParhelionUI.Label<Text, Image> {
+    /// Creates a button whose label is a title with a symbol beside it. In a
+    /// toolbar, it shows only the symbol.
+    public init(
+        _ title: some StringProtocol, systemImage: String,
+        action: @escaping @MainActor () -> Void
+    ) {
+        self.init(action: action) { ParhelionUI.Label(title, systemImage: systemImage) }
+    }
+
+    /// Creates a button with a role whose label is a title with a symbol
+    /// beside it.
+    public init(
+        _ title: some StringProtocol, systemImage: String, role: ButtonRole?,
+        action: @escaping @MainActor () -> Void
+    ) {
+        self.init(role: role, action: action) {
+            ParhelionUI.Label(title, systemImage: systemImage)
+        }
+    }
+}
+
 extension Button: PrimitiveView {
     func makeNodes(in evaluator: Evaluator, at path: ViewPath) -> [ViewNode] {
         let ownPath = path.appending("Button")
@@ -217,6 +239,9 @@ extension Button: PrimitiveView {
             if style != .automatic { attributes["buttonStyle"] = style.rawValue }
             if style.drawsShape, environment.controlSize != .regular {
                 attributes["controlSize"] = environment.controlSize.rawValue
+            }
+            if style.drawsShape, let shape = environment.buttonBorderShape.attribute {
+                attributes["buttonBorderShape"] = shape
             }
             children = evaluator.withEnvironment({ labelEnvironment(&$0, style: style) }) {
                 evaluator.evaluate(label, at: ownPath)

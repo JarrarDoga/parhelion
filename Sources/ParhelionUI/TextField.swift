@@ -45,7 +45,9 @@ extension TextField: PrimitiveView {
         } else {
             attributes["disabled"] = "true"
         }
-        return [ViewNode(id: ownPath.id, kind: "TextField", attributes: attributes)]
+        var node = ViewNode(id: ownPath.id, kind: "TextField", attributes: attributes)
+        evaluator.environment.textFieldStyle.apply(to: &node)
+        return [node]
     }
 }
 
