@@ -283,6 +283,22 @@ The tool sends the page only the rows of each frame that changed, compressed. Sc
 screen costs about 35 to 40 KB a frame, so the page keeps up with a 60 Hz iPhone over a 50 Mbit/s
 connection.
 
+## On an iPhone
+
+Parhelion's examples are plain SwiftUI, so they also build for iOS with Apple's framework. From
+Linux, with [xtool](https://github.com/xtool-org/xtool) set up (`xtool setup`, with the iOS SDK
+and your team signed in) and an iPhone connected by USB, unlocked, and in Developer Mode:
+
+```sh
+Scripts/run-on-iphone.sh Tasks
+```
+
+The script builds the example as an xtool app (`dev.parhelion.Tasks`), installs it, and starts
+it. Starting it needs [pymobiledevice3](https://github.com/doronz88/pymobiledevice3) and its
+tunnel, `sudo pymobiledevice3 remote tunneld`; without them the app is installed and you tap it.
+`pymobiledevice3 developer dvt screenshot --tunnel "" phone.png` then captures the phone's
+screen, for comparison with `swift run Tasks --png parhelion.png`.
+
 ## Recorded tests
 
 Record a run through your screens once, and replay it without a window in CI:
