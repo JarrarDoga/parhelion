@@ -83,7 +83,7 @@ Tracked in [#31](https://github.com/JarrarDoga/parhelion/issues/31).
       ([#69](https://github.com/JarrarDoga/parhelion/issues/69))
 - [x] Recorded interaction tests and `parhelion test`
       ([#73](https://github.com/JarrarDoga/parhelion/issues/73))
-- [ ] Snapshot tests ([#71](https://github.com/JarrarDoga/parhelion/issues/71))
+- [x] Snapshot tests ([#71](https://github.com/JarrarDoga/parhelion/issues/71))
 
 ## 0.9: Preview anywhere (in progress)
 
