@@ -176,41 +176,46 @@ extension Canvas {
             let words = UnsafeMutableRawBufferPointer(bytes).bindMemory(to: UInt32.self)
             layer.pixels.withUnsafeBytes { raw in
                 let source = raw.bindMemory(to: UInt32.self)
-                for y in minY..<maxY {
-                    let layerY = flipY ? layerHeight - 1 - (y - originY) : y - originY
-                    let sourceRow = layerY * layerWidth
-                    var x = minX
-                    if !flipX {
-                        // Four opaque pixels are copied at a time.
-                        let from = UnsafeRawPointer(source.baseAddress! + sourceRow - originX)
-                        let to = UnsafeMutableRawPointer(words.baseAddress! + y * width)
-                        while x &+ 4 <= maxX {
-                            let four = from.loadUnaligned(
-                                fromByteOffset: x &* 4, as: SIMD4<UInt32>.self)
-                            if all((four &>> 24) .== 255) {
-                                to.storeBytes(
-                                    of: four, toByteOffset: x &* 4, as: SIMD4<UInt32>.self)
-                                x &+= 4
-                                continue
-                            }
-                            if all(four .== 0) {
-                                x &+= 4
-                                continue
-                            }
-                            for _ in 0..<4 {
-                                Self.draw(
-                                    source[sourceRow &+ x &- originX], at: y &* width &+ x,
-                                    words: words, bytes: bytes)
-                                x &+= 1
+                let shared = Unshared((bytes, words, source))
+                // Each row changes only its own pixels.
+                forEachRange(of: maxY - minY, minimum: 64) { rows in
+                    let (bytes, words, source) = shared.value
+                    for y in minY + rows.lowerBound..<minY + rows.upperBound {
+                        let layerY = flipY ? layerHeight - 1 - (y - originY) : y - originY
+                        let sourceRow = layerY * layerWidth
+                        var x = minX
+                        if !flipX {
+                            // Four opaque pixels are copied at a time.
+                            let from = UnsafeRawPointer(source.baseAddress! + sourceRow - originX)
+                            let to = UnsafeMutableRawPointer(words.baseAddress! + y * width)
+                            while x &+ 4 <= maxX {
+                                let four = from.loadUnaligned(
+                                    fromByteOffset: x &* 4, as: SIMD4<UInt32>.self)
+                                if all((four &>> 24) .== 255) {
+                                    to.storeBytes(
+                                        of: four, toByteOffset: x &* 4, as: SIMD4<UInt32>.self)
+                                    x &+= 4
+                                    continue
+                                }
+                                if all(four .== 0) {
+                                    x &+= 4
+                                    continue
+                                }
+                                for _ in 0..<4 {
+                                    Self.draw(
+                                        source[sourceRow &+ x &- originX], at: y &* width &+ x,
+                                        words: words, bytes: bytes)
+                                    x &+= 1
+                                }
                             }
                         }
-                    }
-                    while x < maxX {
-                        let layerX = flipX ? layerWidth - 1 - (x - originX) : x - originX
-                        Self.draw(
-                            source[sourceRow + layerX], at: y &* width &+ x, words: words,
-                            bytes: bytes)
-                        x &+= 1
+                        while x < maxX {
+                            let layerX = flipX ? layerWidth - 1 - (x - originX) : x - originX
+                            Self.draw(
+                                source[sourceRow + layerX], at: y &* width &+ x, words: words,
+                                bytes: bytes)
+                            x &+= 1
+                        }
                     }
                 }
             }
@@ -245,9 +250,14 @@ extension Canvas {
     ///
     /// Nothing cuts the shadow away under the layer, so it shows through
     /// the layer's translucent parts, as a Core Animation shadow does.
+    ///
+    /// When `skipsUnderOpaque` is set, the caller draws the layer over the
+    /// shadow at the same place right after, as it does for a shadow modifier,
+    /// so the shadow is not drawn where the layer's pixels are opaque, and
+    /// the result is the same.
     public mutating func drawShadow(
         ofLayer layer: Canvas, atPixelX originX: Int, y originY: Int, color: RGBA,
-        offset: CGSize, blur: Double
+        offset: CGSize, blur: Double, skipsUnderOpaque: Bool = false
     ) {
         guard color.alpha > 0, layer.width > 0, layer.height > 0 else { return }
         let kernel = BlurKernel(sigma: max(blur, 0) / 2 * scale)
@@ -256,8 +266,8 @@ extension Canvas {
         let clip = pixelClip
         let shapeX = originX + Int((Double(offset.width) * scale).rounded())
         let shapeY = originY + Int((Double(offset.height) * scale).rounded())
-        let minX = max(shapeX - padding, clip.minX - padding)
-        let minY = max(shapeY - padding, clip.minY - padding)
+        let minX = Self.sampleOrigin(shapeX - padding, limit: clip.minX - padding, factor: factor)
+        let minY = Self.sampleOrigin(shapeY - padding, limit: clip.minY - padding, factor: factor)
         let maxX = min(shapeX + layer.width + padding, clip.maxX + padding)
         let maxY = min(shapeY + layer.height + padding, clip.maxY + padding)
         let visible = PixelBox(
@@ -273,24 +283,31 @@ extension Canvas {
         layer.pixels.withUnsafeBufferPointer { source in
             let layerWidth = layer.width
             let layerHeight = layer.height
-            for sampleY in 0..<samplesHigh {
-                let firstY = minY + sampleY * factor - shapeY
-                let firstRow = max(firstY, 0)
-                let endRow = min(firstY + factor, layerHeight)
-                guard firstRow < endRow else { continue }
-                for sampleX in 0..<samplesWide {
-                    let firstX = minX + sampleX * factor - shapeX
-                    let firstColumn = max(firstX, 0)
-                    let endColumn = min(firstX + factor, layerWidth)
-                    guard firstColumn < endColumn else { continue }
-                    var sum: Int32 = 0
-                    for y in firstRow..<endRow {
-                        let row = y &* layerWidth
-                        for x in firstColumn..<endColumn {
-                            sum &+= Int32(source[(row &+ x) &* 4 &+ 3])
+            mask.withUnsafeMutableBufferPointer { mask in
+                let shared = Unshared((source, mask.baseAddress!))
+                // Each row of samples is averaged on its own.
+                forEachRange(of: samplesHigh, minimum: 24) { sampleRows in
+                    let (source, mask) = shared.value
+                    for sampleY in sampleRows {
+                        let firstY = minY + sampleY * factor - shapeY
+                        let firstRow = max(firstY, 0)
+                        let endRow = min(firstY + factor, layerHeight)
+                        guard firstRow < endRow else { continue }
+                        for sampleX in 0..<samplesWide {
+                            let firstX = minX + sampleX * factor - shapeX
+                            let firstColumn = max(firstX, 0)
+                            let endColumn = min(firstX + factor, layerWidth)
+                            guard firstColumn < endColumn else { continue }
+                            var sum: Int32 = 0
+                            for y in firstRow..<endRow {
+                                let row = y &* layerWidth
+                                for x in firstColumn..<endColumn {
+                                    sum &+= Int32(source[(row &+ x) &* 4 &+ 3])
+                                }
+                            }
+                            mask[sampleY * samplesWide + sampleX] = sum * 255 / blockArea
                         }
                     }
-                    mask[sampleY * samplesWide + sampleX] = sum * 255 / blockArea
                 }
             }
         }
@@ -325,31 +342,79 @@ extension Canvas {
         let weights = interpolation.weights
         let (scale, maximumWeight) = Self.shadowWeights(for: color)
         let rowEntries = rows.entries
-        var line = [Int32](repeating: 0, count: samplesWide)
-        pixels.withUnsafeMutableBufferPointer { bytes in
-            let words = UnsafeMutableRawBufferPointer(bytes).bindMemory(to: UInt32.self)
-            line.withUnsafeMutableBufferPointer { line in
+        let skipsOpaque = skipsUnderOpaque && mode == .normal
+        let layerWidth = layer.width
+        let layerHeight = layer.height
+        layer.pixels.withUnsafeBytes { layerBytes in
+            let layerWords = layerBytes.bindMemory(to: UInt32.self)
+            pixels.withUnsafeMutableBufferPointer { bytes in
+                let words = UnsafeMutableRawBufferPointer(bytes).bindMemory(to: UInt32.self)
                 mask.withUnsafeBufferPointer { mask in
                     lefts.withUnsafeBufferPointer { lefts in
                         rights.withUnsafeBufferPointer { rights in
                             weights.withUnsafeBufferPointer { weights in
-                                for rowIndex in rowRange {
-                                    let y = visible.minY + rowIndex
-                                    let top = rowEntries[rowIndex * 3] * samplesWide
-                                    let bottom = rowEntries[rowIndex * 3 + 1] * samplesWide
-                                    let lowerWeight = Int32(rowEntries[rowIndex * 3 + 2])
-                                    // Between two sample rows, in `0...65_025`.
-                                    for index in 0..<samplesWide {
-                                        line[index] =
-                                            (mask[top &+ index] &* (256 &- lowerWeight)
-                                                &+ mask[bottom &+ index] &* lowerWeight) >> 8
+                                let shared = Unshared(
+                                    (bytes, words, mask, lefts, rights, weights, layerWords))
+                                // Each row blends into its own pixels, so threads take
+                                // rows of their own.
+                                forEachRange(of: rowRange.count, minimum: 48) { chunk in
+                                    let (bytes, words, mask, lefts, rights, weights, layerWords) =
+                                        shared.value
+                                    var line = [Int32](repeating: 0, count: samplesWide)
+                                    line.withUnsafeMutableBufferPointer { line in
+                                        for offset in chunk {
+                                            let rowIndex = rowRange.lowerBound + offset
+                                            let y = visible.minY + rowIndex
+                                            let top = rowEntries[rowIndex * 3] * samplesWide
+                                            let bottom = rowEntries[rowIndex * 3 + 1] * samplesWide
+                                            let lowerWeight = Int32(rowEntries[rowIndex * 3 + 2])
+                                            // Between two sample rows, in `0...65_025`.
+                                            for index in 0..<samplesWide {
+                                                line[index] =
+                                                    (mask[top &+ index] &* (256 &- lowerWeight)
+                                                        &+ mask[bottom &+ index] &* lowerWeight)
+                                                    >> 8
+                                            }
+                                            // Where the layer is opaque, it covers the shadow.
+                                            var ranges = [columnRange]
+                                            let layerRow = y - originY
+                                            if skipsOpaque, layerRow >= 0, layerRow < layerHeight,
+                                                let run = Self.opaqueRun(
+                                                    in: UnsafeBufferPointer(
+                                                        rebasing: layerWords[
+                                                            layerRow * layerWidth..<(layerRow + 1)
+                                                                * layerWidth]))
+                                            {
+                                                // The row's pixels are blended in groups of four from
+                                                // its first, and the same pixels must share a group
+                                                // as when none is skipped, which rounds alike.
+                                                let first = columnRange.lowerBound
+                                                let low =
+                                                    first
+                                                    + (originX + run.lowerBound - visible.minX
+                                                        - first) / 4 * 4
+                                                let high =
+                                                    first
+                                                    + (originX + run.upperBound - visible.minX
+                                                        - first + 3) / 4 * 4
+                                                let leftEnd = max(
+                                                    min(low, columnRange.upperBound), first)
+                                                let rightStart = min(
+                                                    max(high, first), columnRange.upperBound)
+                                                let before = first..<leftEnd
+                                                let after = rightStart..<columnRange.upperBound
+                                                ranges = [before, after]
+                                            }
+                                            for columns in ranges where !columns.isEmpty {
+                                                Self.blendShadowRow(
+                                                    color, mode: mode, scale: scale,
+                                                    maximumWeight: maximumWeight, columns: columns,
+                                                    rowStart: y &* width &+ visible.minX,
+                                                    words: words, bytes: bytes, line: line,
+                                                    lefts: lefts, rights: rights, weights: weights)
+                                            }
+                                        }
                                     }
-                                    Self.blendShadowRow(
-                                        color, mode: mode, scale: scale,
-                                        maximumWeight: maximumWeight, columns: columnRange,
-                                        rowStart: y &* width &+ visible.minX, words: words,
-                                        bytes: bytes, line: line, lefts: lefts, rights: rights,
-                                        weights: weights)
                                 }
                             }
                         }
@@ -357,6 +422,26 @@ extension Canvas {
                 }
             }
         }
+    }
+
+    /// The first run of opaque pixels in a row of a layer, or `nil` when there
+    /// is none. It is a run, not all the row's opaque pixels: later ones are
+    /// shadowed as usual.
+    static func opaqueRun(in row: UnsafeBufferPointer<UInt32>) -> Range<Int>? {
+        let count = row.count
+        var start = 0
+        while start < count, row[start] >> 24 != 255 { start += 1 }
+        guard start < count else { return nil }
+        var end = start
+        let opaque = SIMD8<UInt32>(repeating: 255)
+        let base = UnsafeRawPointer(row.baseAddress!)
+        while end &+ 8 <= count {
+            let words = base.loadUnaligned(fromByteOffset: end &* 4, as: SIMD8<UInt32>.self)
+            guard all((words &>> 24) .== opaque) else { break }
+            end &+= 8
+        }
+        while end < count, row[end] >> 24 == 255 { end += 1 }
+        return start..<end
     }
 
     /// What turns a coverage into a weight in 4096ths for a color: the

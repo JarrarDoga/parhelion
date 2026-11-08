@@ -501,7 +501,10 @@ may contain breaking changes.
   about 1 to 2 percent at body size toward San Francisco's widths, so every text width and the
   README images changed. Shadows, gradients, layers, and text also draw faster over opaque
   pixels, and `RustleCollection` and `RustleNowPlaying` in `Examples` are the screens this was
-  measured on. See ADR 0019.
+  measured on. A frame in which only a scroll view's content moved copies the last frame's pixels
+  shifted by the scroll and draws only the rows that came into view and whatever changed, the
+  position of scrolled content is rounded to a whole pixel as on a device, and the large copies,
+  gradients, shadows, and the scroll edge effect use several threads. See ADR 0019.
 
 - The scroll edge effect. A `ScrollView` or `List` as the screen of a navigation stack, or the
   content of a tab view, takes the whole screen and starts its content below the navigation bar,

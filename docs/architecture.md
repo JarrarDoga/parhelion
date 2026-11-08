@@ -433,7 +433,16 @@ the screen it covers. The effect blurs only the pixels inside its rectangle, on 
 resampled bilinearly, so its cost follows the rectangle (about 2 to 6 ms at 2× and 3×). `RenderCache`
 keeps an effect that stays where it was with the pixels it read and left, as it does glass, and
 copies it while the pixels beneath do not change; a checksum of those pixels tells whether they
-changed, so a list scrolling under the bar does not pay for copies.
+changed, so a list scrolling under the bar does not pay for copies. While a scroll moves the
+content under the effect, nothing is kept: the pixels differ in every frame, and a frame skips the
+checksum.
+
+A scroll view's content is drawn from the last frame when only its position changed
+(`Rendering+ScrollShift.swift`, ADR 0019). `RenderCache` keeps the pixels the content drew; the next
+frame copies them shifted by the scroll and draws again the rows that came into view and the nodes
+whose description changed. This needs the content's position on whole pixels, which the renderer
+rounds it to, a flat color beneath the content, and content that does not read the pixels around
+what it draws (`Canvas.readsSurroundings`); otherwise the content is drawn in full.
 
 ### Progress views
 

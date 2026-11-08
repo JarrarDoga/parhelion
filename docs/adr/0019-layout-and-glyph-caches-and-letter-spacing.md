@@ -53,6 +53,43 @@ can wrap in the preview.
 - Glyph coverage at quarter pixels, and the integer blends, change edge pixels slightly compared
   with rasterizing a whole line and blending in floating point, which is why the images were
   recorded again together.
-- What these changes do not reach: scrolling the Collection fixture still redraws every row, the
-  scroll edge effect, and the title bar in each frame. Drawing only the strip a scroll exposes
-  needs the canvas to keep the previous frame, and that is left for a later record.
+- **Scrolling moves the last frame.** `RenderCache` keeps the pixels a scroll view's content
+  drew in the last frame. When the content moved by a whole number of pixels and the view
+  beneath it is one flat color, the next frame copies those pixels shifted by the scroll and
+  draws again only the rows that came into view and the nodes whose description changed (found by
+  comparing the content with the last frame's, node by node, moved by the scroll), with the
+  other nodes culled by their bounds. Content that reads the pixels around what it draws (glass,
+  blurs, the scroll edge effect; `Canvas.readsSurroundings`), or that scales or transforms nodes
+  that changed, is drawn in full, as is a frame in which more than 60 percent of the rows are
+  new. A kept frame equals a full one, which `ScrollShiftTests` checks frame by frame at 2× and
+  3×; at 3× a gradient's step can differ by one level in a pixel, because a whole pixel is not a
+  whole number of 1/1024 points.
+- **Scrolled content is placed on pixels.** The renderer moves a scroll view's content so that its
+  origin is a whole number of pixels, as a scroll view on a device does, and rounds every
+  coordinate in it to 1/1024 of a point. Two frames then differ by whole pixels, with exact
+  coordinates, so the same node draws the same pixels wherever it is. This changes the pixels of
+  every scroll view's content by a fraction of a pixel, and the README images were recorded
+  again.
+- **A shadow does not depend on its clip.** The grid of samples a shadow is blurred on began at
+  the clip's edge, so the same shadow had different pixels (by one level) under different clips.
+  It now keeps its own grid, which a smaller clip moves only by whole samples.
+- **Layout skips the animation comparison while scrolling.** A scroll or a step of momentum, with
+  no animation running or requested, does not compare the old tree with the new one for views that
+  start to animate, since none can.
+- **Threads.** Passes over the rows of a large canvas run on up to four threads, when there are
+  enough rows to repay starting them: filling a canvas, copying and checking the rows of a kept
+  frame, a rounded rectangle's gradient, the blend of a layer's shadow and of a layer, the
+  blur of a shadow's samples, and the scroll edge effect's resampling. Each thread writes its own
+  rows, so the pixels are the same as without threads.
+- A shadow of a layer is not blended where the layer is opaque and drawn over it next, which is
+  most of a large shadow's area.
+
+## What the measurements say
+
+The `present at` gaps and the times per frame are in the pull request. At the preview's default
+scale (2×), the Collection fixture's frame takes about 5 ms to draw and 1.4 ms to lay out, and
+Now Playing's takes about 7 ms. The window host presents a frame every refresh when the app
+answers within one refresh less its upload and a margin, and the pacer looks at the slowest of the
+last 16 answers, so a single slow frame keeps the host at two refreshes for 16 frames. At 3× the
+same work covers 2.25 times the pixels; the CPU renderer does not reach 8.3 ms there for the
+screens measured.

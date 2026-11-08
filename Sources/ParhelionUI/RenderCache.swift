@@ -23,6 +23,11 @@ import Foundation
 ///   content under a bar does not move, as when only a toggle animates,
 ///   the blur is copied instead of computed again.
 ///
+/// - **A scrolled view's content**, as it was drawn in the last frame. A
+///   frame in which a scroll view's content only moved copies the pixels
+///   shifted by the scroll, and draws the rows that came into view and
+///   whatever else changed; see Rendering+ScrollShift.swift.
+///
 /// It holds at most two full-screen canvases, each about 5 MB at 2× and 12
 /// to 15 MB at 3×, and glass up to ``glassByteLimit``. The backdrop goes
 /// when nothing is presented, the layer when nothing fades over it, and
@@ -120,6 +125,38 @@ final class RenderCache {
         var lastFrame: Int
     }
 
+    /// What a scroll view drew, and what the drawing depended on.
+    struct ScrollSnapshot {
+        var key: ScrollKey
+        /// The content as it was drawn, after rounding its position to whole
+        /// pixels.
+        var content: [ViewNode]
+        /// The pixels of the scroll view's box right after the content was
+        /// drawn, before anything that draws over a scroll view.
+        var words: [UInt32]
+        /// The color of every pixel beneath the content.
+        var under: UInt32
+        var lastFrame: Int
+    }
+
+    /// What drawing a scroll view's content depends on, apart from the
+    /// content, which moves.
+    struct ScrollKey: Equatable {
+        var id: NodeID
+        /// The scroll view without its content and its offset.
+        var node: ViewNode
+        var inherited: TreeRenderer.Inherited
+        var scale: Double
+        var device: Device
+        var canvasWidth: Int
+        var canvasHeight: Int
+        var box: PixelBox
+        var pressedNodeID: NodeID?
+        var focusedNodeID: NodeID?
+        var caretOffset: Int
+        var selectionAnchor: Int?
+    }
+
     /// The most memory that kept glass surfaces use: 16 MB.
     static let glassByteLimit = 16 << 20
 
@@ -138,12 +175,27 @@ final class RenderCache {
     /// frame and in this one.
     private var previousStamps: [EntryKey: UInt64] = [:]
     private var currentStamps: [EntryKey: UInt64] = [:]
-    private var frame = 0
+    private(set) var frame = 0
 
     /// The number of glass surfaces kept, and how many times one was
     /// reused, for tests.
     var glassCount: Int { glass.count }
     private(set) var glassReuses = 0
+
+    /// Content a scroll view drew in earlier frames, by the scroll view.
+    var scrollSnapshots: [NodeID: ScrollSnapshot] = [:]
+    /// Whether this frame moved a scroll view's content by copying it. The
+    /// scroll edge effect under a bar then reads pixels that changed, and
+    /// does not look for a frame it could copy.
+    var contentMoved = false
+    /// Storage for the pixels of a scroll view's next snapshot: the storage
+    /// of an earlier one, so that no frame allocates, and fills with zeros,
+    /// a canvas worth of memory.
+    var spareWords: [UInt32] = []
+    /// How many frames drew a scroll view's content by moving pixels, and
+    /// how many drew it all, for tests.
+    var scrollShifts = 0
+    var scrollRedraws = 0
 
     /// Starts drawing a frame.
     func beginFrame() {
@@ -153,6 +205,7 @@ final class RenderCache {
         previousStamps = currentStamps
         currentStamps = [:]
         layerUsed = false
+        contentMoved = false
     }
 
     /// Finishes a frame: forgets glass this frame did not draw, the layer
@@ -163,6 +216,9 @@ final class RenderCache {
         for (key, entry) in glass where entry.lastFrame != frame {
             glassBytes -= Self.bytes(of: entry)
             glass[key] = nil
+        }
+        for (id, snapshot) in scrollSnapshots where snapshot.lastFrame != frame {
+            scrollSnapshots[id] = nil
         }
     }
 
@@ -254,7 +310,11 @@ final class RenderCache {
         // reads are the same as in the previous frame, by a checksum.
         let replaced = glass[key].map(Self.bytes(of:)) ?? 0
         var still = true
-        if checksummed {
+        if checksummed && contentMoved {
+            // The content under the effect moved: nothing to copy, and no
+            // use in keeping it.
+            still = false
+        } else if checksummed {
             let sum = canvas.checksum(of: region)
             still = previousStamps[key] == sum
             currentStamps[key] = sum

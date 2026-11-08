@@ -50,6 +50,13 @@ public struct Canvas: Sendable {
     /// pixels already on the canvas. Overlays ignore it.
     public var blendMode: BlendMode = .normal
 
+    /// Whether drawing has read the pixels around what it drew, as glass,
+    /// blurs, and the scroll edge effect do, since the canvas was made or
+    /// the flag was cleared. Drawing that does not read its surroundings
+    /// can be drawn again over a part of the canvas, and gives the same
+    /// pixels there.
+    package var readsSurroundings = false
+
     /// Creates a canvas of the given size in points, filled with a color.
     public init(width: Double, height: Double, scale: Double, background: RGBA = .white) {
         self.width = max(Int((width * scale).rounded()), 0)
@@ -58,8 +65,14 @@ public struct Canvas: Sendable {
         let count = self.width * self.height
         let word = background.packed
         pixels = [UInt8](unsafeUninitializedCapacity: count * 4) { buffer, initialized in
-            UnsafeMutableRawBufferPointer(buffer).bindMemory(to: UInt32.self)
-                .initialize(repeating: word)
+            let words = UnsafeMutableRawBufferPointer(buffer).bindMemory(to: UInt32.self)
+            let shared = Unshared(words.baseAddress)
+            // A screen's worth of pixels is memory bandwidth: threads share it.
+            forEachRange(of: count, minimum: 400_000) { range in
+                guard let base = shared.value else { return }
+                UnsafeMutableBufferPointer(start: base + range.lowerBound, count: range.count)
+                    .initialize(repeating: word)
+            }
             initialized = count * 4
         }
     }

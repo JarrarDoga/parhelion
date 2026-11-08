@@ -77,6 +77,9 @@ struct TreeRenderer {
     var selectionAnchor: Int?
     /// Drawing kept from earlier frames, or `nil` to draw everything.
     var cache: RenderCache?
+    /// Where the nodes of a scroll view's content draw, while only part of
+    /// the content is drawn again; see Rendering+ScrollShift.swift.
+    var culling: Culling?
 
     func render(_ root: ViewNode, scale: Double, chrome: CanvasOverlay? = nil) -> Canvas {
         cache?.beginFrame()
@@ -220,7 +223,7 @@ struct TreeRenderer {
     }
 
     /// What a node inherits from its ancestors when it is drawn.
-    struct Inherited {
+    struct Inherited: Equatable {
         /// The foreground style, which a node's own `foregroundStyle`
         /// overrides.
         var foreground: String?
@@ -244,7 +247,7 @@ struct TreeRenderer {
     }
 
     /// What a node is in, for how buttons inside it draw.
-    enum Container {
+    enum Container: Equatable {
         case standard
         /// A navigation bar, whose back button draws its own glass.
         case navigationBar
@@ -426,6 +429,11 @@ struct TreeRenderer {
             scheme: scheme, elevated: elevated)
         // A navigation bar draws after the screen, which scrolls under it,
         // and the scroll edge effect draws between them.
+        if node.isScrollContainer, !node.children.isEmpty {
+            drawScrollContent(node, frame: frame, inherited: inherited, into: &canvas)
+            canvas.clipRect = outerClip
+            return
+        }
         var children = node.children
         if node.kind == "NavigationStack" {
             children =
@@ -448,6 +456,7 @@ struct TreeRenderer {
             {
                 childInherited.foreground = foreground ?? ColorPalette.alertMessageStyle
             }
+            if let culling, culling.skips(child, in: canvas.clipRect) { continue }
             draw(child, inherited: childInherited, into: &canvas)
         }
         canvas.clipRect = outerClip

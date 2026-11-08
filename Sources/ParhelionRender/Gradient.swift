@@ -132,40 +132,44 @@ extension Canvas {
             let words = UnsafeMutableRawBufferPointer(bytes).bindMemory(to: UInt32.self)
             lookup.table.withUnsafeBufferPointer { table in
                 lookup.words.withUnsafeBufferPointer { words16 in
-                    for y in box.minY..<box.maxY {
-                        let full = mask.fullSpan(y: y)
-                        let rowStart = y &* width
-                        var x = box.minX
-                        while x < box.maxX {
-                            if full.contains(x) {
-                                if opaque, lookup.isOpaque {
-                                    // A fully covered opaque color replaces the
-                                    // pixel, which is what blending it gives.
-                                    var (index, step) = lookup.fixedIndex(
-                                        column: full.lowerBound, row: y)
-                                    for column in full {
-                                        words[rowStart &+ column] =
-                                            words16[min(max(index >> 16, 0), lookup.lastStep)]
-                                        index &+= step
+                    let shared = Unshared((mask, lookup, bytes, words, table, words16))
+                    // Every row writes its own pixels, so threads take rows of their own.
+                    forEachRange(of: box.maxY - box.minY, minimum: 64) { rows in
+                        let (mask, lookup, bytes, words, table, words16) = shared.value
+                        for y in box.minY + rows.lowerBound..<box.minY + rows.upperBound {
+                            let full = mask.fullSpan(y: y)
+                            let rowStart = y &* width
+                            var x = box.minX
+                            while x < box.maxX {
+                                if full.contains(x) {
+                                    if opaque, lookup.isOpaque {
+                                        // A fully covered opaque color replaces the
+                                        // pixel, which is what blending it gives.
+                                        var (index, step) = lookup.fixedIndex(
+                                            column: full.lowerBound, row: y)
+                                        for column in full {
+                                            words[rowStart &+ column] =
+                                                words16[min(max(index >> 16, 0), lookup.lastStep)]
+                                            index &+= step
+                                        }
+                                    } else {
+                                        for column in full {
+                                            Self.blendQuickly(
+                                                lookup.color(atColumn: column, row: y, in: table),
+                                                1, mode, into: bytes, at: (rowStart &+ column) &* 4)
+                                        }
                                     }
-                                } else {
-                                    for column in full {
-                                        Self.blendQuickly(
-                                            lookup.color(atColumn: column, row: y, in: table), 1,
-                                            mode,
-                                            into: bytes, at: (rowStart &+ column) &* 4)
-                                    }
+                                    x = full.upperBound
+                                    continue
                                 }
-                                x = full.upperBound
-                                continue
+                                let amount = mask.coverage(x: x, y: y)
+                                if amount > 0 {
+                                    Self.blendQuickly(
+                                        lookup.color(atColumn: x, row: y, in: table), amount, mode,
+                                        into: bytes, at: (rowStart &+ x) &* 4)
+                                }
+                                x &+= 1
                             }
-                            let amount = mask.coverage(x: x, y: y)
-                            if amount > 0 {
-                                Self.blendQuickly(
-                                    lookup.color(atColumn: x, row: y, in: table), amount, mode,
-                                    into: bytes, at: (rowStart &+ x) &* 4)
-                            }
-                            x &+= 1
                         }
                     }
                 }

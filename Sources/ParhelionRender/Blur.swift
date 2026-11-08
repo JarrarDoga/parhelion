@@ -54,24 +54,35 @@ struct BlurKernel {
     /// Values past the grid's edges repeat the edge.
     func apply(to values: inout [Int32], width: Int, height: Int, channels: Int) {
         guard reach > 0, width > 0, height > 0 else { return }
-        var line = [Int32](repeating: 0, count: max(width, height))
+        let longest = max(width, height)
         values.withUnsafeMutableBufferPointer { data in
-            line.withUnsafeMutableBufferPointer { line in
-                for radius in radii where radius > 0 {
-                    for row in 0..<height {
-                        for channel in 0..<channels {
-                            Self.pass(
-                                data, start: row * width * channels + channel, count: width,
-                                step: channels, radius: radius, line: line)
+            let shared = Unshared(data)
+            // Rows, and then columns, are blurred apart from each other.
+            for radius in radii where radius > 0 {
+                forEachRange(of: height, minimum: 48) { rows in
+                    var line = [Int32](repeating: 0, count: longest)
+                    line.withUnsafeMutableBufferPointer { line in
+                        for row in rows {
+                            for channel in 0..<channels {
+                                Self.pass(
+                                    shared.value, start: row * width * channels + channel,
+                                    count: width, step: channels, radius: radius, line: line)
+                            }
                         }
                     }
                 }
-                for radius in radii where radius > 0 {
-                    for column in 0..<width {
-                        for channel in 0..<channels {
-                            Self.pass(
-                                data, start: column * channels + channel, count: height,
-                                step: width * channels, radius: radius, line: line)
+            }
+            for radius in radii where radius > 0 {
+                forEachRange(of: width, minimum: 48) { columns in
+                    var line = [Int32](repeating: 0, count: longest)
+                    line.withUnsafeMutableBufferPointer { line in
+                        for column in columns {
+                            for channel in 0..<channels {
+                                Self.pass(
+                                    shared.value, start: column * channels + channel,
+                                    count: height, step: width * channels, radius: radius,
+                                    line: line)
+                            }
                         }
                     }
                 }
@@ -95,12 +106,30 @@ struct BlurKernel {
         for offset in -radius...radius { sum += Int(line[min(max(offset, 0), last)]) }
         // The values are at most 255 × 255 and the boxes are narrow, so
         // nothing here can overflow.
-        for index in 0..<count {
+        // Away from the ends, the box needs no clamping.
+        let interior = max(radius + 1, 0)..<max(count - radius - 1, radius + 1)
+        var index = 0
+        while index < min(interior.lowerBound, count) {
             data[start &+ index &* step] = Int32(
                 truncatingIfNeeded: (sum &* reciprocal &+ (1 << 31)) >> 32)
             sum =
                 sum &+ Int(line[min(index &+ radius &+ 1, last)])
                 &- Int(line[max(index &- radius, 0)])
+            index &+= 1
+        }
+        while index < min(interior.upperBound, count) {
+            data[start &+ index &* step] = Int32(
+                truncatingIfNeeded: (sum &* reciprocal &+ (1 << 31)) >> 32)
+            sum = sum &+ Int(line[index &+ radius &+ 1]) &- Int(line[index &- radius])
+            index &+= 1
+        }
+        while index < count {
+            data[start &+ index &* step] = Int32(
+                truncatingIfNeeded: (sum &* reciprocal &+ (1 << 31)) >> 32)
+            sum =
+                sum &+ Int(line[min(index &+ radius &+ 1, last)])
+                &- Int(line[max(index &- radius, 0)])
+            index &+= 1
         }
     }
 
@@ -192,6 +221,15 @@ extension Canvas {
             }, color: color, offset: offset, blur: blur, drawsUnderShape: drawsUnderShape)
     }
 
+    /// Where a shadow's sample grid starts: at its own first pixel, or, when
+    /// the clip begins later, at the sample of that grid the clip needs
+    /// first. The grid stays where it is however the clip cuts the shadow,
+    /// so a shadow drawn under two clips has the same pixels in both.
+    static func sampleOrigin(_ origin: Int, limit: Int, factor: Int) -> Int {
+        guard limit > origin else { return origin }
+        return origin + (limit - origin) / factor * factor
+    }
+
     private mutating func drawShadow(
         of path: Path, knockout makeKnockout: (Canvas, PixelBox) -> CoverageMask, color: RGBA,
         offset: CGSize, blur: Double, drawsUnderShape: Bool
@@ -205,12 +243,12 @@ extension Canvas {
         let offsetY = Double(offset.height) * scale
         // The shadow's pixels, grown by the blur's reach and limited to what
         // can reach the clip.
-        let minX = max(
+        let minX = Self.sampleOrigin(
             Int((Double(bounds.minX) * scale + offsetX).rounded(.down)) - padding,
-            clip.minX - padding)
-        let minY = max(
+            limit: clip.minX - padding, factor: factor)
+        let minY = Self.sampleOrigin(
             Int((Double(bounds.minY) * scale + offsetY).rounded(.down)) - padding,
-            clip.minY - padding)
+            limit: clip.minY - padding, factor: factor)
         let maxX = min(
             Int((Double(bounds.maxX) * scale + offsetX).rounded(.up)) + padding,
             clip.maxX + padding)
@@ -387,6 +425,7 @@ extension Canvas {
         radius: Double, saturation: Double = 1
     ) {
         guard rect.width > 0, rect.height > 0, radius > 0 || saturation != 1 else { return }
+        readsSurroundings = true
         let clip = pixelClip
         let target = PixelBox(
             minX: max(Int((Double(rect.minX) * scale).rounded(.down)), clip.minX),

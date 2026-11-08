@@ -73,6 +73,11 @@ final class AnimationEngine {
     var zooms: [NodeID: Zoom] = [:]
 
     /// Whether anything is still moving at `time`.
+    /// Whether no animation is kept at all.
+    var isIdle: Bool {
+        displacements.isEmpty && entrances.isEmpty && exits.isEmpty && zooms.isEmpty
+    }
+
     func isActive(at time: TimeInterval) -> Bool {
         displacements.values.contains { time < $0.start + $0.animation.totalDuration }
             || entrances.values.contains { time < $0.start + $0.animation.totalDuration }
