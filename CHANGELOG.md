@@ -504,7 +504,14 @@ may contain breaking changes.
   measured on. A frame in which only a scroll view's content moved copies the last frame's pixels
   shifted by the scroll and draws only the rows that came into view and whatever changed, the
   position of scrolled content is rounded to a whole pixel as on a device, and the large copies,
-  gradients, shadows, and the scroll edge effect use several threads. See ADR 0019.
+  gradients, shadows, and the scroll edge effect use several threads. See ADR 0019. A lazy stack
+  moves the rows it placed in the last layout instead of placing them again, and the renderer no
+  longer asks Foundation for the processor count, which takes about 20 µs on Linux, for each pass
+  it splits among threads. The window host sends the next tick as soon as the app answers, so the
+  app draws the next frame while the host shows this one: an app that takes most of a refresh
+  for each frame is shown at every refresh, and a frame is on screen up to one refresh later
+  after the input it shows. A few slow frames no longer slow the frames after them, and the host
+  sees the app's answer as it arrives instead of about a millisecond later. See ADR 0020.
 
 - The scroll edge effect. A `ScrollView` or `List` as the screen of a navigation stack, or the
   content of a tab view, takes the whole screen and starts its content below the navigation bar,

@@ -487,9 +487,13 @@ final class HostMessageInbox: @unchecked Sendable {
     }
 }
 
+/// Whether `PARHELION_DEBUG` is set, read once: the session logs every
+/// frame, and reading the environment builds a dictionary of all of it.
+private let isDebugLogging = ProcessInfo.processInfo.environment["PARHELION_DEBUG"] != nil
+
 /// Prints a trace line to standard error when `PARHELION_DEBUG` is set.
 private func debugLog(_ message: @autoclosure () -> String) {
-    guard ProcessInfo.processInfo.environment["PARHELION_DEBUG"] != nil else { return }
+    guard isDebugLogging else { return }
     FileHandle.standardError.write(Data("parhelion app: \(message())\n".utf8))
 }
 

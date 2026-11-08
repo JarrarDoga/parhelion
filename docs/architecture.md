@@ -967,13 +967,16 @@ hosts from before a capability keep working with newer ones
 
 - **`hostClock`: the host owns the clock.** The window host turns on vsync and reads the
   display's refresh rate, again when the window moves to another display. While the app reports
-  that something moves, the host presents once per refresh and, after each present, sends a
-  `tick` whose target is the moment the next frame will be on screen. Times are nanoseconds of
+  that something moves, the host presents once per refresh and sends `tick`s whose target is the
+  moment the frame will be on screen. Times are nanoseconds of
   `CLOCK_MONOTONIC`, which both processes share (`PreviewClock`). The app advances its clock to
   the target and draws once; input that arrives in between changes state and is drawn on the next
   tick. The host waits for that frame until shortly before the refresh, so a frame that misses
-  it is shown one refresh later and the previous frame stays up meanwhile. An app too slow for
-  every refresh is shown every second, third, or later refresh, evenly (`FramePacer`). The app is
+  it is shown one refresh later and the previous frame stays up meanwhile. As soon as an answer
+  arrives, the host sends the next tick, so the app draws the next frame while the host uploads
+  and presents this one, at most two frames ahead of the screen
+  ([ADR 0020](adr/0020-overlapped-frames.md)). An app too slow on average for every refresh is
+  shown every second, third, or later refresh, evenly (`FramePacer`). The app is
   also shown no faster than the simulated screen's `maximumFramesPerSecond`, which the hello
   carries: on a 240 Hz display, each frame of a 120 Hz iPhone stays up for two refreshes, and a
   frame that arrives early waits until shortly before the refresh it is due at. On a display

@@ -313,81 +313,92 @@ extension Canvas {
         let rowEntries = rows.entries
         let interpolation = ShadowColumns(columns)
         let (weightScale, maximumWeight) = Self.shadowWeights(for: color)
-        var line = [Int32](repeating: 0, count: samplesWide)
+        // Each row blends into its own pixels, so a large shadow's rows are
+        // shared among threads.
+        let minimumRows =
+            rowRange.count * columnRange.count < Self.threadedShadowPixels ? Int.max : 32
         pixels.withUnsafeMutableBufferPointer { bytes in
             let words = UnsafeMutableRawBufferPointer(bytes).bindMemory(to: UInt32.self)
             mask.withUnsafeBufferPointer { mask in
-                line.withUnsafeMutableBufferPointer { line in
-                    interpolation.lefts.withUnsafeBufferPointer { lefts in
-                        interpolation.rights.withUnsafeBufferPointer { rights in
-                            interpolation.weights.withUnsafeBufferPointer { weights in
-                                for rowIndex in rowRange {
-                                    let y = visible.minY + rowIndex
-                                    // Interpolate between the two sample rows once,
-                                    // then along the row for each pixel.
-                                    let top = rowEntries[rowIndex * 3] * samplesWide
-                                    let bottom = rowEntries[rowIndex * 3 + 1] * samplesWide
-                                    let lowerWeight = Int32(rowEntries[rowIndex * 3 + 2])
-                                    for index in 0..<samplesWide {
-                                        line[index] =
-                                            (mask[top &+ index] &* (256 &- lowerWeight)
-                                                &+ mask[bottom &+ index] &* lowerWeight) >> 8
-                                    }
-                                    let rowStart = y &* width &+ visible.minX
-                                    func blend(_ columns: Range<Int>) {
-                                        guard columns.lowerBound < columns.upperBound else {
-                                            return
+                interpolation.lefts.withUnsafeBufferPointer { lefts in
+                    interpolation.rights.withUnsafeBufferPointer { rights in
+                        interpolation.weights.withUnsafeBufferPointer { weights in
+                            let shared = Unshared(
+                                (bytes, words, mask, lefts, rights, weights, knockout))
+                            forEachRange(of: rowRange.count, minimum: minimumRows) { chunk in
+                                let (bytes, words, mask, lefts, rights, weights, knockout) =
+                                    shared.value
+                                var line = [Int32](repeating: 0, count: samplesWide)
+                                line.withUnsafeMutableBufferPointer { line in
+                                    for offset in chunk {
+                                        let rowIndex = rowRange.lowerBound + offset
+                                        let y = visible.minY + rowIndex
+                                        // Interpolate between the two sample rows once,
+                                        // then along the row for each pixel.
+                                        let top = rowEntries[rowIndex * 3] * samplesWide
+                                        let bottom = rowEntries[rowIndex * 3 + 1] * samplesWide
+                                        let lowerWeight = Int32(rowEntries[rowIndex * 3 + 2])
+                                        for index in 0..<samplesWide {
+                                            line[index] =
+                                                (mask[top &+ index] &* (256 &- lowerWeight)
+                                                    &+ mask[bottom &+ index] &* lowerWeight) >> 8
                                         }
-                                        Self.blendShadowRow(
-                                            color, mode: mode, scale: weightScale,
-                                            maximumWeight: maximumWeight, columns: columns,
-                                            rowStart: rowStart, words: words, bytes: bytes,
-                                            line: line, lefts: lefts, rights: rights,
-                                            weights: weights)
-                                    }
-                                    // Outside the shape's pixels nothing is cut away.
-                                    let shapeRow = y >= shapeBounds.minY && y < shapeBounds.maxY
-                                    guard shapeRow else {
-                                        blend(columnRange)
-                                        continue
-                                    }
-                                    let shapeStart = shapeBounds.minX - visible.minX
-                                    let shapeEnd = shapeBounds.maxX - visible.minX
-                                    blend(
-                                        columnRange
-                                            .lowerBound..<max(
-                                                min(columnRange.upperBound, shapeStart),
-                                                columnRange.lowerBound))
-                                    blend(
-                                        min(
-                                            max(columnRange.lowerBound, shapeEnd),
-                                            columnRange.upperBound)..<columnRange.upperBound)
-                                    // Inside them the shape's coverage cuts the
-                                    // shadow away, except where it covers fully.
-                                    let full = knockout.fullSpan(y: y)
-                                    var x = max(
-                                        visible.minX + columnRange.lowerBound, shapeBounds.minX)
-                                    let end = min(
-                                        visible.minX + columnRange.upperBound, shapeBounds.maxX)
-                                    while x < end {
-                                        if full.contains(x) {
-                                            x = full.upperBound
+                                        let rowStart = y &* width &+ visible.minX
+                                        func blend(_ columns: Range<Int>) {
+                                            guard columns.lowerBound < columns.upperBound else {
+                                                return
+                                            }
+                                            Self.blendShadowRow(
+                                                color, mode: mode, scale: weightScale,
+                                                maximumWeight: maximumWeight, columns: columns,
+                                                rowStart: rowStart, words: words, bytes: bytes,
+                                                line: line, lefts: lefts, rights: rights,
+                                                weights: weights)
+                                        }
+                                        // Outside the shape's pixels nothing is cut away.
+                                        let shapeRow = y >= shapeBounds.minY && y < shapeBounds.maxY
+                                        guard shapeRow else {
+                                            blend(columnRange)
                                             continue
                                         }
-                                        let column = x &- visible.minX
-                                        let value =
-                                            Int(line[lefts[column]])
-                                            &* (256 &- Int(weights[column]))
-                                            &+ Int(line[rights[column]]) &* Int(weights[column])
-                                        let amount =
-                                            Float(value) / 16_646_400
-                                            * (1 - knockout.coverage(x: x, y: y))
-                                        if amount > 0 {
-                                            Self.blendQuickly(
-                                                color, amount, mode, into: bytes,
-                                                at: (y &* width &+ x) &* 4)
+                                        let shapeStart = shapeBounds.minX - visible.minX
+                                        let shapeEnd = shapeBounds.maxX - visible.minX
+                                        blend(
+                                            columnRange
+                                                .lowerBound..<max(
+                                                    min(columnRange.upperBound, shapeStart),
+                                                    columnRange.lowerBound))
+                                        blend(
+                                            min(
+                                                max(columnRange.lowerBound, shapeEnd),
+                                                columnRange.upperBound)..<columnRange.upperBound)
+                                        // Inside them the shape's coverage cuts the
+                                        // shadow away, except where it covers fully.
+                                        let full = knockout.fullSpan(y: y)
+                                        var x = max(
+                                            visible.minX + columnRange.lowerBound, shapeBounds.minX)
+                                        let end = min(
+                                            visible.minX + columnRange.upperBound, shapeBounds.maxX)
+                                        while x < end {
+                                            if full.contains(x) {
+                                                x = full.upperBound
+                                                continue
+                                            }
+                                            let column = x &- visible.minX
+                                            let value =
+                                                Int(line[lefts[column]])
+                                                &* (256 &- Int(weights[column]))
+                                                &+ Int(line[rights[column]]) &* Int(weights[column])
+                                            let amount =
+                                                Float(value) / 16_646_400
+                                                * (1 - knockout.coverage(x: x, y: y))
+                                            if amount > 0 {
+                                                Self.blendQuickly(
+                                                    color, amount, mode, into: bytes,
+                                                    at: (y &* width &+ x) &* 4)
+                                            }
+                                            x &+= 1
                                         }
-                                        x &+= 1
                                     }
                                 }
                             }
@@ -397,6 +408,10 @@ extension Canvas {
             }
         }
     }
+
+    /// The fewest pixels a rounded rectangle's shadow blends before its rows
+    /// are shared among threads: starting them costs more below that.
+    static let threadedShadowPixels = 24_576
 
     /// Blurs the pixels already on the canvas inside a rounded rectangle
     /// given in points, and optionally changes their saturation, for glass

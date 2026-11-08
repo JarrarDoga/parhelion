@@ -1,19 +1,28 @@
 /// Decides when the window host presents, how long it waits for the app's
 /// frame, and what time each tick asks the app to draw for.
 ///
-/// The host owns the clock. After each present, which blocks until the
-/// display refreshes when vsync works, it sends the app a tick whose target
-/// is the moment the next frame will be on screen: the present time plus
-/// ``framesPerTick`` refresh periods. It then waits for the app's answer
-/// until shortly before that refresh, uploads the frame, and presents again.
-/// A frame that misses its refresh is shown at the next one, and the
-/// previous frame stays on screen meanwhile, so motion stays on a straight
-/// line even when a frame is late.
+/// The host owns the clock. Each tick asks the app to draw for its target,
+/// the refresh at which the frame will be on screen. The host waits for the
+/// app's answer until shortly before that refresh, uploads the frame, and
+/// presents it at the refresh, which blocks until the display refreshes
+/// when vsync works. A frame that misses its refresh is shown at the next
+/// one, and the previous frame stays on screen meanwhile, so motion stays
+/// on a straight line even when a frame is late.
+///
+/// The host overlaps frames, as iOS overlaps an app's commit with the
+/// render server's drawing of the frame before: as soon as an answer
+/// arrives, it sends the tick for the frame after it, so the app draws the
+/// next frame while the host uploads and presents this one. A tick goes out
+/// no earlier than one refresh before the frame it answers is shown (see
+/// ``nextTick(afterShowingAt:)``), so each frame has its own refreshes plus
+/// one to be drawn in, and a frame is on screen up to one refresh later
+/// after the input it shows than without the overlap. See ADR 0020.
 ///
 /// One tick is outstanding at a time. ``framesPerTick`` is 1 while the app
-/// answers within a refresh, and grows for an app too slow for that, such
-/// as one whose framework is built without optimization, so its frames are
-/// shown for equal numbers of refreshes instead of an uneven mix.
+/// draws a frame within a refresh on average, and grows for an app too slow
+/// for that, such as one whose framework is built without optimization, so
+/// its frames are shown for equal numbers of refreshes instead of an uneven
+/// mix.
 ///
 /// The app is shown no faster than the screen it simulates: on a 240 Hz
 /// display, each frame of a 120 Hz iPhone stays up for two refreshes. See
@@ -39,7 +48,10 @@ public struct FramePacer: Equatable, Sendable {
     private var tickSentAt: UInt64 = 0
     private var lastPresent: UInt64?
     private var shortIntervals = 0
-    /// The most recent times from sending a tick to receiving its answer.
+    /// The most recent times from sending a tick to receiving its answer,
+    /// which is how long the app took to draw: it is idle when a tick
+    /// arrives, because the host sends the next tick only after the answer
+    /// to the last.
     private var roundTrips: [UInt64] = []
     /// The longest recent upload, which the frame deadline leaves room for.
     private var uploadCost: UInt64 = 1_000_000
@@ -53,6 +65,16 @@ public struct FramePacer: Equatable, Sendable {
     static let shortIntervalLimit = 5
     /// The most refreshes one frame is shown for.
     static let maximumFramesPerTick = 8
+    /// How much longer than the refreshes it is shown for, as a fraction of
+    /// a refresh, a frame may take on average and still be shown for that
+    /// few. The app draws up to one refresh ahead of the screen, so a frame
+    /// a little slower than its refreshes takes from that lead, and only
+    /// every eighth or so misses its refresh; showing every frame for one
+    /// more refresh would show fewer of them.
+    static let rateToleranceDivisor: UInt64 = 8
+    /// How many of the recent answers may be too slow for their refresh
+    /// before the frames are shown for more refreshes.
+    static let toleratedSlowFrames = 3
 
     public init(vsyncEnabled: Bool) {
         hasVSync = vsyncEnabled
@@ -118,9 +140,54 @@ public struct FramePacer: Equatable, Sendable {
     }
 
     /// The time a tick sent right after a present at `time` asks the app to
-    /// draw for: when the frame it draws will be on screen.
+    /// draw for: when the frame it draws will be on screen. The host sends
+    /// such a tick when no tick is outstanding, as when an animation starts;
+    /// while one runs, ``nextTick(afterShowingAt:)`` gives the next.
     public func targetTime(afterPresentAt time: UInt64) -> UInt64 {
         time + UInt64(framesPerTick) * refreshPeriod
+    }
+
+    /// The refresh at which the app's answer to the tick for `target`,
+    /// arriving at `time`, is shown: its target, moved onto the grid of
+    /// refreshes after the last present at `lastPresent`, or, for an answer
+    /// too late to upload before that, the first refresh after the upload.
+    /// It is never sooner than ``earliestRefresh(after:)``.
+    public func refresh(
+        showingAnswerFor target: UInt64, at time: UInt64, after lastPresent: UInt64
+    ) -> UInt64 {
+        let first = earliestRefresh(after: lastPresent)
+        var refresh = first
+        // The target was computed from earlier presents; the grid follows the
+        // last one, so that frames stay in step with the display.
+        if target > first {
+            refresh += (target - first + refreshPeriod / 2) / refreshPeriod * refreshPeriod
+        }
+        if refresh < time + margin {
+            let behind = time + margin - refresh
+            refresh += (behind + refreshPeriod - 1) / refreshPeriod * refreshPeriod
+        }
+        return refresh
+    }
+
+    /// The tick for the frame after one shown at `refresh`: its target, and
+    /// the earliest time to send it, one refresh before `refresh`. The app
+    /// then has ``framesPerTick`` refreshes and one more to draw the frame,
+    /// and it is never more than two frames ahead of the screen.
+    public func nextTick(afterShowingAt refresh: UInt64) -> (target: UInt64, earliest: UInt64) {
+        let target = refresh + UInt64(framesPerTick) * refreshPeriod
+        return (target, refresh - min(refresh, refreshPeriod))
+    }
+
+    /// How long to wait for the answer to the outstanding tick before
+    /// presenting what the host has: until shortly before the first refresh
+    /// at or after the tick's target that the frame can still be uploaded
+    /// for, or, with no tick outstanding, until
+    /// ``frameDeadline(afterPresentAt:)``.
+    public func answerDeadline(after lastPresent: UInt64, now: UInt64) -> UInt64 {
+        guard let target = outstandingTarget else {
+            return frameDeadline(afterPresentAt: lastPresent)
+        }
+        return refresh(showingAnswerFor: target, at: now, after: lastPresent) - margin
     }
 
     /// How long after a present at `time` the host waits for the app's
@@ -172,11 +239,15 @@ public struct FramePacer: Equatable, Sendable {
         defer { lastPresent = time }
         guard hasVSync, let lastPresent else { return }
         let refresh = refresh ?? lastPresent + refreshPeriod
+        // A present that waited takes one short one back, rather than all:
+        // with the overlapped frames of ADR 0020, a slow answer now and then
+        // makes a present wait while the driver does not, and the count would
+        // start again each time.
         if time + refreshPeriod / 2 < refresh {
             shortIntervals += 1
             if shortIntervals >= Self.shortIntervalLimit { hasVSync = false }
         } else {
-            shortIntervals = 0
+            shortIntervals = max(shortIntervals - 1, 0)
         }
     }
 
@@ -202,16 +273,34 @@ public struct FramePacer: Equatable, Sendable {
 
     /// Records the app's answer to the tick for `target`, which arrived at
     /// `time`, and chooses how many refreshes the next frames are shown for.
-    public mutating func noteAnswer(target: UInt64, at time: UInt64) {
-        guard target == outstandingTarget else { return }
+    /// Returns whether the answer was to the outstanding tick.
+    ///
+    /// Two rules decide, both over the recent answers, so the choice does not
+    /// flip from frame to frame. The app draws one frame while the host shows
+    /// the one before, so it keeps up when a frame takes, on average, not
+    /// much more than the refreshes each is shown for. And the slowest frame must still
+    /// arrive in time to be uploaded, within those refreshes and the one more
+    /// that ``nextTick(afterShowingAt:)`` gives it; a few slower frames, as
+    /// when new rows scroll into view, are let through to miss their
+    /// refresh, rather than slowing down every frame after them.
+    @discardableResult
+    public mutating func noteAnswer(target: UInt64, at time: UInt64) -> Bool {
+        guard target == outstandingTarget else { return false }
         outstandingTarget = nil
-        roundTrips.append(time - tickSentAt)
+        roundTrips.append(time - min(tickSentAt, time))
         if roundTrips.count > Self.roundTripWindow { roundTrips.removeFirst() }
-        // The slowest recent answer decides, so the choice does not flip
-        // from frame to frame.
-        let slowest = roundTrips.max() ?? 0
-        let needed = (slowest + margin + refreshPeriod - 1) / refreshPeriod
+        let period = refreshPeriod
+        let sorted = roundTrips.sorted(by: >)
+        // The few slowest frames count only for the deadline.
+        let usual = sorted.dropFirst(min(Self.toleratedSlowFrames, sorted.count - 1))
+        let mean = usual.reduce(0, +) / UInt64(usual.count)
+        let tolerated = mean - min(mean, period / Self.rateToleranceDivisor)
+        let forRate = (tolerated + period - 1) / period
+        let slow = usual.first ?? 0
+        let forDeadline = (slow + margin + period - 1) / period - 1
+        let needed = max(forRate, forDeadline)
         framesPerTick = Int(
             min(max(needed, UInt64(minimumFramesPerTick)), UInt64(Self.maximumFramesPerTick)))
+        return true
     }
 }
