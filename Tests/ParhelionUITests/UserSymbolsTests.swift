@@ -108,7 +108,7 @@ struct UserSymbolsTests {
         #expect(SymbolLibrary.resolve("star").source == .phosphor)
     }
 
-    @Test("The font weight picks the weight; a missing one is interpolated, or the nearest stands in")
+    @Test("The font weight picks the weight; a missing one is interpolated or the nearest")
     func weights() throws {
         let files = ["test.weighted.svg": export(squares: ["Regular": 40, "Bold": 60])]
         try withUserSymbols(files) {
@@ -195,6 +195,8 @@ struct UserSymbolsTests {
 
     @Test func outlinesThatDifferAreNotInterpolated() {
         #expect(SymbolTemplate.interpolate("M0 0H10Z", "M0 0H10V5Z", 0.5) == nil)
-        #expect(SymbolTemplate.interpolate("M0-1L2.5 3", "M2-3L4.5 5", 0.5)?.split(separator: " ").count == 6)
+        let halfway = SymbolTemplate.interpolate("M0-1L2.5 3", "M2-3L4.5 5", 0.5)
+        #expect(halfway.map { Path(svgPathData: $0) != nil } == true)
+        #expect(halfway?.split(separator: " ").count == 6)
     }
 }
