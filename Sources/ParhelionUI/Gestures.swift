@@ -650,6 +650,26 @@ struct GestureView<Content: View>: View, PrimitiveView {
     }
 }
 
+extension Evaluator {
+    /// Gives a node a long press that runs `action` once the press is held
+    /// for half a second, as a context menu opens on iOS.
+    ///
+    /// It takes part in arbitration like a `LongPressGesture` attached after
+    /// the node's own gesture modifiers: recognizing it cancels the node's
+    /// button action and the gestures inside it, and a press that moves away
+    /// or turns into a scroll fails it. It leaves no modifier in the outline,
+    /// and its area is the node's frame.
+    func registerLongPress(for id: NodeID, perform action: @escaping @MainActor () -> Void) {
+        let make: @MainActor () -> GestureRecognizer = {
+            makeRecognizer(for: LongPressGesture().onEnded { _ in action() })
+        }
+        host.gestures.register(
+            GestureRegistration(
+                nodeID: id, ordinal: host.gestures.nextUnmarkedOrdinal(for: id), priority: .normal,
+                mask: .all, recognizer: make(), make: make))
+    }
+}
+
 /// The name the gesture marker has in a node's modifier chain.
 enum GestureModifier {
     static let name = "gesture"

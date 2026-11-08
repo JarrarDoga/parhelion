@@ -254,6 +254,30 @@ struct MenuTests {
         #expect(log.entries == ["primary", "two"])
     }
 
+    @Test("With a primary action, a pointer held on the button opens the menu and runs nothing")
+    func primaryActionHeld() throws {
+        let log = Log()
+        let host = ViewHost(
+            Menu(
+                content: { Button("Two") { log.entries.append("two") } },
+                label: { Text("Split") },
+                primaryAction: { log.entries.append("primary") }), device: screen)
+        let point = try center(host, label: "Split")
+        host.pointerDown(at: point)
+        host.advanceTime(by: 0.6)
+        #expect(host.root.allNodes.contains { $0.kind == "MenuPopover" })
+        host.pointerUp(at: point)
+        #expect(host.root.allNodes.contains { $0.kind == "MenuPopover" })
+        #expect(log.entries.isEmpty)
+
+        try host.tapButton(labeled: "Two")
+        host.pointerDown(at: point)
+        host.advanceTime(by: 0.2)
+        host.pointerUp(at: point)
+        #expect(log.entries == ["two", "primary"])
+        #expect(!host.root.allNodes.contains { $0.kind == "MenuPopover" })
+    }
+
     @Test(
         "A menu opens from a button in a toolbar-less list row, and the state of the screen stays")
     func inList() throws {
@@ -411,6 +435,118 @@ struct ContextMenuTests {
         #expect(throws: InteractionError.self) {
             try host.longPress(at: CGPoint(x: 150, y: 250))
         }
+    }
+
+    @Test("A pointer held for half a second opens the menu before it is released")
+    func pointerHeld() throws {
+        let host = ViewHost(Row(log: Log()), device: screen)
+        let point = CGPoint(x: 150, y: 250)
+        host.pointerDown(at: point)
+        host.advanceTime(by: 0.3)
+        #expect(!host.root.allNodes.contains { $0.kind == "ContextMenu" })
+        host.advanceTime(by: 0.3)
+        #expect(host.root.children.last?.kind == "ContextMenu")
+        host.pointerUp(at: point)
+        #expect(host.root.children.last?.kind == "ContextMenu")
+        try host.tapButton(labeled: "Play next")
+        #expect(!host.root.allNodes.contains { $0.kind == "ContextMenu" })
+    }
+
+    @Test("A press shorter than half a second opens nothing")
+    func shortPress() {
+        let host = ViewHost(Row(log: Log()), device: screen)
+        let point = CGPoint(x: 150, y: 250)
+        host.pointerDown(at: point)
+        host.advanceTime(by: 0.4)
+        host.pointerUp(at: point)
+        host.advanceTime(by: 0.5)
+        #expect(!host.root.allNodes.contains { $0.kind == "ContextMenu" })
+    }
+
+    @Test("A press that moves into a scroll opens nothing")
+    func scrollPress() throws {
+        let log = Log()
+        let host = ViewHost(
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(0..<20, id: \.self) { index in
+                        Text("Row \(index)").frame(width: 300, height: 60)
+                            .contextMenu { Button("Share") { log.entries.append("share") } }
+                    }
+                }
+            }, device: screen)
+        let scrollView = try #require(host.root.allNodes.first { $0.kind == "ScrollView" })
+        host.pointerDown(at: CGPoint(x: 150, y: 300))
+        for step in 1...10 {
+            host.advanceTime(by: 0.02)
+            host.pointerMoved(to: CGPoint(x: 150, y: 300 - CGFloat(step) * 8))
+        }
+        host.advanceTime(by: 0.6)
+        host.pointerUp(at: CGPoint(x: 150, y: 220))
+        host.advanceTime(by: 1)
+        #expect(!host.root.allNodes.contains { $0.kind == "ContextMenu" })
+        #expect((host.scrollOffset(of: scrollView.id)?.y ?? 0) > 0)
+        #expect(log.entries.isEmpty)
+    }
+
+    @Test("Held on a button, the menu opens and the button's action does not run")
+    func heldButton() throws {
+        let log = Log()
+        let host = ViewHost(
+            Button("Song") { log.entries.append("play") }
+                .contextMenu { Button("Share") { log.entries.append("share") } },
+            device: screen)
+        let point = try center(host, label: "Song")
+        host.pointerDown(at: point)
+        host.advanceTime(by: 0.6)
+        host.pointerUp(at: point)
+        #expect(host.root.children.last?.kind == "ContextMenu")
+        #expect(log.entries.isEmpty)
+        try host.tap(at: CGPoint(x: 5, y: 5))
+
+        host.pointerDown(at: point)
+        host.advanceTime(by: 0.1)
+        host.pointerUp(at: point)
+        #expect(log.entries == ["play"])
+        #expect(!host.root.allNodes.contains { $0.kind == "ContextMenu" })
+    }
+
+    @Test("Held on a button inside the view, the menu opens and the button's action does not run")
+    func heldButtonInside() throws {
+        let log = Log()
+        let host = ViewHost(
+            HStack {
+                Text("Song")
+                Spacer()
+                Button("Play") { log.entries.append("play") }
+            }
+            .padding()
+            .contextMenu { Button("Share") { log.entries.append("share") } },
+            device: screen)
+        let point = try center(host, label: "Play")
+        host.pointerDown(at: point)
+        host.advanceTime(by: 0.6)
+        host.pointerUp(at: point)
+        #expect(host.root.children.last?.kind == "ContextMenu")
+        #expect(log.entries.isEmpty)
+    }
+
+    @Test("Held on a view with a tap gesture inside, the menu opens and the tap does not run")
+    func heldTapGesture() throws {
+        let log = Log()
+        let host = ViewHost(
+            Text("Song").frame(width: 200, height: 60)
+                .onTapGesture { log.entries.append("tap") }
+                .padding()
+                .contextMenu { Button("Share") { log.entries.append("share") } },
+            device: screen)
+        let text = try #require(host.root.allNodes.first { $0.text == "Song" }?.frame)
+        let point = CGPoint(x: text.midX, y: text.midY)
+        host.pointerDown(at: point)
+        host.advanceTime(by: 0.6)
+        host.pointerUp(at: point)
+        #expect(host.root.children.last?.kind == "ContextMenu")
+        #expect(log.entries.isEmpty)
     }
 }
 

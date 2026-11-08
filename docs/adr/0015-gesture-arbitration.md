@@ -41,6 +41,10 @@ press that moves more than 10 points scrolls.
 - **Time comes from `ViewHost.time`.** `advanceTime(by:)` ticks the session, so a long press fires
   at its minimum duration under the manual clock ([ADR 0012](0012-manual-clock.md)) and in a
   window alike, and a multi-tap times out after 0.35 s.
+- **Controls with a long press use it too.** `contextMenu`, and a `Menu` with a `primaryAction`,
+  register a `LongPressGesture` on their nodes without a gesture modifier (a negative ordinal,
+  whose area is the node's frame), so a pointer held in the window opens the menu and cancels the
+  button or tap under it. They keep their long press handler for `ViewHost.longPress(at:duration:)`.
 - **MCP.** `drag` already took a duration. `long_press` is a registered tool
   ([ADR 0011](0011-extension-seam.md)) that runs the app's `drag` command from a point to itself.
 

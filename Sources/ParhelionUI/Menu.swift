@@ -108,6 +108,7 @@ extension Menu: PrimitiveView {
         if primaryAction != nil, evaluator.environment.isEnabled {
             evaluator.registerInputHandlers(
                 NodeInputHandlers(longPress: { _, _ in open() }), for: buttonID)
+            evaluator.registerLongPress(for: buttonID, perform: open)
         }
         nodes[0] = node
 

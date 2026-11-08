@@ -8,7 +8,10 @@ extension View {
     ///
     /// The long press lifts the view to 1.03 times its size and blurs the
     /// screen behind it; the menu sits below it, or above when there is no
-    /// room. Drive it with ``ViewHost/longPress(at:duration:)``. Parhelion
+    /// room. Drive it with ``ViewHost/longPress(at:duration:)``, or hold the
+    /// pointer for half a second with ``ViewHost/pointerDown(at:)`` and
+    /// ``ViewHost/advanceTime(by:)``; a long press does not also tap the
+    /// view. Parhelion
     /// shows the lifted view as a copy, so state in the view starts afresh.
     public func contextMenu<MenuItems: View>(
         @ViewBuilder menuItems: () -> MenuItems
@@ -60,11 +63,15 @@ extension ContextMenuView: PrimitiveView {
         if evaluator.environment.isEnabled {
             for node in nodes {
                 let id = node.id
+                let open: @MainActor () -> Void = {
+                    box.value.anchor = id
+                    box.host?.setNeedsUpdate()
+                }
+                // `ViewHost.longPress(at:duration:)` calls the handler; a
+                // pointer held in the window goes through the gesture.
                 evaluator.registerInputHandlers(
-                    NodeInputHandlers(longPress: { _, _ in
-                        box.value.anchor = id
-                        box.host?.setNeedsUpdate()
-                    }), for: id)
+                    NodeInputHandlers(longPress: { _, _ in open() }), for: id)
+                evaluator.registerLongPress(for: id, perform: open)
             }
         }
         guard let anchor = box.value.anchor, nodes.contains(where: { $0.id == anchor }) else {
