@@ -111,10 +111,9 @@ enum ColorPalette {
     /// foreground style. Views cannot name it.
     static let glassLabelStyle = "system.glassLabel"
 
-    /// Assumed: the color of an alert's message. The iOS 27 UI Kit draws it
-    /// in a vibrant secondary gray; in the alert artwork of the Human
-    /// Interface Guidelines its darkest pixels are 62,62,63.
-    static let alertMessage = RGBA(red: 62, green: 62, blue: 64)
+    /// The color of an alert's message, a vibrant secondary gray: 130 gray
+    /// over the light alert's glass on an iPhone with iOS 27.2.
+    static let alertMessage = RGBA(red: 130, green: 130, blue: 130)
 
     /// The style name of ``alertMessage``.
     static let alertMessageStyle = "system.alertMessage"
@@ -124,12 +123,16 @@ enum ColorPalette {
     /// 118,118,128 at 12%.
     static let tertiaryFill = RGBA(red: 118, green: 118, blue: 128, alpha: 31)
 
+    /// The fill of an alert's buttons, black at 13%: 204 gray over the light
+    /// alert's 234 on an iPhone with iOS 27.2.
+    static let alertButtonFill = RGBA(red: 0, green: 0, blue: 0, alpha: 33)
+
     /// The style name of ``tertiaryFill``.
     static let tertiaryFillStyle = "system.tertiaryFill"
 
-    /// Assumed: the color of a sheet's grabber: 207 gray, drawn plus-darker
-    /// in the iOS 27 UI Kit, which is 207 gray over the white sheet.
-    static let grabber = RGBA(red: 207, green: 207, blue: 207)
+    /// The color of a sheet's grabber: 168,168,170 over a medium sheet's
+    /// glass on an iPhone with iOS 27.2.
+    static let grabber = RGBA(red: 168, green: 168, blue: 170)
 
     /// Assumed: small glass, for toolbar buttons, the back button, and
     /// `.glass` buttons, from the iOS 27 UI Kit's 44-point toolbar button,
@@ -161,21 +164,25 @@ enum ColorPalette {
         rimWidth: 0.5
     )
 
-    /// Assumed: tinted glass, for prominent toolbar buttons and
-    /// `.glassProminent` buttons: the tint color fills the shape under the
+    /// Tinted glass, for prominent toolbar buttons and `.glassProminent`
+    /// buttons: the tint color, darkened by black at 10% and at 79%
+    /// opacity, over the backdrop blurred as small glass blurs it, under the
     /// small glass's shadow and a fainter bright line, without the darker
-    /// ring, as in the iOS 27 UI Kit's prominent toolbar button and the
-    /// Human Interface Guidelines' sheet artwork.
+    /// ring. On an iPhone with iOS 27.2 the blue button is 47,111,210 over a
+    /// backdrop of 224,72,122, which this makes.
     static let prominentGlass = GlassMaterial(
         shadow: smallGlass.shadow,
-        blurRadius: 0,
+        blurRadius: 6,
         saturation: 1,
         tint: [],
         highlightWidth: 0.5,
         highlightTop: 0.45,
         highlightBottom: 0.25,
         rim: .clear,
-        rimWidth: 0
+        rimWidth: 0,
+        tintMixColor: .black,
+        tintMixAmount: 0.1,
+        tintOpacity: 0.79
     )
 
     /// Assumed: large glass, for alerts, from the iOS 27 UI Kit's alert:
@@ -202,12 +209,15 @@ enum ColorPalette {
         rimWidth: 0.5
     )
 
-    /// Assumed: the glass of a sheet at a partial-height detent: large glass
-    /// with a blur radius of 15, in the iOS 27 UI Kit's medium-detent sheet,
-    /// and the sheet's shadow.
+    /// The glass of a sheet at a partial-height detent: large glass with a
+    /// blur radius of 15, in the iOS 27 UI Kit's medium-detent sheet, and
+    /// the sheet's shadow. White at 55%, lighten, under the large glass's
+    /// darken layer makes the 228 gray of an iPhone with iOS 27.2 over the
+    /// dimmed screen.
     static let partialSheetGlass: GlassMaterial = {
         var material = largeGlass
         material.blurRadius = 15
+        material.tint[0].color = RGBA(red: 255, green: 255, blue: 255, alpha: 140)
         material.shadow = sheetShadow
         return material
     }()
@@ -399,7 +409,7 @@ extension ColorPalette {
         glassLabel: glassLabel,
         alertMessage: alertMessage,
         borderedFill: tertiaryFill,
-        alertButtonFill: tertiaryFill,
+        alertButtonFill: alertButtonFill,
         grabber: grabber,
         smallGlass: smallGlass,
         prominentGlass: prominentGlass,
@@ -446,18 +456,19 @@ extension ColorPalette {
         // Labels - Liquid Glass/Dark/1 Primary, 237 drawn plus-lighter: white
         // over the dark glass.
         glassLabel: .white,
-        // Assumed: Labels/Dark - Vibrant/2 Secondary, 153 drawn plus-lighter
-        // in Alerts/Dark/Default, is about 179 over the dark alert's glass.
-        alertMessage: RGBA(red: 179, green: 179, blue: 179),
+        // Labels/Dark - Vibrant/2 Secondary: 110 gray over the dark alert's
+        // glass on an iPhone with iOS 27.2.
+        alertMessage: RGBA(red: 110, green: 110, blue: 110),
         // Buttons/Dark/Medium/Bordered/Text/1 - Idle: 235,235,245 at 30%,
         // the Labels/Dark/3 Tertiary swatch.
         borderedFill: RGBA(red: 235, green: 235, blue: 245, alpha: 77),
-        // Alerts/􀻃/Dark/2 Secondary: Fills/Dark/3 Tertiary, 118,118,128 at
-        // 24%, drawn plus-lighter, which makes 54,54,57 over the dark glass.
-        alertButtonFill: RGBA(red: 54, green: 54, blue: 57),
-        // Toolbars/Dark/iPhone/Top - Sheet/Title/Grabber: 51 drawn
-        // plus-lighter, about 79 over a sheet's 28,28,30.
-        grabber: RGBA(red: 79, green: 79, blue: 81),
+        // Alerts/􀻃/Dark/2 Secondary: Fills/Dark/3 Tertiary drawn
+        // plus-lighter, 60 gray over the dark alert's glass on an iPhone with
+        // iOS 27.2.
+        alertButtonFill: RGBA(red: 60, green: 60, blue: 60),
+        // Toolbars/Dark/iPhone/Top - Sheet/Title/Grabber, drawn plus-lighter:
+        // 103,103,106 over a medium sheet's glass on an iPhone with iOS 27.2.
+        grabber: RGBA(red: 103, green: 103, blue: 106),
         smallGlass: darkSmallGlass,
         prominentGlass: darkProminentGlass,
         largeGlass: darkLargeGlass,
@@ -534,12 +545,17 @@ extension ColorPalette {
     )
 
     /// Tinted glass in the dark appearance: the light recipe with the dark
-    /// small glass's shadow. The tint color is the dark blue, through
+    /// small glass's shadow, with the tint lightened by white at 20% and at
+    /// 90% opacity. The tint color is the dark blue, through
     /// ``color(named:in:)`` (Toolbars/Dark/Buttons/44pt/Active/Symbol 1 -
-    /// Prominent/Tint Color is System Colors/Dark/8 Blue).
+    /// Prominent/Tint Color is System Colors/Dark/8 Blue). On an iPhone with
+    /// iOS 27.2 the blue button is 68,148,244 over a backdrop of 227,78,132.
     static let darkProminentGlass: GlassMaterial = {
         var material = prominentGlass
         material.shadow = darkSmallGlass.shadow
+        material.tintMixColor = .white
+        material.tintMixAmount = 0.2
+        material.tintOpacity = 0.9
         return material
     }()
 
@@ -547,8 +563,9 @@ extension ColorPalette {
     /// Liquid Glass/Dark/Regular - Large (Alerts/Dark/Default):
     ///
     /// - The backdrop is blurred with a radius of 30 and saturation 1.2.
-    /// - 26 gray at 50%, normal; at 90%, luminosity; and at 100%, lighten:
-    ///   26 over the dimmed dark screen.
+    /// - 32 gray at 50%, normal; at 90%, luminosity; and at 100%, lighten:
+    ///   32 over the dimmed dark screen, as an alert is on an iPhone with
+    ///   iOS 27.2 (the kit's 26 gray made it darker).
     /// - A shadow of black 45%, 18 points down, with a blur of 48.
     /// - Assumed: a 1.5-point bright line of 45% at the top and 25% at the
     ///   bottom, for the kit's white 20% top line and its 64 gray edge
@@ -559,9 +576,9 @@ extension ColorPalette {
         blurRadius: 30,
         saturation: 1.2,
         tint: [
-            .init(color: RGBA(red: 26, green: 26, blue: 26, alpha: 128), blendMode: .normal),
-            .init(color: RGBA(red: 26, green: 26, blue: 26, alpha: 230), blendMode: .luminosity),
-            .init(color: RGBA(red: 26, green: 26, blue: 26), blendMode: .lighten),
+            .init(color: RGBA(red: 32, green: 32, blue: 32, alpha: 128), blendMode: .normal),
+            .init(color: RGBA(red: 32, green: 32, blue: 32, alpha: 230), blendMode: .luminosity),
+            .init(color: RGBA(red: 32, green: 32, blue: 32), blendMode: .lighten),
         ],
         highlightWidth: 1.5,
         highlightTop: 0.45,
@@ -587,9 +604,15 @@ extension ColorPalette {
 
     /// The glass of a sheet at a partial-height detent in the dark
     /// appearance: dark medium glass (Sheets/Dark/iPhone/Medium
-    /// Detent/Stack), with the sheet's shadow, as in light.
+    /// Detent/Stack), with the sheet's shadow, as in light, lightened to 32
+    /// gray over the dimmed screen, as on an iPhone with iOS 27.2.
     static let darkPartialSheetGlass: GlassMaterial = {
         var material = darkMediumGlass
+        material.tint = [
+            .init(color: RGBA(red: 32, green: 32, blue: 32, alpha: 77), blendMode: .normal),
+            .init(color: RGBA(red: 32, green: 32, blue: 32, alpha: 77), blendMode: .luminosity),
+            .init(color: RGBA(red: 32, green: 32, blue: 32), blendMode: .lighten),
+        ]
         material.shadow = sheetShadow
         return material
     }()

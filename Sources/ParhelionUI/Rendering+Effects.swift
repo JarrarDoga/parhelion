@@ -117,7 +117,8 @@ extension TreeRenderer {
         // An outer overlay is in front of an inner one.
         let childInherited = Inherited(
             foreground: foreground, tint: tint, opacity: opacity, container: .standard,
-            scheme: scheme, elevated: inherited.elevated || node.kind == "Sheet")
+            scheme: scheme, elevated: inherited.elevated || node.kind == "Sheet",
+            inPartialSheet: inherited.inPartialSheet)
         for index in overlays.reversed() {
             let rank = node.modifiers[..<index].count(where: \.isOverlay)
             if let overlay = node.children.filter(\.isOverlayContent).dropFirst(rank).first {

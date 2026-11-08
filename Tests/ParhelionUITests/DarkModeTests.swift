@@ -229,15 +229,17 @@ struct DarkModeTests {
             components(sheetFrame.color(at: CGPoint(x: 5, y: cell.midY))) == [28, 28, 30, 255])
     }
 
-    @Test("Dark glass over black is 26 gray, as the kit's dark materials make it")
+    @Test("Dark glass over black is 26 gray, and large glass 32, as an alert is on an iPhone")
     func darkGlass() {
-        for material in [ColorPalette.darkSmallGlass, ColorPalette.darkLargeGlass] {
+        for (material, gray) in [
+            (ColorPalette.darkSmallGlass, UInt8(26)), (ColorPalette.darkLargeGlass, 32),
+        ] {
             var canvas = Canvas(width: 200, height: 200, scale: 1, background: .black)
             canvas.drawGlass(
                 CGRect(x: 50, y: 50, width: 100, height: 100), cornerRadius: 20,
                 material: material)
             let middle = canvas.pixel(x: 100, y: 100)
-            #expect([middle.red, middle.green, middle.blue] == [26, 26, 26])
+            #expect([middle.red, middle.green, middle.blue] == [gray, gray, gray])
         }
     }
 

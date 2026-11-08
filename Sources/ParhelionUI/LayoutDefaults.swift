@@ -225,48 +225,52 @@ enum LayoutDefaults {
 
     /// Assumed: the corner radius of all four corners of a sheet at a
     /// partial-height detent, continuous, in the iOS 27 UI Kit.
-    static let partialSheetCornerRadius: CGFloat = 34
+    static let partialSheetCornerRadius: CGFloat = 38
 
-    /// Assumed: the size of a sheet's grabber, 60 × 4 points with fully
-    /// rounded ends in the iOS 27 UI Kit, whose change log widens it for
-    /// iOS 27.
-    static let grabberSize = CGSize(width: 60, height: 4)
+    /// The size of a sheet's grabber, with fully rounded ends: 58 points by
+    /// 11 pixels at 3× on an iPhone 18 Pro Max with iOS 27.2.
+    static let grabberSize = CGSize(width: 58, height: 11.0 / 3)
 
-    /// Assumed: the space between the top of a sheet and its grabber, in the
-    /// iOS 27 UI Kit.
-    static let grabberTop: CGFloat = 5
+    /// The space between the top of a sheet and its grabber: 6 points on
+    /// the same iPhone.
+    static let grabberTop: CGFloat = 6
 
     /// Assumed: how far a sheet must be dragged down to dismiss it when
     /// released, in points.
     static let sheetDismissDistance: CGFloat = 100
 
-    /// Assumed: the width of an alert, 300 points in the iOS 27 UI Kit.
-    static let alertWidth: CGFloat = 300
+    /// The width of an alert: 320 points on an iPhone 18 Pro Max with iOS
+    /// 27.2.
+    static let alertWidth: CGFloat = 320
 
-    /// Assumed: the corner radius of an alert, continuous, in the iOS 27 UI
-    /// Kit.
+    /// The corner radius of an alert, continuous, which matches the same
+    /// iPhone's alert to within a point.
     static let alertCornerRadius: CGFloat = 34
 
-    /// Assumed: the space around an alert's title and message, in the iOS
-    /// 27 UI Kit: 22 points from the top and sides (the kit's 14-point
-    /// group inset plus 8), and 24 points from the message to the buttons.
-    static let alertContentInsets = EdgeInsets(top: 22, leading: 22, bottom: 24, trailing: 22)
+    /// The space around an alert's title and message, measured on the same
+    /// iPhone: 21 points above the title, 30 at the sides, and 20 from the
+    /// message to the buttons.
+    static let alertContentInsets = EdgeInsets(top: 21, leading: 30, bottom: 20, trailing: 30)
 
-    /// Assumed: the space between an alert's title and message, and between
-    /// its other content, in the iOS 27 UI Kit.
-    static let alertContentSpacing: CGFloat = 10
+    /// The space between an alert's title and message, and between its
+    /// other content: 6 points on the same iPhone.
+    static let alertContentSpacing: CGFloat = 6
 
-    /// Assumed: the height of each of an alert's capsule buttons, in the
-    /// iOS 27 UI Kit.
-    static let alertButtonHeight: CGFloat = 48
+    /// The height of each of an alert's capsule buttons: 142 pixels at 3×,
+    /// on the same iPhone.
+    static let alertButtonHeight: CGFloat = 142.0 / 3
 
-    /// Assumed: the space between an alert's buttons and its sides and
-    /// bottom, in the iOS 27 UI Kit.
-    static let alertButtonInset: CGFloat = 14
+    /// The space between an alert's buttons and its sides: 20 points on the
+    /// same iPhone.
+    static let alertButtonInset: CGFloat = 20
 
-    /// Assumed: the space between two alert buttons side by side, in the
-    /// iOS 27 UI Kit.
-    static let alertButtonSpacing: CGFloat = 8
+    /// The space between an alert's last button and its bottom edge: 16
+    /// points on the same iPhone.
+    static let alertButtonBottomInset: CGFloat = 16
+
+    /// The space between two alert buttons side by side: 16 points on the
+    /// same iPhone.
+    static let alertButtonSpacing: CGFloat = 16
 
     /// Assumed: the space between alert buttons stacked vertically, which
     /// three or more buttons are, in the iOS 27 UI Kit.

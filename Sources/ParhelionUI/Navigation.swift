@@ -299,15 +299,15 @@ extension NavigationOptionView: PrimitiveView {
 /// Where a toolbar item goes, mirroring SwiftUI's `ToolbarItemPlacement`.
 ///
 /// Parhelion places items in the navigation bar: leading, trailing, or in
-/// place of the title. A confirmation action's buttons take the
-/// ``PrimitiveButtonStyle/glassProminent`` style, as on iOS 26 and later.
+/// place of the title. A confirmation action's buttons keep the plain glass
+/// of the other items, as on an iPhone with iOS 27.2: only a button with
+/// the ``PrimitiveButtonStyle/glassProminent`` style is prominent.
 public struct ToolbarItemPlacement: Sendable, Equatable {
     enum Position: Sendable {
         case leading, principal, trailing
     }
 
     let position: Position
-    var isProminent = false
 
     public static let automatic = ToolbarItemPlacement(position: .trailing)
     public static let principal = ToolbarItemPlacement(position: .principal)
@@ -316,8 +316,7 @@ public struct ToolbarItemPlacement: Sendable, Equatable {
     public static let navigationBarLeading = ToolbarItemPlacement(position: .leading)
     public static let navigationBarTrailing = ToolbarItemPlacement(position: .trailing)
     public static let primaryAction = ToolbarItemPlacement(position: .trailing)
-    public static let confirmationAction = ToolbarItemPlacement(
-        position: .trailing, isProminent: true)
+    public static let confirmationAction = ToolbarItemPlacement(position: .trailing)
     public static let destructiveAction = ToolbarItemPlacement(position: .trailing)
     public static let cancellationAction = ToolbarItemPlacement(position: .leading)
 }
@@ -488,10 +487,8 @@ extension ToolbarView: PrimitiveView {
         for (index, item) in items.enumerated() {
             let placement = item.placement
             let itemNodes = evaluator.withEnvironment({ environment in
-                // Items at the ends of the bar sit on glass, and a
-                // confirmation action's buttons are prominent.
+                // Items at the ends of the bar sit on glass.
                 if placement.position != .principal { environment.buttonContext = .toolbar }
-                if placement.isProminent { environment.buttonStyle = .builtIn(.glassProminent) }
                 // Assumed: bar items keep their size at every Dynamic Type
                 // size, as tab bar buttons do; iOS shows them in the large
                 // content viewer instead.

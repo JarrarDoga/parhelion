@@ -239,6 +239,9 @@ struct TreeRenderer {
         /// Whether the node is in a sheet, whose dark backgrounds are
         /// lighter.
         var elevated = false
+        /// Whether the node is in a sheet at a partial-height detent, whose
+        /// glass shows through a grouped list's background.
+        var inPartialSheet = false
 
         /// The colors and materials the node draws with.
         var palette: ColorPalette.Appearance {
@@ -275,6 +278,8 @@ struct TreeRenderer {
             scheme = own
         }
         let elevated = inherited.elevated || node.kind == "Sheet"
+        let inPartialSheet =
+            inherited.inPartialSheet || (node.kind == "Sheet" && Self.isPartialSheet(frame))
         let palette = ColorPalette.appearance(scheme, elevated: elevated)
 
         // A pressed list row highlights its cell instead of dimming.
@@ -405,7 +410,9 @@ struct TreeRenderer {
             container = .tabBar
 
         case "List":
-            drawList(node, in: frame, palette: palette, paint: paint, into: &canvas)
+            drawList(
+                node, in: frame, background: !inPartialSheet, palette: palette, paint: paint,
+                into: &canvas)
 
         case "SectionHeader", "SectionFooter":
             // Assumed: section headers and footers use the secondary label
@@ -418,15 +425,18 @@ struct TreeRenderer {
                 into: &canvas)
         }
 
-        // A scroll view shows only the part of its content inside its bounds.
+        // A scroll view shows only the part of its content inside its bounds,
+        // and a sheet only what is on it.
         let outerClip = canvas.clipRect
         if node.isScrollContainer {
             canvas.clipRect = outerClip.map { $0.intersection(frame) } ?? frame
             drawRefreshControl(node, scheme: scheme, paint: paint, into: &canvas)
+        } else if node.kind == "Sheet" {
+            canvas.clipRect = outerClip.map { $0.intersection(frame) } ?? frame
         }
         let inherited = Inherited(
             foreground: foreground, tint: tint, opacity: opacity, container: container,
-            scheme: scheme, elevated: elevated)
+            scheme: scheme, elevated: elevated, inPartialSheet: inPartialSheet)
         // A navigation bar draws after the screen, which scrolls under it,
         // and the scroll edge effect draws between them.
         if node.isScrollContainer, !node.children.isEmpty {
@@ -458,6 +468,10 @@ struct TreeRenderer {
             }
             if let culling, culling.skips(child, in: canvas.clipRect) { continue }
             draw(child, inherited: childInherited, into: &canvas)
+        }
+        // A sheet's grabber is in front of its content.
+        if node.kind == "Sheet" {
+            drawGrabber(node, in: frame, palette: palette, paint: paint, into: &canvas)
         }
         canvas.clipRect = outerClip
     }
@@ -536,12 +550,13 @@ struct TreeRenderer {
     private func drawList(
         _ node: ViewNode,
         in frame: CGRect,
+        background: Bool,
         palette: ColorPalette.Appearance,
         paint: (RGBA) -> RGBA,
         into canvas: inout Canvas
     ) {
         let style = ListStyleMetrics(styleName: node.attributes["listStyle"])
-        if style.isGrouped {
+        if style.isGrouped, background {
             // A list that reaches the safe area extends its background to the
             // edge of the screen, as in SwiftUI.
             let safeArea = device.safeArea
@@ -710,10 +725,14 @@ struct TreeRenderer {
             material: palette.largeGlass, opacity: opacity, into: &canvas)
     }
 
+    /// Whether a sheet's frame is at a partial-height detent, inset from the
+    /// sides of the screen.
+    static func isPartialSheet(_ frame: CGRect) -> Bool { frame.minX > 0.5 }
+
     /// Draws the dimmed screen behind a sheet, and the sheet: opaque with
     /// rounded top corners at its large detent, and inset glass with four
-    /// rounded corners at a smaller one. A grabber shows at the top when the
-    /// sheet has several detents or asks for one.
+    /// rounded corners at a smaller one, the bottom ones following the
+    /// screen's corners.
     private func drawSheet(
         _ node: ViewNode, in frame: CGRect, palette: ColorPalette.Appearance,
         paint: (RGBA) -> RGBA, opacity: Double, into canvas: inout Canvas
@@ -725,10 +744,52 @@ struct TreeRenderer {
         dim.alpha = UInt8((Double(dim.alpha) * Double(shown)).rounded())
         canvas.fill(screen, color: paint(dim))
 
-        if frame.minX > 0.5 {
+        if Self.isPartialSheet(frame) {
+            // The bottom corners follow the screen's, inset with the sheet:
+            // the glass is drawn with the top corners' radius, and the
+            // pixels outside the larger bottom corners are put back.
+            let bottomRadius = max(
+                device.displayCornerRadius - LayoutDefaults.partialSheetInset,
+                LayoutDefaults.partialSheetCornerRadius)
+            let corner = bottomRadius * CGFloat(Path.continuousExtent)
+            var corners: [Canvas.Clip] = []
+            if bottomRadius > LayoutDefaults.partialSheetCornerRadius,
+                frame.height > 2 * corner, frame.width > 2 * corner
+            {
+                // Each square reaches whole pixels on its inner sides, so the
+                // pixels at its edges are kept or put back whole.
+                let scale = CGFloat(canvas.scale)
+                let top = ((frame.maxY - 2 * corner) * scale).rounded(.down) / scale
+                let width = ((2 * corner) * scale).rounded(.up) / scale
+                for leading in [true, false] {
+                    let minX =
+                        leading
+                        ? frame.minX : ((frame.maxX - 2 * corner) * scale).rounded(.down) / scale
+                    let square = CGRect(
+                        x: minX, y: top,
+                        width: leading ? width : frame.maxX - minX, height: frame.maxY - top)
+                    // Everything in the square but the outside of its one
+                    // corner at the bottom of the sheet.
+                    var path = Path(
+                        roundedRect: square, cornerRadius: bottomRadius, style: .continuous)
+                    path.addPath(
+                        Path(
+                            CGRect(
+                                x: square.minX, y: square.minY, width: square.width,
+                                height: square.height - corner)))
+                    path.addPath(
+                        Path(
+                            CGRect(
+                                x: leading ? square.minX + corner : square.minX,
+                                y: square.maxY - corner, width: square.width - corner,
+                                height: corner)))
+                    corners.append(canvas.beginKeeping(outside: path))
+                }
+            }
             drawGlass(
                 frame, cornerRadius: LayoutDefaults.partialSheetCornerRadius, style: .continuous,
                 material: palette.partialSheetGlass, opacity: opacity, into: &canvas)
+            for clip in corners.reversed() { canvas.endClip(clip) }
         } else {
             let radius = LayoutDefaults.sheetCornerRadius
             let shadow = ColorPalette.sheetShadow
@@ -761,17 +822,23 @@ struct TreeRenderer {
                     height: frame.height + radius),
                 cornerRadius: radius, style: .continuous, color: paint(palette.background))
         }
+    }
 
+    /// Draws a sheet's grabber, in front of its content, when the sheet has
+    /// several detents or asks for one.
+    private func drawGrabber(
+        _ node: ViewNode, in frame: CGRect, palette: ColorPalette.Appearance,
+        paint: (RGBA) -> RGBA, into canvas: inout Canvas
+    ) {
         let detents = node.attributes["detents"]?.split(separator: ",").count ?? 0
         let indicator = node.attributes["dragIndicator"]
-        if indicator == "visible" || (indicator == nil && detents > 1) {
-            let size = LayoutDefaults.grabberSize
-            canvas.fill(
-                CGRect(
-                    x: frame.midX - size.width / 2, y: frame.minY + LayoutDefaults.grabberTop,
-                    width: size.width, height: size.height),
-                cornerRadius: size.height / 2, color: paint(palette.grabber))
-        }
+        guard indicator == "visible" || (indicator == nil && detents > 1) else { return }
+        let size = LayoutDefaults.grabberSize
+        canvas.fill(
+            CGRect(
+                x: frame.midX - size.width / 2, y: frame.minY + LayoutDefaults.grabberTop,
+                width: size.width, height: size.height),
+            cornerRadius: size.height / 2, color: paint(palette.grabber))
     }
 
     /// Draws the area behind a navigation bar, up to the top of the screen.
@@ -792,7 +859,7 @@ struct TreeRenderer {
         if barNode.attributes["presentation"] != "sheet" {
             let area = CGRect(x: bar.minX, y: 0, width: bar.width, height: bar.maxY)
             canvas.fill(area, color: paint(palette.groupedBackground))
-        } else {
+        } else if !Self.isPartialSheet(bar) {
             // A sheet's top corners are rounded, and more so at its large
             // detent, where it spans the screen. The fill extends under the
             // list beneath.

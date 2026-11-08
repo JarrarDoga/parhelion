@@ -43,6 +43,28 @@ struct GlassMaterial: Hashable {
     /// The color of the ring just outside the edge, blended plus-darker.
     var rim: RGBA
     var rimWidth: CGFloat
+    /// How a tinted surface changes its tint color: mixed toward
+    /// `tintMixColor` by `tintMixAmount` (0 leaves it), then drawn at
+    /// `tintOpacity` over the blurred backdrop.
+    var tintMixColor = RGBA.black
+    var tintMixAmount = 0.0
+    var tintOpacity = 1.0
+
+    /// The color a tinted surface fills its shape with, before its opacity.
+    func tintFill(_ tint: RGBA) -> RGBA {
+        guard tintMixAmount > 0 else { return tint }
+        func mix(_ from: UInt8, _ to: UInt8) -> UInt8 {
+            UInt8((Double(from) + (Double(to) - Double(from)) * tintMixAmount).rounded())
+        }
+        return RGBA(
+            red: mix(tint.red, tintMixColor.red), green: mix(tint.green, tintMixColor.green),
+            blue: mix(tint.blue, tintMixColor.blue), alpha: tint.alpha)
+    }
+
+    /// Whether a surface with this tint blurs what is behind it.
+    func blursBackdrop(tint: RGBA?) -> Bool {
+        blurRadius > 0 && (tint == nil || tintOpacity < 1)
+    }
 }
 
 extension Canvas {
@@ -83,7 +105,15 @@ extension Canvas {
             offset: CGSize(width: 0, height: material.shadow.offset), blur: material.shadow.blur)
 
         if let tint {
-            fill(rect, cornerRadius: cornerRadius, style: style, color: faded(tint))
+            // A translucent tint shows the blurred backdrop through it.
+            if material.blursBackdrop(tint: tint) {
+                blur(
+                    rect, cornerRadius: cornerRadius, style: style,
+                    radius: material.blurRadius, saturation: material.saturation)
+            }
+            fill(
+                rect, cornerRadius: cornerRadius, style: style,
+                color: faded(material.tintFill(tint), by: material.tintOpacity))
         } else {
             if let flatBackdrop, flatBackdrop.alpha == 255 {
                 // Over one opaque color, the tint layers make one color too:
@@ -158,7 +188,7 @@ extension Canvas {
             box(
                 rect.offsetBy(dx: 0, dy: material.shadow.offset),
                 padding: Canvas.shadowReach(blur: material.shadow.blur, scale: scale) + 1))
-        if tint == nil, material.blurRadius > 0 {
+        if material.blursBackdrop(tint: tint) {
             region = region.union(
                 box(rect, padding: Canvas.blurReach(radius: material.blurRadius, scale: scale) + 1))
         }

@@ -156,7 +156,7 @@ public struct Path: Sendable {
 
     /// How far from the corner, in multiples of the radius, a continuous
     /// corner leaves the straight edge.
-    static let continuousExtent = 1.528_664_83
+    public static let continuousExtent = 1.528_664_83
 
     /// How far from the corner a rounded rectangle's corner leaves each
     /// straight edge, after limiting the radius to fit the rectangle.

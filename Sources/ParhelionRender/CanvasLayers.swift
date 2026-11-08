@@ -32,6 +32,18 @@ extension Canvas {
             box, mask: CoverageMask(path: path, canvas: self, box: box, evenOdd: evenOdd))
     }
 
+    /// Starts keeping the pixels outside a path given in points, with the
+    /// nonzero rule: ``endClip(_:)`` puts them back, so whatever is drawn
+    /// meanwhile shows only inside the path. Unlike
+    /// ``beginClip(to:evenOdd:)``, drawing is not limited to the path's
+    /// bounds, so this cuts a shape out of drawing that reaches past it.
+    public mutating func beginKeeping(outside path: Path) -> Clip {
+        let outerClip = clipRect
+        let clip = beginClip(to: path)
+        clipRect = outerClip
+        return Clip(box: clip.box, saved: clip.saved, mask: clip.mask, outerClip: outerClip)
+    }
+
     /// Starts limiting drawing to a rounded rectangle given in points. See
     /// ``beginClip(to:evenOdd:)``. Only the corners are rasterized.
     public mutating func beginClip(

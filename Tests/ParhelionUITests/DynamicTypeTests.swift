@@ -251,7 +251,9 @@ struct DynamicTypeTests {
         #expect(bordered.height == 60)
         let ok = try #require(
             host.root.allNodes.first { $0.kind == "Button" && $0.label == "OK" }?.frame)
-        #expect(ok.height == 74)
+        // Body is 40 on a 48-point line, with an alert button's 142 pixels at
+        // 3× less a 22-point line around it.
+        #expect(abs(ok.height - (48 + 142.0 / 3 - 22)) < 0.01)
 
         let small = ViewHost(
             Button("Bordered") {}.buttonStyle(.bordered), device: .iPhone16,
