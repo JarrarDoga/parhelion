@@ -551,6 +551,11 @@ may contain breaking changes.
 
 ### Changed
 
+- The system side margin depends on the simulated device, as on iOS: 20 points on phones at least
+  414 points wide (Plus, Pro Max, and Air), and 16 on narrower ones. Inset grouped list cards, row
+  content, section headers and footers, large titles, and navigation bar and sheet toolbar buttons
+  use it, so on an iPhone 18 Pro Max cards span x 20 to 420 and row text starts at 40, as measured
+  on iOS 27.2. iPhone 16, the default, is unchanged, and `padding()` stays 16 points everywhere.
 - Lists, section indexes, and progress views match an iPhone 18 Pro Max on iOS 27.2:
   - A `Label` in a list row draws its icon in the tint color and 1.24 times larger, centered in a
     24-point column, with its title 16 points after the column. The separator below the row starts

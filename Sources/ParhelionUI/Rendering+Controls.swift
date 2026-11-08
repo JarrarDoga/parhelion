@@ -154,7 +154,7 @@ extension TreeRenderer {
         let column = LayoutDefaults.listCheckmarkColumn
         let size = LayoutDefaults.listCheckmarkSize
         let center = CGPoint(
-            x: cell.maxX - LayoutDefaults.listRowInsets.trailing - column.width / 2,
+            x: cell.maxX - device.layoutMargin - column.width / 2,
             y: cell.midY)
         canvas.fill(
             Self.checkmark(

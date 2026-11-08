@@ -95,12 +95,13 @@ extension List: PrimitiveView {
 
         // Every row gets the list's row insets, recorded as its outermost
         // layout modifier so that layout and drawing can find its cell.
+        let margin = evaluator.host.device.layoutMargin
         for index in sections.indices {
             sections[index].children = sections[index].children.map { child in
                 guard child.kind != "SectionHeader", child.kind != "SectionFooter" else {
                     return child
                 }
-                return child.asListRow()
+                return child.asListRow(margin: margin)
             }
         }
         var list = ViewNode(
@@ -114,10 +115,10 @@ extension List: PrimitiveView {
 extension ViewNode {
     /// A row of a list: the node with the list's row insets, recorded as its
     /// outermost layout modifier so that layout and drawing can find its
-    /// cell.
-    func asListRow() -> ViewNode {
+    /// cell. `margin` is the device's system margin.
+    func asListRow(margin: CGFloat) -> ViewNode {
         var row = self
-        var insets = controlRowInsets(LayoutDefaults.listRowInsets)
+        var insets = controlRowInsets(LayoutDefaults.listRowInsets(margin: margin))
         if row.kind == "NavigationLink" {
             // Leave room for the disclosure indicator.
             insets.trailing +=
@@ -364,21 +365,23 @@ struct ListStyleMetrics {
     /// The corner radius of each section's group.
     var cornerRadius: CGFloat
 
-    init(styleName: String?) {
+    /// The layout of the list style named `styleName`, on a device whose
+    /// system margin is `margin`.
+    init(styleName: String?, margin: CGFloat) {
+        let insets = LayoutDefaults.listContentInsets(margin: margin)
         switch styleName {
         case "plain":
             self.init(contentInsets: EdgeInsets(), isGrouped: false, cornerRadius: 0)
         case "grouped":
             self.init(
                 contentInsets: EdgeInsets(
-                    top: LayoutDefaults.listContentInsets.top, leading: 0,
-                    bottom: LayoutDefaults.listContentInsets.bottom, trailing: 0),
+                    top: insets.top, leading: 0, bottom: insets.bottom, trailing: 0),
                 isGrouped: true,
                 cornerRadius: 0
             )
         default:
             self.init(
-                contentInsets: LayoutDefaults.listContentInsets,
+                contentInsets: insets,
                 isGrouped: true,
                 cornerRadius: LayoutDefaults.listCornerRadius
             )

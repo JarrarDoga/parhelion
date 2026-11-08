@@ -452,7 +452,7 @@ struct LayoutEngine {
                 width: toolbarItemWidths(node).reduce(0, +),
                 height: LayoutDefaults.toolbarButtonSize)
         case "SectionHeader", "SectionFooter":
-            let insets = Self.sectionLabelInsets(node)
+            let insets = sectionLabelInsets(node)
             let size = overlaySize(node.children, proposal.inset(by: insets))
             return CGSize(
                 width: size.width + insets.horizontal,
@@ -752,7 +752,7 @@ struct LayoutEngine {
                 lazySectionPlace(node, in: rect)
                 ?? placeStack(node, in: rect, axis: .vertical, spacing: 0, alignment: "leading")
         case "SectionHeader", "SectionFooter":
-            let content = rect.inset(by: Self.sectionLabelInsets(node))
+            let content = rect.inset(by: sectionLabelInsets(node))
             node.children = node.children.map { child in
                 let size = sizeThatFits(child, ProposedSize(content.size), parentAxis: nil)
                 return place(child, in: align(size, in: content, .leading), parentAxis: nil)
@@ -969,7 +969,7 @@ struct LayoutEngine {
         func centered(_ size: CGSize, x: CGFloat) -> CGRect {
             CGRect(origin: CGPoint(x: x, y: row.minY + (row.height - size.height) / 2), size: size)
         }
-        let margin = LayoutDefaults.navigationBarMargin
+        let margin = device.layoutMargin
         let spacing = LayoutDefaults.toolbarGroupSpacing
         var placed: [ViewNode?] = Array(repeating: nil, count: children.count)
         // Separate glass items are a fixed distance apart, from each edge
@@ -1032,7 +1032,8 @@ struct LayoutEngine {
     private func scrollContentStack(_ node: ViewNode) -> (stack: ViewNode, axis: LayoutAxis) {
         if node.kind == "List" {
             // A list stacks its sections, inside the style's content insets.
-            let style = ListStyleMetrics(styleName: node.attributes["listStyle"])
+            let style = ListStyleMetrics(
+                styleName: node.attributes["listStyle"], margin: device.layoutMargin)
             let stack = ViewNode(
                 id: node.id,
                 kind: "VStack",
@@ -1169,9 +1170,11 @@ struct LayoutEngine {
     // MARK: - Helpers
 
     /// The insets around a list section's header or footer.
-    private static func sectionLabelInsets(_ node: ViewNode) -> EdgeInsets {
-        node.kind == "SectionHeader"
-            ? LayoutDefaults.listHeaderInsets : LayoutDefaults.listFooterInsets
+    private func sectionLabelInsets(_ node: ViewNode) -> EdgeInsets {
+        let margin = device.layoutMargin
+        return node.kind == "SectionHeader"
+            ? LayoutDefaults.listHeaderInsets(margin: margin)
+            : LayoutDefaults.listFooterInsets(margin: margin)
     }
 
     func align(_ size: CGSize, in rect: CGRect, _ alignment: Alignment) -> CGRect {
